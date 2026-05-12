@@ -1,0 +1,43 @@
+@import "tailwindcss";
+
+/* Override Tailwind's built-in dark variant (default: prefers-color-scheme media query)
+   to be fully class-based. Dark styles only apply when <html class="dark"> is set.
+   Must use @custom-variant (not @variant) to replace the built-in dark definition. */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/* ── Design tokens ─────────────────────────────────────────── */
+:root {
+  --bg:      #f9fafb;
+  --surface: #ffffff;
+  --border:  #e5e7eb;
+  --text:    #111827;
+  --muted:   #6b7280;
+}
+.dark {
+  --bg:      #0f172a;
+  --surface: #1e293b;
+  --border:  #334155;
+  --text:    #f1f5f9;
+  --muted:   #94a3b8;
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: Inter, Arial, Helvetica, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* ── Toast slide-in ────────────────────────────────────────── */
+@keyframes toast-slide-in {
+  from { opacity: 0; transform: translateX(1.25rem); }
+  to   { opacity: 1; transform: translateX(0); }
+}
+.toast-slide-in { animation: toast-slide-in 0.2s ease-out; }
+
+/* ── Skeleton pulse ────────────────────────────────────────── */
+@keyframes sk-pulse {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.35; }
+}
+.skeleton { animation: sk-pulse 1.6s ease-in-out infinite; border-radius: 0.5rem; }
