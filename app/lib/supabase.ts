@@ -10,16 +10,17 @@ if (!rawUrl || !supabaseAnonKey) {
   )
 }
 
-// Strip any accidental trailing slash or extra path (e.g. /rest/v1).
-// createClient needs exactly "https://xxx.supabase.co" — any extra path
-// causes gotrue to build a broken auth URL and throw "Invalid path in request URL".
-const supabaseUrl = (() => {
-  try {
-    const u = new URL(rawUrl)
-    return `${u.protocol}//${u.host}`
-  } catch {
-    return rawUrl.replace(/\/+$/, '')
-  }
-})()
+// The SDK builds the auth URL as: new URL("auth/v1", validateSupabaseUrl(supabaseUrl))
+// validateSupabaseUrl() adds a trailing slash, so the base must be exactly
+// "https://host/" — any extra path segment causes the auth URL to resolve wrong.
+// e.g. "https://host/rest/v1/" → new URL("auth/v1", ...) → "https://host/rest/auth/v1" ❌
+// Strip everything after the host so the SDK always produces "https://host/auth/v1".
+let supabaseUrl: string
+try {
+  const u = new URL(rawUrl)
+  supabaseUrl = `${u.protocol}//${u.host}`
+} catch {
+  supabaseUrl = rawUrl.replace(/\/+$/, '')
+}
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey)
