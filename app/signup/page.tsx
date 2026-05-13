@@ -30,7 +30,15 @@ export default function SignupPage() {
     setLoading(true)
     setError(null)
 
-    const { data, error: err } = await supabase.auth.signUp({ email, password })
+    const { data, error: err } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        // Redirect target for the confirmation email link.
+        // window.location.origin is safe here — this file is 'use client' only.
+        emailRedirectTo: window.location.origin,
+      },
+    })
     setLoading(false)
 
     if (err) {
