@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import { Eye, EyeOff, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 
 export default function SignupPage() {
   const router = useRouter()
@@ -14,63 +14,42 @@ export default function SignupPage() {
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
   const [error, setError]       = useState<string | null>(null)
-  const [done, setDone]         = useState(false)
 
   async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault()
-    if (password !== confirm) {
-      setError('Passwords do not match.')
-      return
-    }
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
-      return
-    }
+    if (password !== confirm) { setError('Passwords do not match.'); return }
+    if (password.length < 6)  { setError('Password must be at least 6 characters.'); return }
 
     setLoading(true)
     setError(null)
 
-    const { data, error: err } = await supabase.auth.signUp({ email, password })
-    setLoading(false)
+    const { data, error: signUpErr } = await supabase.auth.signUp({ email, password })
 
-    if (err) {
-      setError(err.message)
+    if (signUpErr) {
+      setError(signUpErr.message)
+      setLoading(false)
       return
     }
 
-    // If email confirmation is disabled, session is returned immediately
+    // Email confirmation is disabled in Supabase → session returned immediately.
     if (data.session) {
       router.replace('/')
       return
     }
 
-    // Email confirmation required
-    setDone(true)
-  }
+    // Email confirmation is still enabled in the Supabase dashboard.
+    // Try signing in immediately so the user isn't blocked.
+    const { error: signInErr } = await supabase.auth.signInWithPassword({ email, password })
+    setLoading(false)
 
-  if (done) {
-    return (
-      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-950 px-4">
-        <div className="w-full max-w-sm text-center">
-          <div className="mb-4 flex justify-center">
-            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-emerald-100 dark:bg-emerald-900/30">
-              <CheckCircle2 size={24} className="text-emerald-600 dark:text-emerald-400" />
-            </div>
-          </div>
-          <h2 className="text-xl font-bold text-gray-900 dark:text-white">Check your email</h2>
-          <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">
-            We sent a confirmation link to <strong className="text-gray-700 dark:text-gray-300">{email}</strong>.
-            Click it to activate your account, then sign in.
-          </p>
-          <Link
-            href="/login"
-            className="mt-6 inline-block rounded-xl bg-blue-600 px-6 py-2.5 text-sm font-semibold text-white hover:bg-blue-700 transition-colors"
-          >
-            Go to Sign in
-          </Link>
-        </div>
-      </div>
-    )
+    if (signInErr) {
+      // Supabase requires email confirmation before the account can be used.
+      // Disable it at: Authentication → Providers → Email → "Confirm email" OFF
+      setError('Account created but email confirmation is required. Disable it in your Supabase project: Authentication → Providers → Email → turn off "Confirm email".')
+      return
+    }
+
+    router.replace('/')
   }
 
   return (
@@ -94,7 +73,6 @@ export default function SignupPage() {
         <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-8 shadow-sm">
           <form onSubmit={handleSubmit} className="space-y-5">
 
-            {/* Error banner */}
             {error && (
               <div className="flex items-start gap-2.5 rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-4 py-3 text-sm text-red-700 dark:text-red-400">
                 <AlertCircle size={16} className="mt-0.5 shrink-0" />
@@ -102,11 +80,8 @@ export default function SignupPage() {
               </div>
             )}
 
-            {/* Email */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Email
-              </label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Email</label>
               <input
                 type="email"
                 required
@@ -118,11 +93,8 @@ export default function SignupPage() {
               />
             </div>
 
-            {/* Password */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Password
-              </label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Password</label>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
@@ -143,11 +115,8 @@ export default function SignupPage() {
               </div>
             </div>
 
-            {/* Confirm password */}
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">
-                Confirm password
-              </label>
+              <label className="mb-1.5 block text-sm font-medium text-gray-700 dark:text-gray-300">Confirm password</label>
               <input
                 type={showPw ? 'text' : 'password'}
                 required
@@ -159,7 +128,6 @@ export default function SignupPage() {
               />
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={loading}
@@ -171,13 +139,9 @@ export default function SignupPage() {
           </form>
         </div>
 
-        {/* Footer link */}
         <p className="mt-6 text-center text-sm text-gray-500 dark:text-gray-400">
           Already have an account?{' '}
-          <Link
-            href="/login"
-            className="font-semibold text-blue-600 dark:text-blue-400 hover:underline"
-          >
+          <Link href="/login" className="font-semibold text-blue-600 dark:text-blue-400 hover:underline">
             Sign in
           </Link>
         </p>
