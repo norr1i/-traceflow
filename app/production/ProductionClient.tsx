@@ -1,12 +1,13 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
+import { QRCodeSVG, QRCodeCanvas } from 'qrcode.react'
 import { supabase } from '../lib/supabase'
 import type { ProductionOrder } from '../types/traceflow'
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
-import { Plus, Pencil, Trash2, X, Check, AlertTriangle, ClipboardList } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, AlertTriangle, ClipboardList, QrCode, Copy, Download, ExternalLink } from 'lucide-react'
 
 type OrderWithProduct = ProductionOrder & { products?: { name: string } | null }
 type SimpleProduct = { id: string; name: string }
@@ -26,6 +27,8 @@ export default function ProductionClient() {
   const [form, setForm]           = useState(empty)
   const [saving, setSaving]       = useState(false)
   const [formError, setFormError] = useState<string | null>(null)
+  const [qrOrder, setQrOrder]     = useState<OrderWithProduct | null>(null)
+  const qrDlRef                   = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     Promise.all([
@@ -99,6 +102,24 @@ export default function ProductionClient() {
     }
 
     setSaving(false); setShowForm(false)
+  }
+
+  function handleDownloadQR() {
+    const canvas = qrDlRef.current?.querySelector('canvas')
+    if (!canvas || !qrOrder) return
+    const url = canvas.toDataURL('image/png')
+    const a = document.createElement('a')
+    a.href = url
+    a.download = `trace-${qrOrder.id.slice(0, 8)}.png`
+    document.body.appendChild(a)
+    a.click()
+    document.body.removeChild(a)
+  }
+
+  function handleCopyLink() {
+    if (!qrOrder) return
+    navigator.clipboard?.writeText(`${window.location.origin}/trace/${qrOrder.id}`)
+    toast.success('Link copied to clipboard')
   }
 
   async function handleDelete(id: string) {
@@ -212,6 +233,62 @@ export default function ProductionClient() {
         </div>
       )}
 
+      {/* QR Modal */}
+      {qrOrder && (() => {
+        const traceUrl = `${window.location.origin}/trace/${qrOrder.id}`
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
+            <div className="w-full max-w-sm rounded-2xl bg-white dark:bg-gray-800 p-6 shadow-xl">
+              <div className="mb-4 flex items-center justify-between">
+                <h2 className="text-lg font-semibold text-gray-900 dark:text-white">Batch QR Code</h2>
+                <button onClick={() => setQrOrder(null)} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
+                  <X size={20} />
+                </button>
+              </div>
+
+              <div className="flex flex-col items-center gap-4">
+                <div className="rounded-xl bg-white p-4 shadow-inner ring-1 ring-gray-100">
+                  <QRCodeSVG value={traceUrl} size={192} level="H" marginSize={1} />
+                </div>
+
+                <div className="w-full text-center">
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white">{qrOrder.products?.name ?? '—'}</p>
+                  <p className="mt-0.5 font-mono text-xs text-gray-400">{qrOrder.id}</p>
+                </div>
+
+                <div className="flex w-full gap-2">
+                  <button
+                    onClick={handleCopyLink}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Copy size={13} /> Copy link
+                  </button>
+                  <button
+                    onClick={handleDownloadQR}
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-gray-600 px-3 py-2 text-xs font-medium text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+                  >
+                    <Download size={13} /> Download
+                  </button>
+                  <a
+                    href={`/trace/${qrOrder.id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-1 items-center justify-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-xs font-medium text-white hover:bg-blue-700 transition-colors"
+                  >
+                    <ExternalLink size={13} /> Open
+                  </a>
+                </div>
+              </div>
+
+              {/* Hidden high-res canvas used only for PNG download */}
+              <div ref={qrDlRef} className="hidden">
+                <QRCodeCanvas value={traceUrl} size={512} level="H" marginSize={4} />
+              </div>
+            </div>
+          </div>
+        )
+      })()}
+
       {/* Table */}
       <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm">
         {orders.length === 0 ? (
@@ -242,6 +319,13 @@ export default function ProductionClient() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
+                      <button
+                        onClick={() => setQrOrder(o)}
+                        className="rounded-lg p-1.5 text-gray-400 hover:bg-purple-50 dark:hover:bg-purple-900/30 hover:text-purple-600 dark:hover:text-purple-400 transition-colors"
+                        title="View QR code"
+                      >
+                        <QrCode size={15} />
+                      </button>
                       <button
                         onClick={() => openEdit(o)}
                         className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
