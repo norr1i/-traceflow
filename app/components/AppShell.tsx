@@ -3,6 +3,7 @@
 import { useEffect } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '../lib/auth-context'
+import { canVisit, homeFor } from '../lib/roles'
 import Sidebar from './Sidebar'
 
 function LoadingScreen() {
@@ -19,7 +20,7 @@ function LoadingScreen() {
 }
 
 export default function AppShell({ children }: { children: React.ReactNode }) {
-  const { session, loading } = useAuth()
+  const { session, loading, role } = useAuth()
   const pathname = usePathname()
   const router = useRouter()
 
@@ -34,15 +35,21 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
 
     // Redirect authenticated users away from auth pages
     if (isAuthOnlyPage && session) {
-      router.replace('/')
+      router.replace(role ? homeFor(role) : '/')
       return
     }
 
     // Redirect unauthenticated users away from protected pages
     if (!isPublic && !session) {
       router.replace('/login')
+      return
     }
-  }, [session, loading, isAuthOnlyPage, isPublic, router])
+
+    // Redirect users who lack permission for the current route
+    if (!isPublic && session && role && !canVisit(role, pathname)) {
+      router.replace(homeFor(role))
+    }
+  }, [session, loading, role, isAuthOnlyPage, isPublic, pathname, router])
 
   // Public pages: render immediately, no sidebar
   if (isPublic) {

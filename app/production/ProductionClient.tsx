@@ -7,6 +7,7 @@ import type { ProductionOrder, BomEntry, BatchQcResult } from '../types/traceflo
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
+import { useRole } from '../lib/auth-context'
 import {
   Plus, Pencil, Trash2, X, Check, AlertTriangle, ClipboardList,
   QrCode, Copy, Download, ExternalLink, Layers, FlaskConical,
@@ -37,6 +38,8 @@ function QcBadge({ status }: { status: QcStatus }) {
 export default function ProductionClient() {
   const toast   = useToast()
   const confirm = useConfirm()
+  const role    = useRole()
+  const canWrite = role !== 'inspector'
 
   // ── Order list ──────────────────────────────────────────────────────────
   const [orders, setOrders]       = useState<OrderWithProduct[]>([])
@@ -247,10 +250,12 @@ export default function ProductionClient() {
         <p className="text-sm text-gray-500 dark:text-gray-400">
           {orders.length} order{orders.length !== 1 ? 's' : ''}
         </p>
-        <button onClick={openCreate}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
-          <Plus size={16} /> New Order
-        </button>
+        {canWrite && (
+          <button onClick={openCreate}
+            className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors">
+            <Plus size={16} /> New Order
+          </button>
+        )}
       </div>
 
       {/* ── Order create / edit modal ── */}
@@ -558,11 +563,13 @@ export default function ProductionClient() {
                   </td>
                   <td className="px-4 py-3 text-right">
                     <div className="flex items-center justify-end gap-2">
-                      <button onClick={() => { setBomLoading(true); setMaterialsOrder(o) }}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
-                        title="Bill of materials">
-                        <Layers size={15} />
-                      </button>
+                      {canWrite && (
+                        <button onClick={() => { setBomLoading(true); setMaterialsOrder(o) }}
+                          className="rounded-lg p-1.5 text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
+                          title="Bill of materials">
+                          <Layers size={15} />
+                        </button>
+                      )}
                       <button onClick={() => openQc(o)}
                         className="rounded-lg p-1.5 text-gray-400 hover:bg-amber-50 dark:hover:bg-amber-900/30 hover:text-amber-600 dark:hover:text-amber-400 transition-colors"
                         title="QC inspections">
@@ -573,14 +580,18 @@ export default function ProductionClient() {
                         title="QR code">
                         <QrCode size={15} />
                       </button>
-                      <button onClick={() => openEdit(o)}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
-                        <Pencil size={15} />
-                      </button>
-                      <button onClick={() => handleDelete(o.id)}
-                        className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors">
-                        <Trash2 size={15} />
-                      </button>
+                      {canWrite && (
+                        <>
+                          <button onClick={() => openEdit(o)}
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors">
+                            <Pencil size={15} />
+                          </button>
+                          <button onClick={() => handleDelete(o.id)}
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors">
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

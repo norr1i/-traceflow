@@ -10,21 +10,31 @@ import {
 import { useState } from 'react'
 import { useAuth } from '../lib/auth-context'
 import { supabase } from '../lib/supabase'
+import type { Role } from '../lib/roles'
+import { ROLE_META } from '../lib/roles'
 
-const nav = [
-  { label: 'Dashboard',         href: '/',               icon: LayoutDashboard },
-  { label: 'Products',          href: '/products',        icon: Package },
-  { label: 'Raw Materials',     href: '/raw-materials',   icon: Boxes },
-  { label: 'Production Orders', href: '/production',      icon: ClipboardList },
-  { label: 'Quality Control',   href: '/quality-control', icon: ShieldCheck },
-  { label: 'Sales',             href: '/sales',           icon: ShoppingCart },
-  { label: 'Recall',            href: '/recall',          icon: AlertTriangle },
+type NavItem = {
+  label: string
+  href: string
+  icon: React.ElementType
+  roles: Role[]
+}
+
+const nav: NavItem[] = [
+  { label: 'Dashboard',         href: '/',               icon: LayoutDashboard, roles: ['admin', 'manager'] },
+  { label: 'Products',          href: '/products',        icon: Package,         roles: ['admin', 'manager'] },
+  { label: 'Raw Materials',     href: '/raw-materials',   icon: Boxes,           roles: ['admin', 'manager'] },
+  { label: 'Production Orders', href: '/production',      icon: ClipboardList,   roles: ['admin', 'manager', 'inspector'] },
+  { label: 'Quality Control',   href: '/quality-control', icon: ShieldCheck,     roles: ['admin', 'manager', 'inspector'] },
+  { label: 'Sales',             href: '/sales',           icon: ShoppingCart,    roles: ['admin', 'manager'] },
+  { label: 'Recall',            href: '/recall',          icon: AlertTriangle,   roles: ['admin', 'manager'] },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router   = useRouter()
-  const { user } = useAuth()
+  const { user, role } = useAuth()
+  const visibleNav = nav.filter(item => !role || item.roles.includes(role))
 
   const [open, setOpen] = useState(false)
   const [dark, setDark] = useState(() =>
@@ -95,7 +105,7 @@ export default function Sidebar() {
 
         {/* Nav */}
         <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-0.5">
-          {nav.map(({ label, href, icon: Icon }) => {
+          {visibleNav.map(({ label, href, icon: Icon }) => {
             const active = pathname === href
             return (
               <Link
@@ -118,11 +128,16 @@ export default function Sidebar() {
 
         {/* Footer */}
         <div className="px-3 py-4 border-t border-gray-800 space-y-1">
-          {/* User email */}
+          {/* User email + role badge */}
           {user && (
             <div className="px-3 py-2 mb-1">
               <p className="text-[10px] text-gray-500 uppercase tracking-wide font-medium">Signed in as</p>
               <p className="mt-0.5 text-xs text-gray-300 truncate">{user.email}</p>
+              {role && (
+                <span className={`mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${ROLE_META[role].color}`}>
+                  {ROLE_META[role].label}
+                </span>
+              )}
             </div>
           )}
 
