@@ -5,9 +5,6 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '../lib/auth-context'
 import Sidebar from './Sidebar'
 
-// Pages that do NOT require authentication and do NOT show the sidebar
-const PUBLIC_PATHS = ['/login', '/signup']
-
 function LoadingScreen() {
   return (
     <div className="flex h-screen items-center justify-center bg-[var(--bg)]">
@@ -26,13 +23,17 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const router = useRouter()
 
-  const isPublic = PUBLIC_PATHS.includes(pathname)
+  // /login and /signup redirect logged-in users away
+  const isAuthOnlyPage = pathname === '/login' || pathname === '/signup'
+  // /trace/* is publicly accessible — no auth required, no redirect either way
+  const isTracePage = pathname.startsWith('/trace/')
+  const isPublic = isAuthOnlyPage || isTracePage
 
   useEffect(() => {
     if (loading) return
 
     // Redirect authenticated users away from auth pages
-    if (isPublic && session) {
+    if (isAuthOnlyPage && session) {
       router.replace('/')
       return
     }
@@ -41,9 +42,9 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
     if (!isPublic && !session) {
       router.replace('/login')
     }
-  }, [session, loading, isPublic, router])
+  }, [session, loading, isAuthOnlyPage, isPublic, router])
 
-  // Auth pages: render immediately, no sidebar
+  // Public pages: render immediately, no sidebar
   if (isPublic) {
     return <>{children}</>
   }

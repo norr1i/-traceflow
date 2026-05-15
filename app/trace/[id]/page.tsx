@@ -1,51 +1,49 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams } from 'next/navigation'
 import { supabase } from '../../lib/supabase'
-import StatusBadge from '../../components/StatusBadge'
 import {
-  ArrowLeft, Package, FlaskConical, Layers, ShoppingCart,
+  ShieldCheck, Package, FlaskConical, Layers, ShoppingCart,
   AlertCircle, Loader2, QrCode,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
-type TraceOrder = {
-  id: string
-  product_id: string
-  quantity: number
-  status: 'pending' | 'in_progress' | 'completed' | 'cancelled'
-  started_at?: string | null
-  completed_at?: string | null
-  created_at: string
-  products: { name: string; sku: string; description?: string | null } | null
-}
-
-type BatchQcResult = {
-  id: string
+type QcResult = {
   status: 'pass' | 'fail' | 'hold'
   inspector_name: string
-  notes?: string | null
+  notes: string | null
   inspected_at: string
 }
 
-type BomRow = {
-  id: string
+type Material = {
   material_name: string
-  lot_number?: string | null
+  lot_number: string | null
   quantity: number
   unit: string
 }
 
-type SaleRow = {
-  id: string
+type Sale = {
+  customer_name: string | null
   quantity: number
-  unit_price?: number | null
-  total_price: number
-  customer_name?: string | null
-  status?: string | null
   sold_at: string
+}
+
+type TraceData = {
+  order: {
+    id: string
+    product_name: string
+    sku: string
+    quantity: number
+    status: string
+    created_at: string
+    started_at: string | null
+    completed_at: string | null
+  }
+  qc_results: QcResult[]
+  materials: Material[]
+  sales: Sale[]
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -68,20 +66,27 @@ const qcBadgeClass: Record<QcStatus, string> = {
   hold: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
 }
 
-function QcBadge({ status }: { status: QcStatus }) {
+const orderStatusClass: Record<string, string> = {
+  completed:   'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  in_progress: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
+  pending:     'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
+  cancelled:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+}
+
+function Badge({ label, className }: { label: string; className: string }) {
   return (
-    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${qcBadgeClass[status]}`}>
-      {status}
+    <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${className}`}>
+      {label}
     </span>
   )
 }
 
-function SectionCard({ icon, title, children, count }: {
-  icon: React.ReactNode; title: string; children: React.ReactNode; count?: number
+function Section({ icon, title, count, children }: {
+  icon: React.ReactNode; title: string; count?: number; children: React.ReactNode
 }) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
-      <div className="flex items-center gap-2.5 border-b border-gray-100 dark:border-gray-700 px-5 py-3.5">
+      <div className="flex items-center gap-2.5 border-b border-gray-100 dark:border-gray-700 px-4 py-3">
         <span className="text-gray-400 dark:text-gray-500">{icon}</span>
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{title}</h2>
         {count !== undefined && count > 0 && (
@@ -90,7 +95,7 @@ function SectionCard({ icon, title, children, count }: {
           </span>
         )}
       </div>
-      <div className="px-5 py-4">{children}</div>
+      <div className="px-4 py-3">{children}</div>
     </div>
   )
 }
@@ -108,131 +113,155 @@ function Empty({ text }: { text: string }) {
   return <p className="text-sm text-gray-400 dark:text-gray-500 italic">{text}</p>
 }
 
+// ── Scan event logging ─────────────────────────────────────────────────────
+
+function logScanEvent(batchId: string) {
+  const ua = typeof navigator !== 'undefined' ? navigator.userAgent : ''
+  const isMobile = /Mobi|Android|iPhone|iPad/i.test(ua)
+  const browser =
+    /Edg\//i.test(ua)    ? 'Edge'    :
+    /OPR\//i.test(ua)    ? 'Opera'   :
+    /Chrome\//i.test(ua) ? 'Chrome'  :
+    /Safari\//i.test(ua) ? 'Safari'  :
+    /Firefox\//i.test(ua)? 'Firefox' : 'Other'
+
+  supabase.from('scan_events').insert({
+    batch_id: batchId,
+    scanned_at: new Date().toISOString(),
+    device_type: isMobile ? 'mobile' : 'desktop',
+    browser,
+    user_agent: ua.slice(0, 300),
+  })
+}
+
 // ── Page ───────────────────────────────────────────────────────────────────
 
-export default function TracePage() {
+export default function PublicTracePage() {
   const { id } = useParams<{ id: string }>()
-  const router  = useRouter()
 
-  const [order,      setOrder]      = useState<TraceOrder | null>(null)
-  const [qcResults,  setQcResults]  = useState<BatchQcResult[]>([])
-  const [materials,  setMaterials]  = useState<BomRow[]>([])
-  const [sales,      setSales]      = useState<SaleRow[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [notFound,   setNotFound]   = useState(false)
+  const [data,     setData]     = useState<TraceData | null>(null)
+  const [loading,  setLoading]  = useState(true)
+  const [notFound, setNotFound] = useState(false)
 
   useEffect(() => {
     if (!id) return
-    async function load() {
-      const { data: orderData } = await supabase
-        .from('production_orders')
-        .select('*, products(name, sku, description)')
-        .eq('id', id)
-        .single()
 
-      if (!orderData) { setNotFound(true); setLoading(false); return }
-      setOrder(orderData as TraceOrder)
+    logScanEvent(id)
 
-      const [
-        { data: qcData },
-        { data: bomData },
-        { data: salesData },
-      ] = await Promise.all([
-        supabase.from('batch_qc_results').select('*').eq('batch_id', id).order('inspected_at', { ascending: false }),
-        supabase.from('bill_of_materials').select('*').eq('production_order_id', id).order('created_at'),
-        supabase.from('sales').select('*').eq('product_id', orderData.product_id).order('sold_at', { ascending: false }).limit(10),
-      ])
-
-      setQcResults(qcData ?? [])
-      setMaterials(bomData ?? [])
-      setSales(salesData ?? [])
-      setLoading(false)
-    }
-    load()
+    supabase
+      .rpc('get_batch_trace', { p_batch_id: id })
+      .single()
+      .then(({ data: rpcData, error }) => {
+        if (error || !rpcData) {
+          setNotFound(true)
+        } else {
+          setData(rpcData as TraceData)
+        }
+        setLoading(false)
+      })
   }, [id])
 
-  // ── Loading / not found ─────────────────────────────────────────────────
+  // ── Loading ──────────────────────────────────────────────────────────────
 
   if (loading) {
     return (
-      <div className="flex h-64 items-center justify-center">
-        <Loader2 size={24} className="animate-spin text-blue-600" />
+      <div className="flex min-h-screen items-center justify-center bg-gray-50 dark:bg-gray-900">
+        <Loader2 size={28} className="animate-spin text-blue-600" />
       </div>
     )
   }
 
-  if (notFound || !order) {
+  // ── Not found ────────────────────────────────────────────────────────────
+
+  if (notFound || !data) {
     return (
-      <div className="flex flex-col items-center justify-center px-6 py-24 text-center">
-        <AlertCircle size={40} className="mb-3 text-gray-300 dark:text-gray-600" />
-        <p className="text-sm font-medium text-gray-700 dark:text-gray-300">Batch not found</p>
-        <p className="mt-1 text-xs text-gray-400">This QR code may be invalid or you may not have access.</p>
-        <button onClick={() => router.back()} className="mt-4 text-xs text-blue-600 hover:underline">Go back</button>
+      <div className="flex min-h-screen flex-col items-center justify-center bg-gray-50 dark:bg-gray-900 px-6 text-center">
+        <AlertCircle size={44} className="mb-3 text-gray-300 dark:text-gray-600" />
+        <p className="text-sm font-semibold text-gray-700 dark:text-gray-300">Batch not found</p>
+        <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">This QR code may be invalid or the batch has been removed.</p>
+        <div className="mt-6 flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-600">
+          <ShieldCheck size={13} />
+          <span>Verified by TraceFlow</span>
+        </div>
       </div>
     )
   }
 
-  // ── Derive latest QC status for summary pill ────────────────────────────
-  const latestQc = qcResults[0]
+  const { order, qc_results, materials, sales } = data
+  const latestQc = qc_results[0]
+
+  // ── Render ───────────────────────────────────────────────────────────────
 
   return (
-    <div className="mx-auto max-w-2xl px-6 py-8">
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
 
-      {/* Header */}
-      <div className="mb-6">
-        <button onClick={() => router.push('/production')}
-          className="mb-4 flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
-          <ArrowLeft size={13} /> Production orders
-        </button>
-
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-2.5 mb-1">
-              <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-purple-100 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400">
-                <QrCode size={16} />
-              </div>
-              <h1 className="text-xl font-bold text-gray-900 dark:text-white">Batch Trace Report</h1>
+      {/* Sticky header */}
+      <div className="sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-4 py-3">
+        <div className="mx-auto flex max-w-md items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold">
+              TF
             </div>
-            <p className="font-mono text-xs text-gray-400">{order.id}</p>
+            <div>
+              <p className="text-xs font-bold text-gray-900 dark:text-white leading-tight">{order.product_name}</p>
+              <p className="font-mono text-[10px] text-gray-400 leading-tight">{order.sku}</p>
+            </div>
           </div>
-          <div className="flex flex-col items-end gap-1.5">
-            <StatusBadge status={order.status} />
-            {latestQc && <QcBadge status={latestQc.status} />}
+          <div className="flex items-center gap-1.5">
+            <Badge
+              label={order.status.replace('_', ' ')}
+              className={orderStatusClass[order.status] ?? 'bg-gray-100 text-gray-600'}
+            />
+            {latestQc && (
+              <Badge label={latestQc.status} className={qcBadgeClass[latestQc.status]} />
+            )}
           </div>
         </div>
       </div>
 
-      <div className="space-y-4">
+      {/* Body */}
+      <div className="mx-auto max-w-md px-4 py-5 space-y-4">
 
-        {/* Production order */}
-        <SectionCard icon={<Package size={15} />} title="Production Order">
-          <Row label="Product"  value={order.products?.name} />
-          <Row label="SKU"      value={order.products?.sku} />
-          <Row label="Quantity" value={order.quantity.toLocaleString()} />
-          <Row label="Status"   value={<StatusBadge status={order.status} />} />
-          <Row label="Created"  value={fmt(order.created_at)} />
+        {/* Verified badge */}
+        <div className="flex items-center justify-center gap-1.5 rounded-xl border border-emerald-200 dark:border-emerald-800 bg-emerald-50 dark:bg-emerald-900/20 px-4 py-2.5">
+          <ShieldCheck size={15} className="text-emerald-600 dark:text-emerald-400" />
+          <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-400">
+            Verified by TraceFlow — authentic product batch record
+          </span>
+        </div>
+
+        {/* Batch overview */}
+        <Section icon={<Package size={15} />} title="Batch Overview">
+          <Row label="Product"   value={order.product_name} />
+          <Row label="SKU"       value={<span className="font-mono text-xs">{order.sku}</span>} />
+          <Row label="Quantity"  value={order.quantity.toLocaleString()} />
+          <Row label="Status"    value={
+            <Badge
+              label={order.status.replace('_', ' ')}
+              className={orderStatusClass[order.status] ?? 'bg-gray-100 text-gray-600'}
+            />
+          } />
+          <Row label="Created"   value={fmt(order.created_at)} />
           {order.started_at   && <Row label="Started"   value={fmt(order.started_at)} />}
           {order.completed_at && <Row label="Completed" value={fmt(order.completed_at)} />}
-          {order.products?.description && (
-            <div className="mt-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2 text-xs text-gray-600 dark:text-gray-400">
-              {order.products.description}
-            </div>
-          )}
-        </SectionCard>
+          <div className="mt-2 flex items-center gap-1.5 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">
+            <QrCode size={12} className="shrink-0 text-gray-400" />
+            <span className="font-mono text-[10px] text-gray-400 break-all">{order.id}</span>
+          </div>
+        </Section>
 
-        {/* QC inspections */}
-        <SectionCard icon={<FlaskConical size={15} />} title="QC Inspections" count={qcResults.length}>
-          {qcResults.length === 0 && <Empty text="No QC inspections recorded for this batch." />}
-
-          {qcResults.length > 0 && (
+        {/* QC Inspections */}
+        <Section icon={<FlaskConical size={15} />} title="QC Inspections" count={qc_results.length}>
+          {qc_results.length === 0 && <Empty text="No QC inspections recorded for this batch." />}
+          {qc_results.length > 0 && (
             <div className="space-y-2">
-              {qcResults.map((r) => (
-                <div key={r.id} className="flex items-start gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/20 px-4 py-3">
-                  <QcBadge status={r.status} />
-                  <div className="flex-1 min-w-0">
+              {qc_results.map((r, i) => (
+                <div key={i} className="flex items-start gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/20 px-3 py-2.5">
+                  <Badge label={r.status} className={`mt-0.5 shrink-0 ${qcBadgeClass[r.status]}`} />
+                  <div className="min-w-0 flex-1">
                     <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white">{r.inspector_name}</span>
-                      <span className="shrink-0 text-xs text-gray-400">{fmtDateTime(r.inspected_at)}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{r.inspector_name}</span>
+                      <span className="shrink-0 text-[10px] text-gray-400">{fmtDateTime(r.inspected_at)}</span>
                     </div>
                     {r.notes && (
                       <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{r.notes}</p>
@@ -242,15 +271,15 @@ export default function TracePage() {
               ))}
             </div>
           )}
-        </SectionCard>
+        </Section>
 
         {/* Raw materials */}
-        <SectionCard icon={<Layers size={15} />} title="Raw Materials Used" count={materials.length}>
+        <Section icon={<Layers size={15} />} title="Raw Materials Used" count={materials.length}>
           {materials.length === 0 && <Empty text="No materials linked to this batch." />}
           {materials.length > 0 && (
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500">
+                <tr className="border-b border-gray-100 dark:border-gray-700 text-xs text-gray-400">
                   <th className="pb-2 text-left font-medium">Material</th>
                   <th className="pb-2 text-left font-medium">Lot #</th>
                   <th className="pb-2 text-right font-medium">Qty</th>
@@ -258,8 +287,8 @@ export default function TracePage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {materials.map((m) => (
-                  <tr key={m.id}>
+                {materials.map((m, i) => (
+                  <tr key={i}>
                     <td className="py-2 font-medium text-gray-900 dark:text-white">{m.material_name}</td>
                     <td className="py-2 font-mono text-xs text-gray-500 dark:text-gray-400">
                       {m.lot_number || <span className="text-gray-300 dark:text-gray-600">—</span>}
@@ -271,36 +300,35 @@ export default function TracePage() {
               </tbody>
             </table>
           )}
-        </SectionCard>
+        </Section>
 
-        {/* Sales */}
-        <SectionCard icon={<ShoppingCart size={15} />} title="Sales / Distribution" count={sales.length}>
-          {sales.length === 0 && <Empty text="No sales records linked to this product." />}
+        {/* Distribution */}
+        <Section icon={<ShoppingCart size={15} />} title="Distribution" count={sales.length}>
+          {sales.length === 0 && <Empty text="No distribution records for this product." />}
           {sales.length > 0 && (
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-xs text-gray-400 dark:text-gray-500">
-                  <th className="pb-2 text-left font-medium">Customer</th>
-                  <th className="pb-2 text-left font-medium">Date</th>
-                  <th className="pb-2 text-right font-medium">Qty</th>
-                  <th className="pb-2 text-right font-medium">Total</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-gray-700/50">
-                {sales.map((s) => (
-                  <tr key={s.id}>
-                    <td className="py-1.5 text-gray-700 dark:text-gray-300">{s.customer_name || '—'}</td>
-                    <td className="py-1.5 text-gray-500 dark:text-gray-400">{fmt(s.sold_at)}</td>
-                    <td className="py-1.5 text-right text-gray-900 dark:text-white">{s.quantity.toLocaleString()}</td>
-                    <td className="py-1.5 text-right font-medium text-gray-900 dark:text-white">
-                      ${s.total_price.toLocaleString()}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="space-y-2">
+              {sales.map((s, i) => (
+                <div key={i} className="flex items-center justify-between gap-3 text-sm">
+                  <div>
+                    <p className="font-medium text-gray-900 dark:text-white">{s.customer_name || 'Customer'}</p>
+                    <p className="text-xs text-gray-400">{fmt(s.sold_at)}</p>
+                  </div>
+                  <span className="shrink-0 text-gray-700 dark:text-gray-300 font-medium">
+                    {s.quantity.toLocaleString()} units
+                  </span>
+                </div>
+              ))}
+            </div>
           )}
-        </SectionCard>
+        </Section>
+
+        {/* Footer */}
+        <div className="pb-4 text-center">
+          <div className="inline-flex items-center gap-1.5 text-xs text-gray-400 dark:text-gray-600">
+            <ShieldCheck size={12} />
+            <span>Verified by TraceFlow · Powered by traceflow.app</span>
+          </div>
+        </div>
 
       </div>
     </div>
