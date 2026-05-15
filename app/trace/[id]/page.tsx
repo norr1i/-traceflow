@@ -6,7 +6,7 @@ import { supabase } from '../../lib/supabase'
 import StatusBadge from '../../components/StatusBadge'
 import {
   ArrowLeft, Package, FlaskConical, Layers, ShoppingCart,
-  CheckCircle2, XCircle, AlertCircle, Loader2, QrCode,
+  AlertCircle, Loader2, QrCode,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -22,22 +22,12 @@ type TraceOrder = {
   products: { name: string; sku: string; description?: string | null } | null
 }
 
-type QcResult = {
+type BatchQcResult = {
   id: string
-  passed: boolean
+  status: 'pass' | 'fail' | 'hold'
+  inspector_name: string
   notes?: string | null
   inspected_at: string
-}
-
-type QualityInspection = {
-  id: string
-  batch_id: string
-  inspector_id: string
-  inspection_date: string
-  inspection_type: string
-  status: string
-  overall_score: number
-  notes: string | null
 }
 
 type BomRow = {
@@ -64,12 +54,41 @@ function fmt(iso: string) {
   return new Date(iso).toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' })
 }
 
-function SectionCard({ icon, title, children }: { icon: React.ReactNode; title: string; children: React.ReactNode }) {
+function fmtDateTime(iso: string) {
+  return new Date(iso).toLocaleString(undefined, {
+    year: 'numeric', month: 'short', day: 'numeric',
+    hour: '2-digit', minute: '2-digit',
+  })
+}
+
+type QcStatus = 'pass' | 'fail' | 'hold'
+const qcBadgeClass: Record<QcStatus, string> = {
+  pass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
+  fail: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
+  hold: 'bg-amber-100 text-amber-800 dark:bg-amber-900/30 dark:text-amber-400',
+}
+
+function QcBadge({ status }: { status: QcStatus }) {
+  return (
+    <span className={`inline-flex items-center rounded px-2 py-0.5 text-xs font-bold uppercase tracking-wider ${qcBadgeClass[status]}`}>
+      {status}
+    </span>
+  )
+}
+
+function SectionCard({ icon, title, children, count }: {
+  icon: React.ReactNode; title: string; children: React.ReactNode; count?: number
+}) {
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2.5 border-b border-gray-100 dark:border-gray-700 px-5 py-3.5">
         <span className="text-gray-400 dark:text-gray-500">{icon}</span>
         <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{title}</h2>
+        {count !== undefined && count > 0 && (
+          <span className="ml-auto rounded-full bg-gray-100 dark:bg-gray-700 px-2 py-0.5 text-xs font-medium text-gray-500 dark:text-gray-400">
+            {count}
+          </span>
+        )}
       </div>
       <div className="px-5 py-4">{children}</div>
     </div>
@@ -95,13 +114,12 @@ export default function TracePage() {
   const { id } = useParams<{ id: string }>()
   const router  = useRouter()
 
-  const [order,       setOrder]       = useState<TraceOrder | null>(null)
-  const [qcResults,   setQcResults]   = useState<QcResult[]>([])
-  const [inspections, setInspections] = useState<QualityInspection[]>([])
-  const [materials,   setMaterials]   = useState<BomRow[]>([])
-  const [sales,       setSales]       = useState<SaleRow[]>([])
-  const [loading,     setLoading]     = useState(true)
-  const [notFound,    setNotFound]    = useState(false)
+  const [order,      setOrder]      = useState<TraceOrder | null>(null)
+  const [qcResults,  setQcResults]  = useState<BatchQcResult[]>([])
+  const [materials,  setMaterials]  = useState<BomRow[]>([])
+  const [sales,      setSales]      = useState<SaleRow[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [notFound,   setNotFound]   = useState(false)
 
   useEffect(() => {
     if (!id) return
@@ -117,18 +135,15 @@ export default function TracePage() {
 
       const [
         { data: qcData },
-        { data: inspData },
         { data: bomData },
         { data: salesData },
       ] = await Promise.all([
-        supabase.from('qc_results').select('*').eq('production_order_id', id),
-        supabase.from('quality_inspections').select('*').eq('batch_id', id),
+        supabase.from('batch_qc_results').select('*').eq('batch_id', id).order('inspected_at', { ascending: false }),
         supabase.from('bill_of_materials').select('*').eq('production_order_id', id).order('created_at'),
         supabase.from('sales').select('*').eq('product_id', orderData.product_id).order('sold_at', { ascending: false }).limit(10),
       ])
 
       setQcResults(qcData ?? [])
-      setInspections(inspData ?? [])
       setMaterials(bomData ?? [])
       setSales(salesData ?? [])
       setLoading(false)
@@ -157,21 +172,16 @@ export default function TracePage() {
     )
   }
 
-  // ── Render ──────────────────────────────────────────────────────────────
-
-  const hasQC     = qcResults.length > 0 || inspections.length > 0
-  const hasBOM    = materials.length > 0
-  const hasSales  = sales.length > 0
+  // ── Derive latest QC status for summary pill ────────────────────────────
+  const latestQc = qcResults[0]
 
   return (
     <div className="mx-auto max-w-2xl px-6 py-8">
 
       {/* Header */}
       <div className="mb-6">
-        <button
-          onClick={() => router.push('/production')}
-          className="mb-4 flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors"
-        >
+        <button onClick={() => router.push('/production')}
+          className="mb-4 flex items-center gap-1.5 text-xs text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 transition-colors">
           <ArrowLeft size={13} /> Production orders
         </button>
 
@@ -185,13 +195,16 @@ export default function TracePage() {
             </div>
             <p className="font-mono text-xs text-gray-400">{order.id}</p>
           </div>
-          <StatusBadge status={order.status} />
+          <div className="flex flex-col items-end gap-1.5">
+            <StatusBadge status={order.status} />
+            {latestQc && <QcBadge status={latestQc.status} />}
+          </div>
         </div>
       </div>
 
       <div className="space-y-4">
 
-        {/* Order details */}
+        {/* Production order */}
         <SectionCard icon={<Package size={15} />} title="Production Order">
           <Row label="Product"  value={order.products?.name} />
           <Row label="SKU"      value={order.products?.sku} />
@@ -207,45 +220,34 @@ export default function TracePage() {
           )}
         </SectionCard>
 
-        {/* QC */}
-        <SectionCard icon={<FlaskConical size={15} />} title="Quality Control">
-          {!hasQC && <Empty text="No QC results linked to this batch." />}
+        {/* QC inspections */}
+        <SectionCard icon={<FlaskConical size={15} />} title="QC Inspections" count={qcResults.length}>
+          {qcResults.length === 0 && <Empty text="No QC inspections recorded for this batch." />}
 
-          {qcResults.map((r) => (
-            <div key={r.id} className="mb-3 last:mb-0 flex items-start gap-3 rounded-xl border border-gray-100 dark:border-gray-700 p-3">
-              {r.passed
-                ? <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-emerald-500" />
-                : <XCircle      size={16} className="mt-0.5 shrink-0 text-red-500" />}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-center justify-between gap-2">
-                  <span className={`text-xs font-semibold ${r.passed ? 'text-emerald-600 dark:text-emerald-400' : 'text-red-600 dark:text-red-400'}`}>
-                    {r.passed ? 'Passed' : 'Failed'}
-                  </span>
-                  <span className="text-xs text-gray-400">{fmt(r.inspected_at)}</span>
+          {qcResults.length > 0 && (
+            <div className="space-y-2">
+              {qcResults.map((r) => (
+                <div key={r.id} className="flex items-start gap-3 rounded-xl border border-gray-100 dark:border-gray-700 bg-gray-50/50 dark:bg-gray-700/20 px-4 py-3">
+                  <QcBadge status={r.status} />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white">{r.inspector_name}</span>
+                      <span className="shrink-0 text-xs text-gray-400">{fmtDateTime(r.inspected_at)}</span>
+                    </div>
+                    {r.notes && (
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400">{r.notes}</p>
+                    )}
+                  </div>
                 </div>
-                {r.notes && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{r.notes}</p>}
-              </div>
+              ))}
             </div>
-          ))}
-
-          {inspections.map((insp) => (
-            <div key={insp.id} className="mb-3 last:mb-0 rounded-xl border border-gray-100 dark:border-gray-700 p-3 text-sm">
-              <div className="flex items-center justify-between gap-2 mb-1">
-                <span className="font-medium text-gray-800 dark:text-gray-200 capitalize">{insp.inspection_type.replace('_', ' ')} inspection</span>
-                <StatusBadge status={insp.status as 'pending' | 'in_progress' | 'completed' | 'cancelled'} />
-              </div>
-              <Row label="Score"    value={`${insp.overall_score}/100`} />
-              <Row label="Date"     value={fmt(insp.inspection_date)} />
-              <Row label="Inspector" value={insp.inspector_id} />
-              {insp.notes && <p className="mt-1 text-xs text-gray-500 dark:text-gray-400">{insp.notes}</p>}
-            </div>
-          ))}
+          )}
         </SectionCard>
 
         {/* Raw materials */}
-        <SectionCard icon={<Layers size={15} />} title="Raw Materials Used">
-          {!hasBOM && <Empty text="No materials linked to this batch." />}
-          {hasBOM && (
+        <SectionCard icon={<Layers size={15} />} title="Raw Materials Used" count={materials.length}>
+          {materials.length === 0 && <Empty text="No materials linked to this batch." />}
+          {materials.length > 0 && (
             <table className="w-full text-sm">
               <thead>
                 <tr className="border-b border-gray-100 dark:border-gray-700 text-xs text-gray-400 dark:text-gray-500">
@@ -272,9 +274,9 @@ export default function TracePage() {
         </SectionCard>
 
         {/* Sales */}
-        <SectionCard icon={<ShoppingCart size={15} />} title="Sales / Distribution">
-          {!hasSales && <Empty text="No sales records linked to this product." />}
-          {hasSales && (
+        <SectionCard icon={<ShoppingCart size={15} />} title="Sales / Distribution" count={sales.length}>
+          {sales.length === 0 && <Empty text="No sales records linked to this product." />}
+          {sales.length > 0 && (
             <table className="w-full text-sm">
               <thead>
                 <tr className="text-xs text-gray-400 dark:text-gray-500">

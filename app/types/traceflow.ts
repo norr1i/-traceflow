@@ -66,6 +66,17 @@ export type QcResult = {
   created_at: string
 }
 
+export type BatchQcResult = {
+  id: string
+  user_id: string
+  batch_id: string
+  status: 'pass' | 'fail' | 'hold'
+  inspector_name: string
+  notes?: string | null
+  inspected_at: string
+  created_at: string
+}
+
 export type Sale = {
   id: string
   user_id: string
