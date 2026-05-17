@@ -9,7 +9,6 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth-context'
-import { supabase } from '../lib/supabase'
 import type { Role } from '../lib/roles'
 import { ROLE_META } from '../lib/roles'
 
@@ -33,7 +32,7 @@ const nav: NavItem[] = [
 export default function Sidebar() {
   const pathname = usePathname()
   const router   = useRouter()
-  const { user, role } = useAuth()
+  const { user, role, signOut } = useAuth()
   // Show nothing while role is unknown — avoids flashing the full nav
   // before the role fetch completes.
   const visibleNav = role ? nav.filter(item => item.roles.includes(role)) : []
@@ -51,7 +50,7 @@ export default function Sidebar() {
   }
 
   async function handleLogout() {
-    await supabase.auth.signOut()
+    await signOut()
     router.replace('/login')
   }
 

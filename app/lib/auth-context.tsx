@@ -10,10 +10,12 @@ interface AuthCtx {
   user:    User | null
   role:    Role | null
   loading: boolean
+  signOut: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthCtx>({
   session: null, user: null, role: null, loading: true,
+  signOut: async () => {},
 })
 
 /**
@@ -40,6 +42,16 @@ async function loadRole(userId: string): Promise<Role> {
   return (created?.role as Role | undefined) ?? 'manager'
 }
 
+/** Clear all Supabase auth tokens from localStorage synchronously. */
+function clearLocalAuthState() {
+  if (typeof window === 'undefined') return
+  try {
+    const prefix = 'sb-'
+    const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith(prefix))
+    keysToRemove.forEach(k => localStorage.removeItem(k))
+  } catch {}
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<Session | null>(null)
   const [role,    setRole]    = useState<Role | null>(null)
@@ -50,12 +62,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const activeUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
+    // Timeout fallback: if onAuthStateChange never fires INITIAL_SESSION
+    // (e.g., corrupt localStorage entry), stop the loading spinner after 6s.
+    const fallbackTimer = setTimeout(() => {
+      setLoading(prev => {
+        if (prev) {
+          activeUserIdRef.current = null
+          setSession(null)
+          setRole(null)
+          clearLocalAuthState()
+        }
+        return false
+      })
+    }, 6000)
+
     // Use ONLY onAuthStateChange — it fires INITIAL_SESSION on mount with
     // the persisted session, so there is no need to also call getSession().
     // Using both created a race where two concurrent fetchRole calls could
     // set role in the wrong order.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, sess) => {
+        clearTimeout(fallbackTimer)
         setSession(sess)
 
         if (!sess?.user) {
@@ -83,11 +110,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     )
 
-    return () => subscription.unsubscribe()
+    return () => {
+      clearTimeout(fallbackTimer)
+      subscription.unsubscribe()
+    }
   }, [])
 
+  async function signOut() {
+    // Clear local React state synchronously so the UI updates immediately
+    // regardless of whether the network call succeeds.
+    activeUserIdRef.current = null
+    setSession(null)
+    setRole(null)
+    setLoading(false)
+    // Wipe localStorage tokens so a page reload cannot restore the session
+    clearLocalAuthState()
+    // Tell Supabase server-side (best-effort — don't block on failure)
+    try { await supabase.auth.signOut() } catch {}
+  }
+
   return (
-    <AuthContext.Provider value={{ session, user: session?.user ?? null, role, loading }}>
+    <AuthContext.Provider value={{ session, user: session?.user ?? null, role, loading, signOut }}>
       {children}
     </AuthContext.Provider>
   )
