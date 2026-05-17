@@ -20,34 +20,74 @@ const AuthContext = createContext<AuthCtx>({
 
 /**
  * Fetch the role for the given user ID from user_profiles.
- * If no row exists, upsert a default 'manager' profile and return 'manager'.
- * Never returns a role belonging to a different user.
+ *
+ * Rules:
+ *  - Only reads the row where user_id = userId (exact match)
+ *  - Never overwrites an existing row's role
+ *  - If no row exists, inserts a NEW row with default 'inspector'
+ *    (ignoreDuplicates: true guarantees we skip the update on conflict)
+ *  - If INSERT conflicted (row exists but SELECT returned nothing — RLS edge case),
+ *    re-fetches the existing row
+ *  - Final fallback is 'inspector', never 'manager'
  */
 async function loadRole(userId: string): Promise<Role> {
-  const { data } = await supabase
+  console.log('[auth] loadRole → querying user_id:', userId)
+
+  const { data, error } = await supabase
     .from('user_profiles')
-    .select('role')
+    .select('user_id, role')
     .eq('user_id', userId)
     .maybeSingle()
 
-  if (data?.role) return data.role as Role
+  console.log('[auth] loadRole → query result:', { data, error })
 
-  // No profile for this exact user — create one with default role
-  const { data: created } = await supabase
+  if (data?.role) {
+    console.log('[auth] loadRole → matched row:', data, '→ resolved role:', data.role)
+    return data.role as Role
+  }
+
+  // No row returned — attempt to insert a default profile.
+  // ignoreDuplicates: true → ON CONFLICT DO NOTHING, never overwrites existing role.
+  console.log('[auth] loadRole → no row found for', userId, '— inserting default inspector profile')
+
+  const { data: inserted, error: insertError } = await supabase
     .from('user_profiles')
-    .upsert({ user_id: userId, role: 'manager' }, { onConflict: 'user_id' })
-    .select('role')
+    .upsert(
+      { user_id: userId, role: 'inspector' },
+      { onConflict: 'user_id', ignoreDuplicates: true },
+    )
+    .select('user_id, role')
     .maybeSingle()
 
-  return (created?.role as Role | undefined) ?? 'manager'
+  console.log('[auth] loadRole → insert result:', { inserted, insertError })
+
+  if (inserted?.role) {
+    console.log('[auth] loadRole → resolved role (from insert):', inserted.role)
+    return inserted.role as Role
+  }
+
+  // ignoreDuplicates means the upsert returns nothing when the conflict fires.
+  // The row already exists — re-fetch it (handles RLS-hidden rows on first attempt).
+  console.log('[auth] loadRole → insert was a no-op (row exists) — re-fetching')
+
+  const { data: refetched, error: refetchError } = await supabase
+    .from('user_profiles')
+    .select('user_id, role')
+    .eq('user_id', userId)
+    .maybeSingle()
+
+  console.log('[auth] loadRole → re-fetch result:', { refetched, refetchError })
+
+  const resolvedRole = (refetched?.role as Role | undefined) ?? 'inspector'
+  console.log('[auth] loadRole → final resolved role:', resolvedRole)
+  return resolvedRole
 }
 
 /** Clear all Supabase auth tokens from localStorage synchronously. */
 function clearLocalAuthState() {
   if (typeof window === 'undefined') return
   try {
-    const prefix = 'sb-'
-    const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith(prefix))
+    const keysToRemove = Object.keys(localStorage).filter(k => k.startsWith('sb-'))
     keysToRemove.forEach(k => localStorage.removeItem(k))
   } catch {}
 }
@@ -57,16 +97,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [role,    setRole]    = useState<Role | null>(null)
   const [loading, setLoading] = useState(true)
 
-  // Track the user we're currently loading a role for so a stale async
-  // response from a previous sign-in cannot overwrite the current user's role.
+  // Tracks the user we are currently fetching a role for.
+  // Prevents a stale async loadRole() response from a previous user
+  // from overwriting the role of the current user.
   const activeUserIdRef = useRef<string | null>(null)
 
   useEffect(() => {
-    // Timeout fallback: if onAuthStateChange never fires INITIAL_SESSION
-    // (e.g., corrupt localStorage entry), stop the loading spinner after 6s.
+    // Fallback: if onAuthStateChange never fires INITIAL_SESSION
+    // (e.g. corrupt/missing localStorage token), stop the spinner after 6s.
     const fallbackTimer = setTimeout(() => {
       setLoading(prev => {
         if (prev) {
+          console.log('[auth] fallback timer fired — clearing stale loading state')
           activeUserIdRef.current = null
           setSession(null)
           setRole(null)
@@ -76,17 +118,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       })
     }, 6000)
 
-    // Use ONLY onAuthStateChange — it fires INITIAL_SESSION on mount with
-    // the persisted session, so there is no need to also call getSession().
-    // Using both created a race where two concurrent fetchRole calls could
-    // set role in the wrong order.
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, sess) => {
+      async (event, sess) => {
+        console.log('[auth] onAuthStateChange →', event, 'user:', sess?.user?.id ?? 'none')
         clearTimeout(fallbackTimer)
         setSession(sess)
 
         if (!sess?.user) {
-          // Signed out — clear role immediately and stop loading
           activeUserIdRef.current = null
           setRole(null)
           setLoading(false)
@@ -95,15 +133,23 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const userId = sess.user.id
 
-        // Reset role to null so a stale value from a previous session is
-        // never visible while the new role is being fetched.
+        // If this is a token refresh for the same user and we already have a role,
+        // skip re-fetching to avoid a flicker (role briefly becomes null).
+        if (activeUserIdRef.current === userId && role !== null) {
+          console.log('[auth] same user token refresh — skipping role re-fetch, current role:', role)
+          setLoading(false)
+          return
+        }
+
+        // New user (or role not yet loaded) — reset and re-fetch.
         activeUserIdRef.current = userId
         setRole(null)
 
         const freshRole = await loadRole(userId)
 
-        // Guard: if the user changed (rapid sign-out/in) discard this result
+        // Guard: discard result if user changed during the async fetch.
         if (activeUserIdRef.current === userId) {
+          console.log('[auth] setting role →', freshRole, 'for user:', userId)
           setRole(freshRole)
           setLoading(false)
         }
@@ -114,18 +160,16 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       clearTimeout(fallbackTimer)
       subscription.unsubscribe()
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
   async function signOut() {
-    // Clear local React state synchronously so the UI updates immediately
-    // regardless of whether the network call succeeds.
+    console.log('[auth] signOut called')
     activeUserIdRef.current = null
     setSession(null)
     setRole(null)
     setLoading(false)
-    // Wipe localStorage tokens so a page reload cannot restore the session
     clearLocalAuthState()
-    // Tell Supabase server-side (best-effort — don't block on failure)
     try { await supabase.auth.signOut() } catch {}
   }
 
