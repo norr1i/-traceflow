@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#1b3f58"/>
+      <stop offset="100%" stop-color="#0d1e2c"/>
+    </linearGradient>
+    <linearGradient id="node" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#7acaed"/>
+      <stop offset="100%" stop-color="#4a9ec8"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="32" height="32" rx="8.5" fill="url(#bg)"/>
+
+  <!-- Subtle top-edge inner highlight -->
+  <rect width="32" height="1" rx="0.5" fill="rgba(255,255,255,0.07)"/>
+
+  <!-- Horizontal trace line -->
+  <line x1="5" y1="9.5" x2="27" y2="9.5"
+    stroke="rgba(211,209,206,0.32)" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- Vertical branch (at ~67% from left) -->
+  <line x1="21" y1="9.5" x2="21" y2="25"
+    stroke="rgba(211,209,206,0.32)" stroke-width="2.2" stroke-linecap="round"/>
+
+  <!-- Entry node — left -->
+  <circle cx="5" cy="9.5" r="3" fill="#D3D1CE" fill-opacity="0.85"/>
+
+  <!-- Right terminus — recessive -->
+  <circle cx="27" cy="9.5" r="2" fill="#B3B7BA" fill-opacity="0.45"/>
+
+  <!-- Junction node at branch -->
+  <circle cx="21" cy="9.5" r="1.6" fill="#8aafca" fill-opacity="0.35"/>
+
+  <!-- Hero destination node — outer halo -->
+  <circle cx="21" cy="25" r="7" fill="#4a8fb9" fill-opacity="0.10"/>
+  <circle cx="21" cy="25" r="5" fill="#4a8fb9" fill-opacity="0.14"/>
+
+  <!-- Hero destination node — main -->
+  <circle cx="21" cy="25" r="3.4" fill="url(#node)" fill-opacity="0.96"/>
+
+  <!-- Specular highlight -->
+  <circle cx="19.8" cy="23.8" r="1.1" fill="white" fill-opacity="0.35"/>
+</svg>
