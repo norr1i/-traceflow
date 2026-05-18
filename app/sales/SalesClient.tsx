@@ -52,11 +52,11 @@ function StatCard({
   return (
     <div className="
       group relative rounded-2xl p-5
-      border border-gray-200 dark:border-white/[0.07]
-      bg-white dark:bg-white/[0.04]
+      border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.09]
+      bg-[#E6E4E0] dark:bg-[#262E36]/38
       dark:backdrop-blur-xl shadow-sm dark:shadow-none
       transition-all duration-300 hover:-translate-y-0.5
-      dark:hover:border-white/[0.12] dark:hover:bg-white/[0.06]
+      dark:hover:border-white/[0.12] dark:hover:bg-[#262E36]/55
     ">
       <div className="flex items-start justify-between">
         <div>
@@ -105,16 +105,16 @@ const emptyForm: SaleFormData = {
 const inputClass = `
   w-full rounded-xl border border-white/[0.08] bg-white/[0.05]
   px-3 py-2 text-sm text-white placeholder-gray-500
-  focus:outline-none focus:ring-2 focus:ring-blue-500/30 focus:border-blue-500/40
+  focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]/30 focus:border-[#4a7fa5]/40
   transition-colors
 `
 
 const lightInputClass = `
-  w-full rounded-lg border border-gray-200 dark:border-white/[0.08]
-  bg-white dark:bg-white/[0.05]
+  w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10]
+  bg-[#F1EFEC] dark:bg-[#262E36]/50
   px-3 py-2 text-sm text-gray-900 dark:text-white
   placeholder-gray-400 dark:placeholder-gray-500
-  focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:focus:ring-blue-500/30
+  focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]/20 dark:focus:ring-[#4a7fa5]/30
   transition-colors
 `
 
@@ -197,7 +197,7 @@ export default function SalesClient() {
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
           <div className="
             w-full max-w-md rounded-2xl p-6
-            border border-white/[0.08] bg-[#0d1829]
+            border border-white/[0.08] bg-[#141e28]
             backdrop-blur-xl shadow-[0_24px_64px_rgba(0,0,0,0.6)]
           ">
             <div className="mb-5 flex items-center justify-between">
@@ -302,7 +302,7 @@ export default function SalesClient() {
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors shadow-[0_0_16px_rgba(59,130,246,0.3)]"
+                  className="rounded-xl bg-[#3a6f8f] hover:bg-[#2d5a74] px-4 py-2 text-sm font-medium text-white disabled:opacity-60 transition-colors shadow-[0_0_16px_rgba(74,127,165,0.22)]"
                 >
                   {saving ? 'Saving…' : 'Create Sale'}
                 </button>
@@ -323,14 +323,14 @@ export default function SalesClient() {
         <div className="flex gap-2">
           <button
             onClick={refetch}
-            className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.07] transition-colors"
+            className="flex items-center gap-1.5 rounded-xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/40 transition-colors"
           >
             <RefreshCw size={15} />
             Refresh
           </button>
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 px-4 py-2 text-sm font-medium text-white shadow-[0_0_16px_rgba(59,130,246,0.3)] transition-colors"
+            className="flex items-center gap-1.5 rounded-xl bg-[#3a6f8f] hover:bg-[#2d5a74] px-4 py-2 text-sm font-medium text-white shadow-[0_0_16px_rgba(74,127,165,0.22)] transition-colors"
           >
             <Plus size={15} />
             New Sale
@@ -348,16 +348,16 @@ export default function SalesClient() {
 
       {/* Stat cards */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Revenue"   value={loading ? '—' : fmt(metrics?.total_revenue ?? 0)}   icon={Banknote}     gradient="from-blue-500 to-blue-700"    glow="shadow-[0_0_16px_rgba(59,130,246,0.5)]"    sub="All time"        trend="up" />
-        <StatCard label="Total Orders"    value={loading ? '—' : metrics?.total_orders ?? 0}           icon={ShoppingCart} gradient="from-violet-500 to-violet-700" glow="shadow-[0_0_16px_rgba(139,92,246,0.5)]"   sub="All records" />
-        <StatCard label="Avg Order Value" value={loading ? '—' : fmt(metrics?.avg_order_value ?? 0)}  icon={TrendingUp}   gradient="from-emerald-500 to-emerald-700" glow="shadow-[0_0_16px_rgba(16,185,129,0.5)]"  sub="Per transaction" trend="up" />
-        <StatCard label="Top Product"     value={loading ? '—' : metrics?.top_product ?? '—'}          icon={Package}      gradient="from-orange-400 to-orange-600" glow="shadow-[0_0_16px_rgba(249,115,22,0.5)]"   sub="By revenue" />
+        <StatCard label="Total Revenue"   value={loading ? '—' : fmt(metrics?.total_revenue ?? 0)}   icon={Banknote}     gradient="from-[#3a6f8f]/65 to-[#2d5a74]/75"    glow="shadow-[0_0_20px_rgba(74,127,165,0.22)]"    sub="All time"        trend="up" />
+        <StatCard label="Total Orders"    value={loading ? '—' : metrics?.total_orders ?? 0}           icon={ShoppingCart} gradient="from-[#5a4690]/65 to-[#46386e]/75" glow="shadow-[0_0_20px_rgba(90,70,144,0.22)]"   sub="All records" />
+        <StatCard label="Avg Order Value" value={loading ? '—' : fmt(metrics?.avg_order_value ?? 0)}  icon={TrendingUp}   gradient="from-[#2d7a5a]/65 to-[#245f46]/75" glow="shadow-[0_0_20px_rgba(45,100,75,0.22)]"  sub="Per transaction" trend="up" />
+        <StatCard label="Top Product"     value={loading ? '—' : metrics?.top_product ?? '—'}          icon={Package}      gradient="from-[#8a6030]/65 to-[#6e4c25]/75" glow="shadow-[0_0_20px_rgba(138,96,48,0.22)]"   sub="By revenue" />
       </div>
 
       {/* Table card */}
-      <div className="rounded-2xl border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-white/[0.04] dark:backdrop-blur-xl shadow-sm dark:shadow-none overflow-hidden">
+      <div className="rounded-2xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.09] bg-[#E6E4E0] dark:bg-[#262E36]/38 dark:backdrop-blur-xl shadow-sm dark:shadow-none overflow-hidden">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-gray-100 dark:border-white/[0.06] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-gray-100 dark:border-[#B3B7BA]/[0.08] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:w-64">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -373,7 +373,7 @@ export default function SalesClient() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="appearance-none rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.05] py-2 pl-3 pr-8 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                className="appearance-none rounded-xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/50 py-2 pl-3 pr-8 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#4a7fa5]/30 transition-colors"
               >
                 <option value="all">All Status</option>
                 <option value="completed">Completed</option>
@@ -387,7 +387,7 @@ export default function SalesClient() {
               <select
                 value={sortBy}
                 onChange={(e) => setSortBy(e.target.value as typeof sortBy)}
-                className="appearance-none rounded-xl border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.05] py-2 pl-3 pr-8 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-blue-500/30 transition-colors"
+                className="appearance-none rounded-xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/50 py-2 pl-3 pr-8 text-sm text-gray-700 dark:text-gray-300 focus:outline-none focus:ring-1 focus:ring-[#4a7fa5]/30 transition-colors"
               >
                 <option value="sold_at">Sort: Newest</option>
                 <option value="total_price">Sort: Highest Value</option>
@@ -401,7 +401,7 @@ export default function SalesClient() {
         {loading ? (
           <div className="space-y-3 p-5">
             {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="h-10 animate-pulse rounded-xl bg-gray-100 dark:bg-white/[0.04]" />
+              <div key={i} className="h-10 animate-pulse rounded-xl bg-gray-100 dark:bg-[#262E36]/38" />
             ))}
           </div>
         ) : filtered.length === 0 ? (
@@ -414,7 +414,7 @@ export default function SalesClient() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-white/[0.05] bg-gray-50 dark:bg-white/[0.02] text-left text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
+                <tr className="border-b border-gray-100 dark:border-[#B3B7BA]/[0.07] bg-[#D1CFC9]/50 dark:bg-[#262E36]/18 text-left text-xs font-semibold uppercase tracking-wide text-gray-400 dark:text-gray-500">
                   <th className="px-5 py-3">Order ID</th>
                   <th className="px-5 py-3">Customer</th>
                   <th className="px-5 py-3">Product</th>
@@ -425,7 +425,7 @@ export default function SalesClient() {
                   <th className="px-5 py-3"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-white/[0.03]">
+              <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.05]">
                 {filtered.map((sale) => (
                   <tr key={sale.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-500/[0.05] transition-colors">
                     <td className="px-5 py-3.5 font-mono text-xs text-gray-400 dark:text-gray-500">
@@ -461,7 +461,7 @@ export default function SalesClient() {
 
         {/* Footer */}
         {!loading && (
-          <div className="border-t border-gray-100 dark:border-white/[0.05] px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
+          <div className="border-t border-gray-100 dark:border-[#B3B7BA]/[0.07] px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
             {filtered.length} of {sales.length} sale{sales.length !== 1 ? 's' : ''}
             {metrics && (
               <span className="ml-3 font-medium text-gray-600 dark:text-gray-300">

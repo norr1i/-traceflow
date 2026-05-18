@@ -33,7 +33,7 @@ export default function ProductsClient() {
     return (
       <div className="space-y-3">
         {Array.from({ length: 5 }).map((_, i) => (
-          <div key={i} className="h-12 animate-pulse rounded-xl bg-gray-200 dark:bg-white/[0.06]" />
+          <div key={i} className="h-12 animate-pulse rounded-xl bg-gray-200 dark:bg-[#262E36]/55" />
         ))}
       </div>
     )
@@ -127,7 +127,7 @@ export default function ProductsClient() {
         </p>
         <button
           onClick={openCreate}
-          className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d5a74] transition-colors"
         >
           <Plus size={16} /> Add Product
         </button>
@@ -136,7 +136,7 @@ export default function ProductsClient() {
       {/* Modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-white dark:bg-[#0d1829] dark:backdrop-blur-xl p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#F1EFEC] dark:bg-[#141e28] dark:backdrop-blur-xl p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
                 {editing ? 'Edit Product' : 'New Product'}
@@ -153,7 +153,7 @@ export default function ProductsClient() {
                   required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                   placeholder="e.g. Steel Bolt M8"
                 />
               </div>
@@ -163,7 +163,7 @@ export default function ProductsClient() {
                   required
                   value={form.sku}
                   onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                   placeholder="e.g. BOLT-M8-001"
                 />
               </div>
@@ -173,7 +173,7 @@ export default function ProductsClient() {
                   rows={3}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                   placeholder="Optional description…"
                 />
               </div>
@@ -189,14 +189,14 @@ export default function ProductsClient() {
                 <button
                   type="button"
                   onClick={closeForm}
-                  className="rounded-lg border border-gray-200 dark:border-white/[0.08] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-gray-700"
+                  className="rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-gray-700"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d5a74] disabled:opacity-60"
                 >
                   <Check size={15} />
                   {saving ? 'Saving…' : editing ? 'Update' : 'Create'}
@@ -208,7 +208,7 @@ export default function ProductsClient() {
       )}
 
       {/* Table */}
-      <div className="overflow-hidden rounded-2xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] shadow-sm">
+      <div className="overflow-hidden rounded-2xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 shadow-sm">
         {products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
             <Package size={40} className="mb-3 opacity-40" />
@@ -217,7 +217,7 @@ export default function ProductsClient() {
           </div>
         ) : (
           <table className="w-full text-sm">
-            <thead className="bg-gray-50 dark:bg-white/[0.06]/50 text-xs text-gray-500 dark:text-gray-400">
+            <thead className="bg-[#D1CFC9]/50 dark:bg-[#262E36]/55/50 text-xs text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 text-left font-medium">Name</th>
                 <th className="px-4 py-3 text-left font-medium">SKU</th>
@@ -226,12 +226,12 @@ export default function ProductsClient() {
                 <th className="px-4 py-3 text-right font-medium">Actions</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50 dark:divide-white/[0.05]">
+            <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.07]">
               {products.map((p) => (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-white/[0.04] transition-colors">
+                <tr key={p.id} className="hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/22 transition-colors">
                   <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{p.name}</td>
                   <td className="px-4 py-3">
-                    <span className="rounded-md bg-gray-100 dark:bg-white/[0.06] px-2 py-0.5 font-mono text-xs text-gray-600 dark:text-gray-400">
+                    <span className="rounded-md bg-gray-100 dark:bg-[#262E36]/55 px-2 py-0.5 font-mono text-xs text-gray-600 dark:text-gray-400">
                       {p.sku}
                     </span>
                   </td>

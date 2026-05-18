@@ -51,9 +51,9 @@ function VerifyEmailContent() {
   }
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden">
+    <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden bg-[#090F15]">
       <div className="pointer-events-none absolute inset-0" style={{
-        background: 'radial-gradient(ellipse 1200px 800px at 15% 15%, rgba(59,130,246,0.09) 0%, transparent 65%), radial-gradient(ellipse 900px 700px at 85% 85%, rgba(139,92,246,0.08) 0%, transparent 60%), #070d1b',
+        background: 'radial-gradient(ellipse 1600px 1000px at 20% 10%, rgba(74,127,165,0.05) 0%, transparent 65%)',
       }} />
 
       <div className="relative w-full max-w-sm">
@@ -61,58 +61,56 @@ function VerifyEmailContent() {
         <div className="mb-8 flex justify-center">
           <div className="
             flex h-14 w-14 items-center justify-center rounded-2xl
-            bg-gradient-to-br from-blue-500 to-violet-600
-            text-white text-lg font-bold
-            shadow-[0_0_32px_rgba(139,92,246,0.5)]
+            bg-gradient-to-br from-[#3a6f8f]/75 to-[#2d5a74]/85
+            text-[#D3D1CE] text-lg font-bold
+            shadow-[0_0_28px_rgba(74,127,165,0.25)]
           ">
             TF
           </div>
         </div>
 
         {/* Card */}
-        <div className="rounded-2xl border border-white/[0.08] bg-white/[0.04] backdrop-blur-xl p-8 shadow-[0_24px_64px_rgba(0,0,0,0.5)] text-center">
+        <div className="rounded-2xl border border-[#B3B7BA]/[0.09] bg-gradient-to-b from-[#262E36]/85 to-[#1a2230]/80 backdrop-blur-xl p-8 shadow-[0_24px_60px_rgba(0,0,0,0.50)] text-center">
           <div className="flex justify-center mb-4">
-            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-blue-500/20 bg-blue-500/10">
-              <Mail size={26} className="text-blue-400" />
+            <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#3a6f8f]/25 bg-[#3a6f8f]/12">
+              <Mail size={26} className="text-[#4a8fb9]" />
             </div>
           </div>
 
-          <h1 className="text-xl font-bold text-white">Check your email</h1>
-          <p className="mt-2 text-sm text-gray-400">
+          <h1 className="text-xl font-bold text-[#D3D1CE]">Check your email</h1>
+          <p className="mt-2 text-sm text-[#6C6D74]">
             We sent a confirmation link to{' '}
             {email
-              ? <span className="font-medium text-gray-200">{email}</span>
+              ? <span className="font-medium text-[#B3B7BA]">{email}</span>
               : 'your email address'
             }.
             {' '}Click it to activate your account.
           </p>
-          <p className="mt-2 text-xs text-gray-500">
+          <p className="mt-2 text-xs text-[#6C6D74]/70">
             Don&apos;t see it? Check your spam or junk folder.
           </p>
 
-          {/* Status messages */}
           {resendStatus === 'sent' && (
-            <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 px-4 py-3 text-sm text-emerald-300">
+            <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-[#2d7a5a]/30 bg-[#2d7a5a]/12 px-4 py-3 text-sm text-[#6abf9a]">
               <CheckCircle2 size={15} className="shrink-0" />
               Confirmation email resent successfully.
             </div>
           )}
           {resendStatus === 'error' && resendError && (
-            <div className="mt-4 flex items-start gap-2 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300 text-left">
+            <div className="mt-4 flex items-start gap-2 rounded-xl border border-[#8a3535]/30 bg-[#8a3535]/10 px-4 py-3 text-sm text-[#c47070] text-left">
               <AlertCircle size={15} className="mt-0.5 shrink-0" />
               {resendError}
             </div>
           )}
 
-          {/* Resend button */}
           <button
             onClick={handleResend}
             disabled={resending || cooldown > 0 || !email}
             className="
               mt-5 flex w-full items-center justify-center gap-2
-              rounded-xl border border-white/[0.08] bg-white/[0.05]
-              px-4 py-2.5 text-sm font-medium text-gray-300
-              hover:bg-white/[0.09] hover:text-white
+              rounded-xl border border-[#B3B7BA]/[0.12] bg-[#262E36]/40
+              px-4 py-2.5 text-sm font-medium text-[#B3B7BA]
+              hover:bg-[#262E36]/60 hover:text-[#D3D1CE]
               disabled:opacity-40 disabled:cursor-not-allowed
               transition-colors
             "
@@ -126,9 +124,9 @@ function VerifyEmailContent() {
           </button>
         </div>
 
-        <p className="mt-6 text-center text-sm text-gray-500">
+        <p className="mt-6 text-center text-sm text-[#6C6D74]">
           Already confirmed?{' '}
-          <Link href="/login" className="font-semibold text-blue-400 hover:text-blue-300 transition-colors">
+          <Link href="/login" className="font-semibold text-[#4a8fb9] hover:text-[#6aafd9] transition-colors">
             Sign in
           </Link>
         </p>

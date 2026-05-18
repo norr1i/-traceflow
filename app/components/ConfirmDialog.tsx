@@ -37,19 +37,19 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
         <div className="fixed inset-0 z-[300] flex items-center justify-center bg-black/70 backdrop-blur-sm px-4">
           <div className="
             w-full max-w-sm rounded-2xl p-6
-            border border-white/[0.08]
-            bg-[#0d1829] backdrop-blur-xl
-            shadow-[0_24px_64px_rgba(0,0,0,0.6)]
+            border border-[#B3B7BA]/[0.10]
+            bg-[#141e28] backdrop-blur-xl
+            shadow-[0_24px_60px_rgba(0,0,0,0.55)]
           ">
             <div className="flex items-start gap-4 mb-6">
-              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-red-500/10 border border-red-500/20">
-                <AlertTriangle size={18} className="text-red-400" />
+              <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#8a3535]/15 border border-[#8a3535]/25">
+                <AlertTriangle size={18} className="text-[#c47070]" />
               </div>
               <div>
-                <h3 className="font-semibold text-white">
+                <h3 className="font-semibold text-[#D3D1CE]">
                   {state.opts.title ?? 'Confirm action'}
                 </h3>
-                <p className="mt-1 text-sm text-gray-400">
+                <p className="mt-1 text-sm text-[#6C6D74]">
                   {state.opts.message}
                 </p>
               </div>
@@ -58,7 +58,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
             <div className="flex justify-end gap-2">
               <button
                 onClick={() => handle(false)}
-                className="rounded-xl border border-white/[0.08] bg-white/[0.04] px-4 py-2 text-sm font-medium text-gray-300 hover:bg-white/[0.08] transition-colors"
+                className="rounded-xl border border-[#B3B7BA]/[0.12] bg-[#262E36]/40 px-4 py-2 text-sm font-medium text-[#B3B7BA] hover:bg-[#262E36]/60 transition-colors"
               >
                 Cancel
               </button>
@@ -66,8 +66,8 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 onClick={() => handle(true)}
                 className={`rounded-xl px-4 py-2 text-sm font-medium text-white transition-colors ${
                   state.opts.danger !== false
-                    ? 'bg-red-600 hover:bg-red-700 shadow-[0_0_16px_rgba(239,68,68,0.3)]'
-                    : 'bg-blue-600 hover:bg-blue-700 shadow-[0_0_16px_rgba(59,130,246,0.3)]'
+                    ? 'bg-[#8a3535] hover:bg-[#a04040] shadow-[0_0_16px_rgba(138,53,53,0.28)]'
+                    : 'bg-[#3a6f8f] hover:bg-[#2d5a74] shadow-[0_0_16px_rgba(74,127,165,0.22)]'
                 }`}
               >
                 {state.opts.confirmLabel ?? 'Delete'}

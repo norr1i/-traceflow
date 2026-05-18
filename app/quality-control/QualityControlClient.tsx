@@ -35,7 +35,7 @@ function StatCard({
   sub?: string
 }) {
   return (
-    <div className="rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] p-5 shadow-sm">
+    <div className="rounded-xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 p-5 shadow-sm">
       <div className="flex items-start justify-between">
         <div>
           <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p>
@@ -171,7 +171,7 @@ export default function QualityControlClient() {
       {/* New Inspection modal */}
       {showForm && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-white dark:bg-[#0d1829] dark:backdrop-blur-xl p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#F1EFEC] dark:bg-[#141e28] dark:backdrop-blur-xl p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">New Inspection</h2>
               <button onClick={() => setShowForm(false)} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
@@ -187,7 +187,7 @@ export default function QualityControlClient() {
                     required
                     value={form.batch_id}
                     onChange={(e) => setForm({ ...form, batch_id: e.target.value })}
-                    className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                     placeholder="e.g. BATCH-001"
                   />
                 </div>
@@ -197,7 +197,7 @@ export default function QualityControlClient() {
                     required
                     value={form.inspector_id}
                     onChange={(e) => setForm({ ...form, inspector_id: e.target.value })}
-                    className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                     placeholder="e.g. inspector-1"
                   />
                 </div>
@@ -210,7 +210,7 @@ export default function QualityControlClient() {
                   type="date"
                   value={form.inspection_date}
                   onChange={(e) => setForm({ ...form, inspection_date: e.target.value })}
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                 />
               </div>
 
@@ -222,7 +222,7 @@ export default function QualityControlClient() {
                     onChange={(e) =>
                       setForm({ ...form, inspection_type: e.target.value as InspectionFormData['inspection_type'] })
                     }
-                    className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                   >
                     <option value="incoming">Incoming</option>
                     <option value="in_process">In Process</option>
@@ -237,7 +237,7 @@ export default function QualityControlClient() {
                     onChange={(e) =>
                       setForm({ ...form, status: e.target.value as InspectionFormData['status'] })
                     }
-                    className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                   >
                     <option value="pending">Pending</option>
                     <option value="passed">Passed</option>
@@ -257,7 +257,7 @@ export default function QualityControlClient() {
                   max={100}
                   value={form.overall_score}
                   onChange={(e) => setForm({ ...form, overall_score: Number(e.target.value) })}
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                 />
               </div>
 
@@ -267,7 +267,7 @@ export default function QualityControlClient() {
                   rows={2}
                   value={form.notes ?? ''}
                   onChange={(e) => setForm({ ...form, notes: e.target.value || null })}
-                  className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.06] px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
                   placeholder="Optional notes…"
                 />
               </div>
@@ -283,14 +283,14 @@ export default function QualityControlClient() {
                 <button
                   type="button"
                   onClick={() => setShowForm(false)}
-                  className="rounded-lg border border-gray-200 dark:border-white/[0.08] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-white/[0.08]"
+                  className="rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/45"
                 >
                   Cancel
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:opacity-60"
+                  className="rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d5a74] disabled:opacity-60"
                 >
                   {saving ? 'Saving…' : 'Create Inspection'}
                 </button>
@@ -311,14 +311,14 @@ export default function QualityControlClient() {
         <div className="flex gap-2">
           <button
             onClick={refresh}
-            className="flex items-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 shadow-sm hover:bg-gray-50 dark:hover:bg-white/[0.08] transition"
+            className="flex items-center gap-1.5 rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 shadow-sm hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/45 transition"
           >
             <RefreshCw size={15} />
             Refresh
           </button>
           <button
             onClick={openNew}
-            className="flex items-center gap-1.5 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-blue-700 transition"
+            className="flex items-center gap-1.5 rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-[#2d5a74] transition"
           >
             <Plus size={15} />
             New Inspection
@@ -336,21 +336,21 @@ export default function QualityControlClient() {
 
       {/* Stat cards */}
       <div className="mb-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Inspections" value={loading ? '—' : total}           icon={ClipboardList} color="bg-blue-500"    sub="All time" />
+        <StatCard label="Total Inspections" value={loading ? '—' : total}           icon={ClipboardList} color="bg-[#3a6f8f]"    sub="All time" />
         <StatCard label="Passed"            value={loading ? '—' : passed}          icon={ShieldCheck}   color="bg-emerald-500" sub="Meets standard" />
         <StatCard label="Failed"            value={loading ? '—' : failed}          icon={ShieldX}       color="bg-red-500"     sub="Requires action" />
         <StatCard label="Pass Rate"         value={loading ? '—' : `${passRate}%`}  icon={TrendingUp}    color="bg-violet-500"  sub={metrics ? `Avg score: ${metrics.average_score ?? '—'}` : undefined} />
       </div>
 
       {/* Tabs */}
-      <div className="mb-4 flex gap-1 rounded-lg border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] p-1 shadow-sm w-fit">
+      <div className="mb-4 flex gap-1 rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 p-1 shadow-sm w-fit">
         {(['inspections', 'defects'] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
             className={`rounded-md px-4 py-1.5 text-sm font-medium capitalize transition ${
               activeTab === tab
-                ? 'bg-blue-600 text-white shadow-sm'
+                ? 'bg-[#3a6f8f] text-white shadow-sm'
                 : 'text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white'
             }`}
           >
@@ -360,9 +360,9 @@ export default function QualityControlClient() {
       </div>
 
       {/* Table card */}
-      <div className="rounded-xl border border-gray-200 dark:border-white/[0.08] bg-white dark:bg-white/[0.04] shadow-sm">
+      <div className="rounded-xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 shadow-sm">
         {/* Toolbar */}
-        <div className="flex flex-col gap-3 border-b border-gray-100 dark:border-white/[0.08] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-col gap-3 border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
           <div className="relative w-full sm:w-64">
             <Search size={15} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400" />
             <input
@@ -370,7 +370,7 @@ export default function QualityControlClient() {
               placeholder={activeTab === 'inspections' ? 'Search batch, notes…' : 'Search defects…'}
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              className="w-full rounded-lg border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.06] py-2 pl-9 pr-3 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200"
+              className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/55 py-2 pl-9 pr-3 text-sm text-gray-800 dark:text-gray-200 placeholder-gray-400 dark:placeholder-gray-500 focus:border-[#4a7fa5] focus:outline-none focus:ring-1 focus:ring-[#4a7fa5]/30"
             />
           </div>
           {activeTab === 'inspections' && (
@@ -378,7 +378,7 @@ export default function QualityControlClient() {
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-                className="appearance-none rounded-lg border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.06] py-2 pl-3 pr-8 text-sm text-gray-700 dark:text-gray-300 focus:border-blue-400 focus:outline-none focus:ring-1 focus:ring-blue-200"
+                className="appearance-none rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/55 py-2 pl-3 pr-8 text-sm text-gray-700 dark:text-gray-300 focus:border-[#4a7fa5] focus:outline-none focus:ring-1 focus:ring-[#4a7fa5]/30"
               >
                 <option value="all">All Status</option>
                 <option value="passed">Passed</option>
@@ -395,7 +395,7 @@ export default function QualityControlClient() {
             {loading ? (
               <div className="space-y-3 p-5">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-100 dark:bg-white/[0.06]" />
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-100 dark:bg-[#262E36]/55" />
                 ))}
               </div>
             ) : filtered.length === 0 ? (
@@ -404,7 +404,7 @@ export default function QualityControlClient() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.06]/50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <tr className="border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/38 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       <th className="px-5 py-3">ID</th>
                       <th className="px-5 py-3">Batch</th>
                       <th className="px-5 py-3">Date</th>
@@ -414,7 +414,7 @@ export default function QualityControlClient() {
                       <th className="px-5 py-3"></th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-white/[0.05]">
+                  <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.07]">
                     {filtered.map((item) => (
                       <tr key={item.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
                         <td className="px-5 py-3.5 font-mono text-xs text-gray-500 dark:text-gray-400">
@@ -471,7 +471,7 @@ export default function QualityControlClient() {
             {loading ? (
               <div className="space-y-3 p-5">
                 {Array.from({ length: 5 }).map((_, i) => (
-                  <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-100 dark:bg-white/[0.06]" />
+                  <div key={i} className="h-10 animate-pulse rounded-lg bg-gray-100 dark:bg-[#262E36]/55" />
                 ))}
               </div>
             ) : defects.length === 0 ? (
@@ -480,7 +480,7 @@ export default function QualityControlClient() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.06]/50 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
+                    <tr className="border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/38 text-left text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
                       <th className="px-5 py-3">Defect ID</th>
                       <th className="px-5 py-3">Type</th>
                       <th className="px-5 py-3">Severity</th>
@@ -488,7 +488,7 @@ export default function QualityControlClient() {
                       <th className="px-5 py-3">Reported</th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-gray-50 dark:divide-white/[0.05]">
+                  <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.07]">
                     {defects
                       .filter(
                         (d) =>
@@ -529,7 +529,7 @@ export default function QualityControlClient() {
 
         {/* Footer */}
         {!loading && (
-          <div className="border-t border-gray-100 dark:border-white/[0.08] px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
+          <div className="border-t border-gray-100 dark:border-[#B3B7BA]/[0.10] px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
             {activeTab === 'inspections'
               ? `${filtered.length} of ${total} inspection${total !== 1 ? 's' : ''}`
               : `${defects.length} defect${defects.length !== 1 ? 's' : ''} total`}
