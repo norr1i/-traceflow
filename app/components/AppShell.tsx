@@ -5,22 +5,21 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '../lib/auth-context'
 import { canVisit, homeFor } from '../lib/roles'
 import Sidebar from './Sidebar'
+import { LogoIcon } from './Logo'
 
 function LoadingScreen() {
   return (
-    <div className="flex h-screen items-center justify-center bg-[#070d1b]" style={{
-      background: 'radial-gradient(ellipse 1200px 800px at 20% 20%, rgba(59,130,246,0.08) 0%, transparent 65%), radial-gradient(ellipse 800px 700px at 80% 80%, rgba(139,92,246,0.07) 0%, transparent 60%), #070d1b',
-    }}>
-      <div className="flex flex-col items-center gap-5">
-        <div className="
-          flex h-14 w-14 items-center justify-center rounded-2xl
-          bg-gradient-to-br from-blue-500 to-violet-600
-          text-white text-lg font-bold
-          shadow-[0_0_32px_rgba(139,92,246,0.5)]
-        ">
-          TF
-        </div>
-        <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/10 border-t-blue-500" />
+    <div
+      className="flex h-screen items-center justify-center bg-[#090F15]"
+      style={{
+        background:
+          'radial-gradient(ellipse 1600px 1000px at 20% 10%, rgba(74,127,165,0.05) 0%, transparent 65%), #090F15',
+      }}
+    >
+      <div className="flex flex-col items-center gap-6">
+        <LogoIcon size="lg" />
+        {/* Brand-matched spinner: muted track + accent sweep */}
+        <div className="h-[18px] w-[18px] animate-spin rounded-full border-2 border-[#262E36] border-t-[#4a8fb9]" />
       </div>
     </div>
   )

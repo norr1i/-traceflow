@@ -7,6 +7,7 @@ import {
   ShieldCheck, Package, FlaskConical, Layers, ShoppingCart,
   AlertCircle, Loader2, QrCode,
 } from 'lucide-react'
+import { LogoIcon } from '../../components/Logo'
 
 // ── Types ──────────────────────────────────────────────────────────────────
 
@@ -199,9 +200,7 @@ export default function PublicTracePage() {
       <div className="sticky top-0 z-10 border-b border-gray-200 dark:border-gray-700 bg-white/90 dark:bg-gray-800/90 backdrop-blur-sm px-4 py-3">
         <div className="mx-auto flex max-w-md items-center justify-between gap-3">
           <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-white text-xs font-bold">
-              TF
-            </div>
+            <LogoIcon size="sm" />
             <div>
               <p className="text-xs font-bold text-gray-900 dark:text-white leading-tight">{order.product_name}</p>
               <p className="font-mono text-[10px] text-gray-400 leading-tight">{order.sku}</p>
