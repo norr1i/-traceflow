@@ -21,7 +21,7 @@ import {
 } from 'lucide-react'
 
 function fmt(n: number) {
-  return `SAR ${n.toLocaleString('en-US', { maximumFractionDigits: 0 })}`
+  return `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} SAR`
 }
 
 function fmtDate(iso: string) {

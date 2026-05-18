@@ -42,7 +42,7 @@ export default function SalesChart({ data }: Props) {
           tick={{ fontSize: 11, fill: '#9ca3af' }}
           axisLine={false}
           tickLine={false}
-          tickFormatter={(v: number) => `SAR ${v.toLocaleString()}`}
+          tickFormatter={(v: number) => `${v.toLocaleString()} SAR`}
         />
         <Tooltip
           contentStyle={{
@@ -56,7 +56,7 @@ export default function SalesChart({ data }: Props) {
           }}
           labelStyle={{ color: '#6C6D74', marginBottom: 4, fontSize: 11 }}
           itemStyle={{ color: '#D3D1CE', fontSize: 12 }}
-          formatter={(v: unknown) => [`SAR ${Number(v ?? 0).toLocaleString()}`, 'Revenue']}
+          formatter={(v: unknown) => [`${Number(v ?? 0).toLocaleString()} SAR`, 'Revenue']}
         />
         <Area
           type="monotone"
