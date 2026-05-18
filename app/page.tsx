@@ -1,14 +1,16 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { getDashboardStats, type DashboardStats } from './lib/dashboard'
 import SectionCard from './components/SectionCard'
 import StatCard from './components/StatCard'
 import ProductionChart from './components/charts/ProductionChart'
+import QcTrendChart from './components/charts/QcTrendChart'
+import ScanActivityChart from './components/charts/ScanActivityChart'
 import {
-  ClipboardList, QrCode, XCircle, AlertCircle,
-  AlertTriangle, FlaskConical, Smartphone, Monitor,
-  CheckCircle2, Clock,
+  ClipboardList, QrCode, AlertTriangle, FlaskConical,
+  Smartphone, Monitor, CheckCircle2, Clock, ShieldCheck,
+  XCircle, RefreshCw,
 } from 'lucide-react'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -60,34 +62,53 @@ function QcBadge({ status }: { status: QcStatus }) {
 function QcBar({ pass, fail, hold }: { pass: number; fail: number; hold: number }) {
   const total = pass + fail + hold
   if (total === 0) {
-    return <p className="py-6 text-center text-sm text-gray-400 dark:text-gray-500 italic">No QC inspections recorded yet.</p>
+    return (
+      <div className="flex h-40 flex-col items-center justify-center gap-2 text-gray-400 dark:text-gray-500">
+        <FlaskConical size={28} className="opacity-40" />
+        <p className="text-sm italic">No QC inspections recorded yet.</p>
+      </div>
+    )
   }
   const pct = (n: number) => `${Math.round((n / total) * 100)}%`
   return (
-    <div className="space-y-3">
-      <div className="flex h-4 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+    <div className="space-y-4">
+      <div className="flex h-3 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
         {pass > 0 && (
-          <div style={{ width: pct(pass) }} className="bg-emerald-500 transition-all" title={`Pass: ${pass}`} />
+          <div
+            style={{ width: pct(pass) }}
+            className="bg-emerald-500 transition-all duration-700"
+            title={`Pass: ${pass}`}
+          />
         )}
         {fail > 0 && (
-          <div style={{ width: pct(fail) }} className="bg-red-500 transition-all" title={`Fail: ${fail}`} />
+          <div
+            style={{ width: pct(fail) }}
+            className="bg-red-500 transition-all duration-700"
+            title={`Fail: ${fail}`}
+          />
         )}
         {hold > 0 && (
-          <div style={{ width: pct(hold) }} className="bg-amber-400 transition-all" title={`Hold: ${hold}`} />
+          <div
+            style={{ width: pct(hold) }}
+            className="bg-amber-400 transition-all duration-700"
+            title={`Hold: ${hold}`}
+          />
         )}
       </div>
-      <div className="flex items-center justify-between">
+      <div className="grid grid-cols-3 gap-2">
         {(
           [
-            { label: 'Pass', value: pass, color: 'text-emerald-600 dark:text-emerald-400', dot: 'bg-emerald-500' },
-            { label: 'Fail', value: fail, color: 'text-red-600 dark:text-red-400',         dot: 'bg-red-500'     },
-            { label: 'Hold', value: hold, color: 'text-amber-600 dark:text-amber-400',      dot: 'bg-amber-400'   },
+            { label: 'Pass', value: pass, color: 'text-emerald-600 dark:text-emerald-400', bg: 'bg-emerald-500/10 dark:bg-emerald-500/20', dot: 'bg-emerald-500' },
+            { label: 'Fail', value: fail, color: 'text-red-600 dark:text-red-400',         bg: 'bg-red-500/10 dark:bg-red-500/20',         dot: 'bg-red-500'     },
+            { label: 'Hold', value: hold, color: 'text-amber-600 dark:text-amber-400',      bg: 'bg-amber-500/10 dark:bg-amber-500/20',      dot: 'bg-amber-400'   },
           ] as const
-        ).map(({ label, value, color, dot }) => (
-          <div key={label} className="flex items-center gap-1.5">
-            <span className={`h-2.5 w-2.5 rounded-full ${dot}`} />
-            <span className={`text-sm font-semibold ${color}`}>{value}</span>
-            <span className="text-xs text-gray-400 dark:text-gray-500">{label} · {pct(value)}</span>
+        ).map(({ label, value, color, bg, dot }) => (
+          <div key={label} className={`rounded-xl ${bg} px-3 py-2.5 text-center`}>
+            <p className={`text-xl font-bold ${color}`}>{value}</p>
+            <div className="mt-1 flex items-center justify-center gap-1">
+              <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
+              <span className="text-xs text-gray-500 dark:text-gray-400">{label} · {pct(value)}</span>
+            </div>
           </div>
         ))}
       </div>
@@ -96,22 +117,54 @@ function QcBar({ pass, fail, hold }: { pass: number; fail: number; hold: number 
   )
 }
 
-// ── Loading skeleton ───────────────────────────────────────────────────────
+// ── Skeleton ───────────────────────────────────────────────────────────────
+
+function SkeletonBlock({ h, className = '' }: { h: string; className?: string }) {
+  return <div className={`${h} animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-700/60 ${className}`} />
+}
 
 function Skeleton() {
   return (
     <div className="px-4 sm:px-6 py-8 max-w-7xl mx-auto space-y-6">
-      <div className="h-7 w-52 animate-pulse rounded-lg bg-gray-200 dark:bg-gray-700" />
-      <div className="grid grid-cols-2 gap-4 xl:grid-cols-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-28 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-700" />
-        ))}
+      <div className="flex items-center justify-between">
+        <div className="space-y-2">
+          <SkeletonBlock h="h-7" className="w-52" />
+          <SkeletonBlock h="h-4" className="w-36" />
+        </div>
+        <SkeletonBlock h="h-8" className="w-20" />
+      </div>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        {Array.from({ length: 4 }).map((_, i) => <SkeletonBlock key={i} h="h-28" />)}
       </div>
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="h-56 animate-pulse rounded-2xl bg-gray-200 dark:bg-gray-700" />
-        ))}
+        <SkeletonBlock h="h-72" />
+        <SkeletonBlock h="h-72" />
       </div>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SkeletonBlock h="h-64" />
+        <SkeletonBlock h="h-64" />
+      </div>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SkeletonBlock h="h-72" />
+        <SkeletonBlock h="h-72" />
+      </div>
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SkeletonBlock h="h-72" />
+        <SkeletonBlock h="h-72" />
+      </div>
+    </div>
+  )
+}
+
+// ── Empty state ────────────────────────────────────────────────────────────
+
+function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
+  return (
+    <div className="flex h-44 flex-col items-center justify-center gap-2.5 text-gray-400 dark:text-gray-500">
+      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-gray-100 dark:bg-gray-700/60">
+        <Icon size={22} className="opacity-60" />
+      </div>
+      <p className="text-sm">{message}</p>
     </div>
   )
 }
@@ -119,35 +172,89 @@ function Skeleton() {
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
-  const [stats,   setStats]   = useState<DashboardStats | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [stats,      setStats]      = useState<DashboardStats | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null)
+
+  const load = useCallback(async (silent = false) => {
+    if (silent) setRefreshing(true)
+    try {
+      const data = await getDashboardStats()
+      setStats(data)
+      setLastUpdated(new Date())
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+      setRefreshing(false)
+    }
+  }, [])
 
   useEffect(() => {
-    getDashboardStats()
-      .then(setStats)
-      .catch(console.error)
-      .finally(() => setLoading(false))
-  }, [])
+    load()
+    // Auto-refresh every 30 seconds for a "live" feel
+    const interval = setInterval(() => load(true), 30_000)
+    return () => clearInterval(interval)
+  }, [load])
 
   if (loading) return <Skeleton />
   if (!stats)  return null
 
-  const { totalBatches, totalScans, qcCounts, ordersByStatus,
-          recentQc, failedBatches, mostScanned, recentScans, recallRisk } = stats
+  const {
+    totalBatches, totalScans, passRate, weeklyInspections,
+    qcCounts, ordersByStatus,
+    qcTrend, scanTrend,
+    recentQc, failedBatches, mostScanned, recentScans, recallRisk,
+  } = stats
+
   const maxScanCount = mostScanned[0]?.scan_count ?? 1
   const hasRisk = recallRisk.failedQcCount > 0 || recallRisk.missingQcCount > 0
+
+  const passRateAccent = passRate === null
+    ? 'blue'
+    : passRate >= 80
+      ? 'green'
+      : passRate >= 60
+        ? 'yellow'
+        : 'red'
 
   return (
     <div className="px-4 sm:px-6 py-8 max-w-7xl mx-auto space-y-6">
 
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Operations Dashboard</h1>
-        <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">Live manufacturing overview</p>
+      {/* ── Header ────────────────────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Operations Dashboard</h1>
+          <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
+            {lastUpdated
+              ? `Updated ${timeAgo(lastUpdated.toISOString())}`
+              : 'Live manufacturing overview'}
+          </p>
+        </div>
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Live pulsing indicator */}
+          <div className="hidden sm:flex items-center gap-1.5 rounded-full bg-emerald-50 dark:bg-emerald-900/20 border border-emerald-200 dark:border-emerald-800 px-2.5 py-1">
+            <span className="relative flex h-1.5 w-1.5">
+              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
+              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-emerald-500" />
+            </span>
+            <span className="text-xs font-medium text-emerald-700 dark:text-emerald-400">Live</span>
+          </div>
+          {/* Manual refresh */}
+          <button
+            onClick={() => load(true)}
+            disabled={refreshing}
+            className="flex items-center gap-1.5 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-400 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 transition-colors"
+          >
+            <RefreshCw size={13} className={refreshing ? 'animate-spin' : ''} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* ── KPI cards ──────────────────────────────────────────────────────── */}
-      <section className="grid grid-cols-2 gap-4 xl:grid-cols-4">
+      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
         <StatCard
           title="Total Batches"
           value={totalBatches}
@@ -156,25 +263,25 @@ export default function DashboardPage() {
           icon={ClipboardList}
         />
         <StatCard
+          title="QC Pass Rate"
+          value={passRate !== null ? `${passRate}%` : '—'}
+          subtitle={`${qcCounts.pass + qcCounts.fail + qcCounts.hold} total inspections`}
+          accent={passRateAccent}
+          icon={passRate !== null && passRate >= 80 ? CheckCircle2 : passRate !== null && passRate < 60 ? XCircle : ShieldCheck}
+        />
+        <StatCard
           title="QR Scans"
           value={totalScans.toLocaleString()}
-          subtitle="total scan events"
+          subtitle="all-time trace events"
           accent="purple"
           icon={QrCode}
         />
         <StatCard
-          title="Failed QC"
-          value={recallRisk.failedQcCount}
-          subtitle={recallRisk.failedQcCount > 0 ? `${recallRisk.failedWithSales} distributed` : 'no failures'}
-          accent={recallRisk.failedQcCount > 0 ? 'red' : 'green'}
-          icon={recallRisk.failedQcCount > 0 ? XCircle : CheckCircle2}
-        />
-        <StatCard
-          title="Missing QC"
-          value={recallRisk.missingQcCount}
-          subtitle="batches not yet inspected"
-          accent={recallRisk.missingQcCount > 0 ? 'yellow' : 'green'}
-          icon={AlertCircle}
+          title="This Week"
+          value={weeklyInspections}
+          subtitle="QC inspections last 7 days"
+          accent={weeklyInspections > 0 ? 'orange' : 'yellow'}
+          icon={FlaskConical}
         />
       </section>
 
@@ -185,9 +292,11 @@ export default function DashboardPage() {
           <div className="flex-1 min-w-0">
             <p className="text-sm font-bold text-red-700 dark:text-red-400">Recall Risk Detected</p>
             <div className="mt-2 flex flex-wrap gap-x-6 gap-y-1 text-sm">
-              <span className="text-red-600 dark:text-red-400">
-                <span className="font-bold">{recallRisk.failedQcCount}</span> batch{recallRisk.failedQcCount !== 1 ? 'es' : ''} with failed QC
-              </span>
+              {recallRisk.failedQcCount > 0 && (
+                <span className="text-red-600 dark:text-red-400">
+                  <span className="font-bold">{recallRisk.failedQcCount}</span> batch{recallRisk.failedQcCount !== 1 ? 'es' : ''} with failed QC
+                </span>
+              )}
               {recallRisk.failedWithSales > 0 && (
                 <span className="font-semibold text-red-700 dark:text-red-300">
                   ⚠ {recallRisk.failedWithSales} distributed to customers
@@ -203,31 +312,105 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── QC breakdown + Production status ──────────────────────────────── */}
+      {/* ── Trend charts ───────────────────────────────────────────────────── */}
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <SectionCard title="QC Inspection Results" subtitle="Pass / Fail / Hold across all batches">
-          <QcBar pass={qcCounts.pass} fail={qcCounts.fail} hold={qcCounts.hold} />
+        <SectionCard
+          title="QC Trend — Last 7 Days"
+          subtitle="Daily pass / fail / hold inspection counts"
+        >
+          <QcTrendChart data={qcTrend} />
         </SectionCard>
 
-        <SectionCard title="Production Pipeline" subtitle="Orders by current status">
-          <ProductionChart data={ordersByStatus} />
+        <SectionCard
+          title="QR Scan Activity — Last 7 Days"
+          subtitle="Daily product trace scan volume"
+        >
+          <ScanActivityChart data={scanTrend} />
         </SectionCard>
       </section>
 
-      {/* ── Failed QC batches + Recent inspections ─────────────────────────── */}
+      {/* ── Pipeline + QC breakdown ────────────────────────────────────────── */}
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+        <SectionCard title="Production Pipeline" subtitle="Orders by current status">
+          <ProductionChart data={ordersByStatus} />
+        </SectionCard>
+
+        <SectionCard title="QC Inspection Results" subtitle="Cumulative pass / fail / hold breakdown">
+          <QcBar pass={qcCounts.pass} fail={qcCounts.fail} hold={qcCounts.hold} />
+        </SectionCard>
+      </section>
+
+      {/* ── Recent QC + Most scanned ───────────────────────────────────────── */}
+      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+
+        <SectionCard title="Recent QC Inspections" subtitle="Latest across all batches">
+          {recentQc.length === 0 ? (
+            <EmptyState icon={FlaskConical} message="No inspections recorded yet." />
+          ) : (
+            <ul className="divide-y divide-gray-50 dark:divide-gray-700/50">
+              {recentQc.map((q, i) => (
+                <li key={i} className="py-3 flex items-start gap-3">
+                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${qcCfg[q.status].dot}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{q.product_name}</span>
+                      <QcBadge status={q.status} />
+                    </div>
+                    <p className="mt-0.5 text-xs text-gray-400">
+                      {q.inspector_name} · {fmt(q.inspected_at)}
+                    </p>
+                    {q.notes && (
+                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{q.notes}</p>
+                    )}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+        <SectionCard title="Most Scanned Batches" subtitle="By QR scan event count">
+          {mostScanned.length === 0 ? (
+            <EmptyState icon={QrCode} message="No scan events recorded yet." />
+          ) : (
+            <ul className="space-y-3.5">
+              {mostScanned.map((b, i) => (
+                <li key={b.batch_id}>
+                  <div className="flex items-center justify-between gap-2 mb-1.5">
+                    <div className="flex items-center gap-2 min-w-0">
+                      <span className="shrink-0 text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
+                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{b.product_name}</span>
+                      {b.sku && <span className="shrink-0 font-mono text-xs text-gray-400">{b.sku}</span>}
+                    </div>
+                    <span className="shrink-0 text-sm font-bold text-blue-600 dark:text-blue-400">
+                      {b.scan_count}
+                    </span>
+                  </div>
+                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
+                    <div
+                      className="h-full rounded-full bg-blue-500 dark:bg-blue-400 transition-all duration-700"
+                      style={{ width: `${(b.scan_count / maxScanCount) * 100}%` }}
+                    />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </SectionCard>
+
+      </section>
+
+      {/* ── Failed QC + Recent scan events ────────────────────────────────── */}
       <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
 
         <SectionCard title="Batches with Failed QC" subtitle="Latest QC status = fail">
           {failedBatches.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <CheckCircle2 size={32} className="text-emerald-400" />
-              <p className="text-sm text-gray-400 dark:text-gray-500">No failed batches — all clear.</p>
-            </div>
+            <EmptyState icon={CheckCircle2} message="No failed batches — all clear." />
           ) : (
             <ul className="divide-y divide-gray-50 dark:divide-gray-700/50">
               {failedBatches.map(b => (
                 <li key={b.id} className="py-3 flex items-start gap-3">
-                  <span className="mt-0.5 flex h-2 w-2 shrink-0 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900/30" />
+                  <span className="mt-1.5 flex h-2 w-2 shrink-0 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900/30" />
                   <div className="min-w-0 flex-1">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="text-sm font-semibold text-gray-900 dark:text-white">{b.product_name}</span>
@@ -251,83 +434,14 @@ export default function DashboardPage() {
           )}
         </SectionCard>
 
-        <SectionCard title="Recent QC Inspections" subtitle="Latest across all batches">
-          {recentQc.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <FlaskConical size={32} className="text-gray-300 dark:text-gray-600" />
-              <p className="text-sm text-gray-400 dark:text-gray-500">No inspections recorded yet.</p>
-            </div>
-          ) : (
-            <ul className="divide-y divide-gray-50 dark:divide-gray-700/50">
-              {recentQc.map((q, i) => (
-                <li key={i} className="py-3 flex items-start gap-3">
-                  <span className={`mt-1 h-2 w-2 shrink-0 rounded-full ${qcCfg[q.status].dot}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{q.product_name}</span>
-                      <QcBadge status={q.status} />
-                    </div>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      {q.inspector_name} · {fmt(q.inspected_at)}
-                    </p>
-                    {q.notes && (
-                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{q.notes}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-
-      </section>
-
-      {/* ── Most scanned + Recent scan events ─────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-        <SectionCard title="Most Scanned Batches" subtitle="By QR scan event count">
-          {mostScanned.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <QrCode size={32} className="text-gray-300 dark:text-gray-600" />
-              <p className="text-sm text-gray-400 dark:text-gray-500">No scan events recorded yet.</p>
-            </div>
-          ) : (
-            <ul className="space-y-3">
-              {mostScanned.map((b, i) => (
-                <li key={b.batch_id}>
-                  <div className="flex items-center justify-between gap-2 mb-1">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="shrink-0 text-xs font-bold text-gray-400 w-4">#{i + 1}</span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{b.product_name}</span>
-                      {b.sku && <span className="shrink-0 font-mono text-xs text-gray-400">{b.sku}</span>}
-                    </div>
-                    <span className="shrink-0 text-sm font-bold text-gray-700 dark:text-gray-300">
-                      {b.scan_count}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-gray-700">
-                    <div
-                      className="h-full rounded-full bg-blue-500 dark:bg-blue-400 transition-all"
-                      style={{ width: `${(b.scan_count / maxScanCount) * 100}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
-          )}
-        </SectionCard>
-
-        <SectionCard title="Recent Scan Events" subtitle="Latest QR code scans">
+        <SectionCard title="Recent Scan Events" subtitle="Latest QR code traces">
           {recentScans.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-10 gap-2">
-              <QrCode size={32} className="text-gray-300 dark:text-gray-600" />
-              <p className="text-sm text-gray-400 dark:text-gray-500">No scan events recorded yet.</p>
-            </div>
+            <EmptyState icon={QrCode} message="No scan events recorded yet." />
           ) : (
             <ul className="divide-y divide-gray-50 dark:divide-gray-700/50">
               {recentScans.map((s, i) => (
                 <li key={i} className="py-2.5 flex items-center gap-3">
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 dark:bg-gray-700 text-gray-500 dark:text-gray-400">
                     {s.device_type === 'mobile'
                       ? <Smartphone size={14} />
                       : <Monitor size={14} />}

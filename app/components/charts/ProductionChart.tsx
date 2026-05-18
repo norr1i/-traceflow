@@ -38,18 +38,23 @@ export default function ProductionChart({ data }: Props) {
         </Pie>
         <Tooltip
           contentStyle={{
+            backgroundColor: '#111827',
+            border: '1px solid #374151',
             borderRadius: '10px',
-            fontSize: '13px',
-            border: '1px solid #e5e7eb',
-            boxShadow: '0 4px 12px rgba(0,0,0,0.08)',
+            fontSize: '12px',
+            color: '#f9fafb',
+            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
           }}
+          labelStyle={{ color: '#9ca3af' }}
+          itemStyle={{ color: '#f9fafb' }}
           formatter={(value: unknown, name: unknown) => [Number(value ?? 0), String(name)]}
         />
         <Legend
           iconType="circle"
           iconSize={8}
+          wrapperStyle={{ paddingTop: 8 }}
           formatter={(value) => (
-            <span style={{ fontSize: 12, color: '#6b7280' }}>{value}</span>
+            <span style={{ fontSize: 11, color: '#9ca3af' }}>{value}</span>
           )}
         />
       </PieChart>
