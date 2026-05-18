@@ -5,29 +5,29 @@
 
 /* ── Design tokens ──────────────────────────────────────────────────────────
    Light mode: clean white/slate
-   Dark mode:  deep graphite with glass surfaces
+   Dark mode:  deep midnight with layered glass surfaces
    ─────────────────────────────────────────────────────────────────────── */
 :root {
   --bg:      #f8fafc;
   --surface: #ffffff;
-  --border:  rgba(15,23,42,0.08);
+  --border:  rgba(15,23,42,0.07);
   --text:    #0f172a;
   --muted:   #64748b;
 
-  --blue:    #3b82f6;
-  --violet:  #8b5cf6;
-  --cyan:    #06b6d4;
-  --emerald: #10b981;
-  --amber:   #f59e0b;
-  --red:     #ef4444;
+  --blue:    #5b8df8;
+  --violet:  #9b7ff4;
+  --cyan:    #22d3ee;
+  --emerald: #34d399;
+  --amber:   #fbbf24;
+  --red:     #f87171;
 }
 
 .dark {
-  --bg:      #070d1b;
+  --bg:      #080b14;
   --surface: rgba(255,255,255,0.04);
-  --border:  rgba(255,255,255,0.08);
-  --text:    #e2e8f0;
-  --muted:   #475569;
+  --border:  rgba(255,255,255,0.065);
+  --text:    #dde3f0;
+  --muted:   #4b5675;
 }
 
 /* ── Base body ──────────────────────────────────────────────────────────── */
@@ -39,38 +39,67 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark mode: gradient orb background — gives depth behind glass cards */
+/* Dark: soft cinematic orbs — muted hues, wide diffusion */
 .dark body {
   background:
-    radial-gradient(ellipse 1400px 900px at 0% 0%,   rgba(59,130,246,0.07) 0%, transparent 65%),
-    radial-gradient(ellipse 900px 800px  at 100% 100%, rgba(139,92,246,0.06) 0%, transparent 60%),
-    radial-gradient(ellipse 600px 500px  at 60% 30%,  rgba(6,182,212,0.03)  0%, transparent 55%),
-    #070d1b;
+    radial-gradient(ellipse 1800px 1100px at 8%  0%,   rgba(70,100,200,0.05)  0%, transparent 65%),
+    radial-gradient(ellipse 1100px  900px at 94% 100%,  rgba(110,70,190,0.04)  0%, transparent 60%),
+    radial-gradient(ellipse  700px  600px at 52%  28%,  rgba(15,130,170,0.022) 0%, transparent 55%),
+    #080b14;
 }
 
-/* ── Glass card utility ─────────────────────────────────────────────────── */
+/* ── Luxury glass card ──────────────────────────────────────────────────── */
+/* Applied via .glass-card className on components.
+   Light: plain white card. Dark: gradient glass with top highlight. */
+.glass-card {
+  background: #ffffff;
+  border: 1px solid rgba(15,23,42,0.07);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 4px 16px rgba(0,0,0,0.04);
+}
+
+.dark .glass-card {
+  background: linear-gradient(145deg, rgba(255,255,255,0.068) 0%, rgba(255,255,255,0.020) 100%);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid rgba(255,255,255,0.068);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.09),
+    0 4px 40px rgba(0,0,0,0.26),
+    0 1px 1px rgba(0,0,0,0.15);
+}
+
+.dark .glass-card:hover {
+  border-color: rgba(255,255,255,0.10);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.11),
+    0 8px 52px rgba(0,0,0,0.34),
+    0 1px 1px rgba(0,0,0,0.15);
+}
+
+/* ── Utility glass class (for modals, overlays, misc surfaces) ──────────── */
 @layer utilities {
   .glass {
-    background: rgba(255,255,255,0.04);
-    backdrop-filter: blur(20px);
-    -webkit-backdrop-filter: blur(20px);
-    border: 1px solid rgba(255,255,255,0.07);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.04) inset, 0 8px 32px rgba(0,0,0,0.45);
+    background: linear-gradient(145deg, rgba(255,255,255,0.068) 0%, rgba(255,255,255,0.020) 100%);
+    backdrop-filter: blur(24px) saturate(160%);
+    -webkit-backdrop-filter: blur(24px) saturate(160%);
+    border: 1px solid rgba(255,255,255,0.068);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 4px 40px rgba(0,0,0,0.26);
   }
 
   .glass-hover:hover {
-    border-color: rgba(255,255,255,0.12);
-    box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 16px 48px rgba(0,0,0,0.55);
+    border-color: rgba(255,255,255,0.10);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.11), 0 8px 52px rgba(0,0,0,0.34);
     transform: translateY(-1px);
   }
 
-  .glow-blue   { box-shadow: 0 0 24px rgba(59,130,246,0.45); }
-  .glow-violet { box-shadow: 0 0 24px rgba(139,92,246,0.45); }
-  .glow-cyan   { box-shadow: 0 0 24px rgba(6,182,212,0.4); }
-  .glow-emerald{ box-shadow: 0 0 24px rgba(16,185,129,0.45); }
-  .glow-amber  { box-shadow: 0 0 24px rgba(245,158,11,0.45); }
-  .glow-red    { box-shadow: 0 0 24px rgba(239,68,68,0.45); }
-  .glow-orange { box-shadow: 0 0 24px rgba(249,115,22,0.45); }
+  /* Diffuse ambient glows — wide spread, low saturation */
+  .glow-blue   { box-shadow: 0 0 44px rgba(70,100,210,0.26); }
+  .glow-violet { box-shadow: 0 0 44px rgba(110,70,190,0.26); }
+  .glow-cyan   { box-shadow: 0 0 44px rgba(15,160,200,0.23); }
+  .glow-emerald{ box-shadow: 0 0 44px rgba(20,160,110,0.26); }
+  .glow-amber  { box-shadow: 0 0 44px rgba(190,130,15,0.26); }
+  .glow-red    { box-shadow: 0 0 44px rgba(190,55,55,0.26); }
+  .glow-orange { box-shadow: 0 0 44px rgba(190,85,25,0.26); }
 }
 
 /* ── Toast slide-in animation ───────────────────────────────────────────── */
@@ -90,5 +119,5 @@ body {
 /* ── Scrollbar (dark mode) ──────────────────────────────────────────────── */
 .dark ::-webkit-scrollbar        { width: 5px; }
 .dark ::-webkit-scrollbar-track  { background: transparent; }
-.dark ::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.1); border-radius: 99px; }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.2); }
+.dark ::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.08); border-radius: 99px; }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.15); }

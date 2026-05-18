@@ -61,7 +61,7 @@ export default function Sidebar() {
     <aside
       className={`
         fixed top-0 left-0 z-30 h-full w-[220px] flex flex-col
-        bg-[#070d1b] border-r border-white/[0.06]
+        bg-[#060a12] border-r border-white/[0.055]
         transition-transform duration-200 ease-in-out
         ${open ? 'translate-x-0' : '-translate-x-full'}
         lg:relative lg:translate-x-0
@@ -71,8 +71,8 @@ export default function Sidebar() {
       <div className="flex items-center gap-3 px-5 py-5 border-b border-white/[0.06]">
         <div className="
           flex h-8 w-8 shrink-0 items-center justify-center rounded-lg
-          bg-gradient-to-br from-blue-500 to-violet-600
-          shadow-[0_0_14px_rgba(139,92,246,0.5)]
+          bg-gradient-to-br from-blue-400/70 to-violet-500/80
+          shadow-[0_0_20px_rgba(110,70,190,0.28)]
           text-white font-bold text-xs tracking-tight
         ">
           TF
@@ -95,8 +95,8 @@ export default function Sidebar() {
               className={`
                 flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-150
                 ${active
-                  ? 'bg-gradient-to-r from-blue-600/25 to-violet-600/20 border border-blue-500/25 text-white shadow-[0_0_12px_rgba(59,130,246,0.15)]'
-                  : 'text-gray-400 hover:bg-white/[0.05] hover:text-gray-200 border border-transparent'}
+                  ? 'bg-gradient-to-r from-blue-500/18 to-violet-500/12 border border-white/[0.08] text-white shadow-[0_2px_16px_rgba(70,100,200,0.12)]'
+                  : 'text-gray-500 hover:bg-white/[0.04] hover:text-gray-300 border border-transparent'}
               `}
             >
               <Icon
@@ -155,9 +155,9 @@ export default function Sidebar() {
   return (
     <>
       {/* Mobile top bar */}
-      <div className="flex items-center justify-between border-b border-white/[0.06] bg-[#070d1b] px-4 py-3 lg:hidden">
+      <div className="flex items-center justify-between border-b border-white/[0.055] bg-[#060a12] px-4 py-3 lg:hidden">
         <div className="flex items-center gap-2.5">
-          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-500 to-violet-600 text-white text-xs font-bold">
+          <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-gradient-to-br from-blue-400/70 to-violet-500/80 text-white text-xs font-bold">
             TF
           </div>
           <span className="text-sm font-bold text-white">TraceFlow</span>

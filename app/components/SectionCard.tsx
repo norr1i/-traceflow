@@ -8,14 +8,7 @@ type Props = {
 
 export default function SectionCard({ title, subtitle, children, action, className = '' }: Props) {
   return (
-    <div className={`
-      rounded-2xl
-      border border-gray-200 dark:border-white/[0.07]
-      bg-white dark:bg-white/[0.04]
-      dark:backdrop-blur-xl
-      shadow-sm dark:shadow-none
-      ${className}
-    `}>
+    <div className={`glass-card rounded-2xl ${className}`}>
       <div className="flex items-start justify-between gap-2 px-5 pt-5 pb-4">
         <div>
           <h2 className="text-sm font-semibold text-gray-800 dark:text-gray-100">{title}</h2>
