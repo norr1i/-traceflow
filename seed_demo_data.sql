@@ -9,7 +9,7 @@
 
 DO $$
 DECLARE
-  uid  uuid := 'YOUR-USER-ID-HERE'::uuid;
+  uid  uuid := 'c58fa34d-5f2b-4413-84f5-205d41ff6731'::uuid;
 
   -- Entity ID arrays
   s    uuid[] := '{}';   -- suppliers      [1..10]
@@ -399,7 +399,7 @@ BEGIN
     INSERT INTO batch_qc_results (id, user_id, batch_id, status, inspector_name, notes, inspected_at, created_at)
     VALUES (
       gen_random_uuid(), uid,
-      o[ord_idx]::text,
+      o[ord_idx],
       stat,
       inspectors[1 + (floor(random() * 8))::int],
       CASE stat
@@ -429,7 +429,7 @@ BEGIN
       inspection_type, status, overall_score, notes, created_at, updated_at
     ) VALUES (
       qc_id, uid,
-      o[ord_idx]::text,
+      o[ord_idx],
       inspector_ids[1 + (floor(random() * 8))::int],
       (base + (random() * 170 || ' days')::interval)::date,
       insp_types[1 + (floor(random() * 4))::int],
@@ -503,7 +503,7 @@ BEGIN
     ord_idx := 1 + ((i - 1) % 200);
     INSERT INTO scan_events (batch_id, scanned_at, device_type, browser, user_agent)
     VALUES (
-      o[ord_idx]::text,
+      o[ord_idx],
       base + (random() * 179 || ' days')::interval,
       CASE WHEN random() > 0.4 THEN 'mobile' ELSE 'desktop' END,
       (ARRAY['Chrome','Chrome','Safari','Firefox','Edge','Safari','Chrome'])[1 + (floor(random() * 7))::int],
@@ -518,7 +518,7 @@ BEGIN
   -- Simulates raw material lots traced through to finished goods batches
   FOR i IN 1..50 LOOP
     INSERT INTO batch_lineage (parent_batch_id, child_batch_id, relationship_type)
-    VALUES (o[i]::text, o[50 + i]::text, 'material_flow')
+    VALUES (o[i], o[50 + i], 'material_flow')
     ON CONFLICT DO NOTHING;
   END LOOP;
 
