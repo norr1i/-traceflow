@@ -24,11 +24,11 @@ const AuthContext = createContext<AuthCtx>({
  * Rules:
  *  - Only reads the row where user_id = userId (exact match)
  *  - Never overwrites an existing row's role
- *  - If no row exists, inserts a NEW row with default 'inspector'
+ *  - If no row exists, inserts a NEW row with default 'manager'
  *    (ignoreDuplicates: true guarantees we skip the update on conflict)
  *  - If INSERT conflicted (row exists but SELECT returned nothing — RLS edge case),
  *    re-fetches the existing row
- *  - Final fallback is 'inspector', never 'manager'
+ *  - Final fallback is 'manager'; inspector is only assigned explicitly by an admin
  */
 async function loadRole(userId: string): Promise<Role> {
   console.log('[auth] loadRole → querying user_id:', userId)
@@ -48,12 +48,12 @@ async function loadRole(userId: string): Promise<Role> {
 
   // No row returned — attempt to insert a default profile.
   // ignoreDuplicates: true → ON CONFLICT DO NOTHING, never overwrites existing role.
-  console.log('[auth] loadRole → no row found for', userId, '— inserting default inspector profile')
+  console.log('[auth] loadRole → no row found for', userId, '— inserting default manager profile')
 
   const { data: inserted, error: insertError } = await supabase
     .from('user_profiles')
     .upsert(
-      { user_id: userId, role: 'inspector' },
+      { user_id: userId, role: 'manager' },
       { onConflict: 'user_id', ignoreDuplicates: true },
     )
     .select('user_id, role')
@@ -78,7 +78,7 @@ async function loadRole(userId: string): Promise<Role> {
 
   console.log('[auth] loadRole → re-fetch result:', { refetched, refetchError })
 
-  const resolvedRole = (refetched?.role as Role | undefined) ?? 'inspector'
+  const resolvedRole = (refetched?.role as Role | undefined) ?? 'manager'
   console.log('[auth] loadRole → final resolved role:', resolvedRole)
   return resolvedRole
 }
