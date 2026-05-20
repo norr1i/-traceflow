@@ -4,7 +4,7 @@ import { useState } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
+import { Eye, EyeOff, AlertCircle, Loader2, Building2, User } from 'lucide-react'
 import { LogoIcon } from '../components/Logo'
 
 function getPasswordStrength(pw: string): { bars: number; label: string; color: string } {
@@ -35,19 +35,24 @@ function friendlySignupError(raw: string): string {
 
 export default function SignupPage() {
   const router = useRouter()
-  const [email, setEmail]       = useState('')
-  const [password, setPassword] = useState('')
-  const [confirm, setConfirm]   = useState('')
-  const [showPw, setShowPw]     = useState(false)
-  const [loading, setLoading]   = useState(false)
-  const [error, setError]       = useState<string | null>(null)
 
-  const strength = password ? getPasswordStrength(password) : null
+  const [companyName, setCompanyName] = useState('')
+  const [fullName,    setFullName]    = useState('')
+  const [email,       setEmail]       = useState('')
+  const [password,    setPassword]    = useState('')
+  const [confirm,     setConfirm]     = useState('')
+  const [showPw,      setShowPw]      = useState(false)
+  const [loading,     setLoading]     = useState(false)
+  const [error,       setError]       = useState<string | null>(null)
+
+  const strength        = password ? getPasswordStrength(password) : null
   const confirmMismatch = !!confirm && confirm !== password
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (loading) return
+    if (!companyName.trim()) { setError('Please enter your company or factory name.'); return }
+    if (!fullName.trim())    { setError('Please enter your full name.'); return }
     if (password !== confirm) { setError('Passwords do not match.'); return }
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return }
 
@@ -59,6 +64,11 @@ export default function SignupPage() {
       password,
       options: {
         emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : '/',
+        // Stored in auth.users.raw_user_meta_data — read by tf_bootstrap_company trigger
+        data: {
+          company_name: companyName.trim(),
+          full_name:    fullName.trim(),
+        },
       },
     })
 
@@ -84,7 +94,7 @@ export default function SignupPage() {
   `
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden bg-[#090F15]">
+    <div className="relative flex min-h-screen items-center justify-center px-4 py-10 overflow-hidden bg-[#090F15]">
       <div className="pointer-events-none absolute inset-0" style={{
         background: 'radial-gradient(ellipse 1600px 1000px at 20% 10%, rgba(74,127,165,0.05) 0%, transparent 65%)',
       }} />
@@ -95,8 +105,8 @@ export default function SignupPage() {
           <div className="mb-5">
             <LogoIcon size="lg" />
           </div>
-          <h1 className="text-2xl font-bold text-[#D3D1CE] tracking-tight">Create your account</h1>
-          <p className="mt-1.5 text-sm text-[#6C6D74]">Start using TraceFlow today</p>
+          <h1 className="text-2xl font-bold text-[#D3D1CE] tracking-tight">Set up your workspace</h1>
+          <p className="mt-1.5 text-sm text-[#6C6D74]">Create your company account on TraceFlow</p>
         </div>
 
         {/* Card */}
@@ -110,75 +120,117 @@ export default function SignupPage() {
               </div>
             )}
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Email</label>
-              <input
-                type="email"
-                required
-                autoComplete="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@company.com"
-                className={inputClass}
-              />
+            {/* Workspace section */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 mb-3">
+                <Building2 size={13} className="text-[#4a8fb9]" />
+                <span className="text-xs font-semibold text-[#4a8fb9] uppercase tracking-wider">Workspace</span>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Company / Factory name</label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="organization"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  placeholder="e.g. Al-Faisaliah Foods Co."
+                  className={inputClass}
+                />
+              </div>
             </div>
 
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Password</label>
-              <div className="relative">
+            {/* Account section */}
+            <div className="space-y-1.5">
+              <div className="flex items-center gap-1.5 mb-3">
+                <User size={13} className="text-[#4a8fb9]" />
+                <span className="text-xs font-semibold text-[#4a8fb9] uppercase tracking-wider">Your account</span>
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Full name</label>
+                <input
+                  type="text"
+                  required
+                  autoComplete="name"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  placeholder="e.g. Mohammed Al-Rashid"
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Work email</label>
+                <input
+                  type="email"
+                  required
+                  autoComplete="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder="you@company.com"
+                  className={inputClass}
+                />
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Password</label>
+                <div className="relative">
+                  <input
+                    type={showPw ? 'text' : 'password'}
+                    required
+                    autoComplete="new-password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder="Min. 8 characters"
+                    className={inputClass}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowPw(!showPw)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6C6D74] hover:text-[#B3B7BA] transition-colors"
+                  >
+                    {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+
+                {strength && (
+                  <div className="mt-2 space-y-1">
+                    <div className="flex gap-1">
+                      {[1, 2, 3, 4].map(i => (
+                        <div
+                          key={i}
+                          className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
+                            i <= strength.bars ? strength.color : 'bg-[#B3B7BA]/10'
+                          }`}
+                        />
+                      ))}
+                    </div>
+                    <p className="text-xs text-[#6C6D74]">
+                      Strength: <span className="font-medium text-[#B3B7BA]">{strength.label}</span>
+                    </p>
+                  </div>
+                )}
+              </div>
+
+              <div>
+                <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Confirm password</label>
                 <input
                   type={showPw ? 'text' : 'password'}
                   required
                   autoComplete="new-password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  placeholder="Min. 8 characters"
-                  className={inputClass}
+                  value={confirm}
+                  onChange={(e) => setConfirm(e.target.value)}
+                  placeholder="Re-enter your password"
+                  className={`${inputClass} ${
+                    confirmMismatch ? 'border-[#8a3535]/40 focus:ring-[#8a3535]/20' : ''
+                  }`}
                 />
-                <button
-                  type="button"
-                  onClick={() => setShowPw(!showPw)}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 text-[#6C6D74] hover:text-[#B3B7BA] transition-colors"
-                >
-                  {showPw ? <EyeOff size={16} /> : <Eye size={16} />}
-                </button>
+                {confirmMismatch && (
+                  <p className="mt-1 text-xs text-[#c47070]">Passwords do not match.</p>
+                )}
               </div>
-
-              {strength && (
-                <div className="mt-2 space-y-1">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4].map(i => (
-                      <div
-                        key={i}
-                        className={`h-1 flex-1 rounded-full transition-colors duration-300 ${
-                          i <= strength.bars ? strength.color : 'bg-[#B3B7BA]/10'
-                        }`}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs text-[#6C6D74]">
-                    Strength: <span className="font-medium text-[#B3B7BA]">{strength.label}</span>
-                  </p>
-                </div>
-              )}
-            </div>
-
-            <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Confirm password</label>
-              <input
-                type={showPw ? 'text' : 'password'}
-                required
-                autoComplete="new-password"
-                value={confirm}
-                onChange={(e) => setConfirm(e.target.value)}
-                placeholder="Re-enter your password"
-                className={`${inputClass} ${
-                  confirmMismatch ? 'border-[#8a3535]/40 focus:ring-[#8a3535]/20' : ''
-                }`}
-              />
-              {confirmMismatch && (
-                <p className="mt-1 text-xs text-[#c47070]">Passwords do not match.</p>
-              )}
             </div>
 
             <button
@@ -196,8 +248,12 @@ export default function SignupPage() {
               "
             >
               {loading && <Loader2 size={15} className="animate-spin" />}
-              {loading ? 'Creating account…' : 'Create account'}
+              {loading ? 'Creating workspace…' : 'Create workspace'}
             </button>
+
+            <p className="text-center text-xs text-[#6C6D74] leading-relaxed">
+              Your workspace is isolated — no other company can see your data.
+            </p>
           </form>
         </div>
 
