@@ -5,7 +5,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import {
   LayoutDashboard, Package,
   ClipboardList, ShieldCheck, ShoppingCart,
-  Menu, X, Boxes, Sun, Moon, LogOut, AlertTriangle,
+  Menu, X, Boxes, Sun, Moon, LogOut, AlertTriangle, Users,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth-context'
@@ -23,18 +23,13 @@ type NavItem = {
 const nav: NavItem[] = [
   { label: 'Dashboard',         href: '/',               icon: LayoutDashboard, roles: ['admin', 'manager'] },
   { label: 'Products',          href: '/products',        icon: Package,         roles: ['admin', 'manager'] },
-  { label: 'Raw Materials',     href: '/raw-materials',   icon: Boxes,           roles: ['admin', 'manager'] },
-  { label: 'Production Orders', href: '/production',      icon: ClipboardList,   roles: ['admin', 'manager', 'inspector'] },
-  { label: 'Quality Control',   href: '/quality-control', icon: ShieldCheck,     roles: ['admin', 'manager', 'inspector'] },
-  { label: 'Sales',             href: '/sales',           icon: ShoppingCart,    roles: ['admin', 'manager'] },
+  { label: 'Raw Materials',     href: '/raw-materials',   icon: Boxes,           roles: ['admin', 'manager', 'warehouse'] },
+  { label: 'Production Orders', href: '/production',      icon: ClipboardList,   roles: ['admin', 'manager', 'inspector', 'operations', 'qc_inspector'] },
+  { label: 'Quality Control',   href: '/quality-control', icon: ShieldCheck,     roles: ['admin', 'manager', 'inspector', 'qc_inspector'] },
+  { label: 'Sales',             href: '/sales',           icon: ShoppingCart,    roles: ['admin', 'manager', 'sales'] },
   { label: 'Recall',            href: '/recall',          icon: AlertTriangle,   roles: ['admin', 'manager'] },
+  { label: 'Team',              href: '/team',            icon: Users,           roles: ['admin', 'manager'] },
 ]
-
-const rolePillColor: Record<string, string> = {
-  admin:    'bg-[#5a4690]/20 text-[#9a88d4] border border-[#5a4690]/30',
-  manager:  'bg-[#3a6f8f]/20 text-[#7aafcf] border border-[#3a6f8f]/30',
-  inspector:'bg-[#2d7a5a]/20 text-[#6abf9a] border border-[#2d7a5a]/30',
-}
 
 export default function Sidebar() {
   const pathname = usePathname()
@@ -57,6 +52,8 @@ export default function Sidebar() {
     await signOut()
     router.replace('/login')
   }
+
+  const roleMeta = role ? (ROLE_META[role] ?? ROLE_META['manager']) : null
 
   const sidebarContent = (
     <aside
@@ -103,10 +100,7 @@ export default function Sidebar() {
       <div className="px-3 py-4 border-t border-[#B3B7BA]/[0.07] space-y-0.5">
         {/* User card */}
         {user && (
-          <div className="
-            mb-2 px-3 py-2.5 rounded-xl
-            bg-[#262E36]/40 border border-[#B3B7BA]/[0.08]
-          ">
+          <div className="mb-2 px-3 py-2.5 rounded-xl bg-[#262E36]/40 border border-[#B3B7BA]/[0.08]">
             {companyName && (
               <p className="text-xs font-semibold text-[#D3D1CE] truncate mb-1">{companyName}</p>
             )}
@@ -114,9 +108,9 @@ export default function Sidebar() {
               Signed in as
             </p>
             <p className="text-xs text-[#B3B7BA] truncate font-medium">{user.email}</p>
-            {role && (
-              <span className={`mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${rolePillColor[role] ?? rolePillColor['manager']}`}>
-                {ROLE_META[role].label}
+            {roleMeta && (
+              <span className={`mt-1.5 inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold tracking-wide ${roleMeta.color}`}>
+                {roleMeta.label}
               </span>
             )}
           </div>
