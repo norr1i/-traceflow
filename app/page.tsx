@@ -7,10 +7,12 @@ import StatCard from './components/StatCard'
 import ProductionChart from './components/charts/ProductionChart'
 import QcTrendChart from './components/charts/QcTrendChart'
 import ScanActivityChart from './components/charts/ScanActivityChart'
+import { useRole } from './lib/auth-context'
+import { canView } from './lib/permissions'
 import {
   ClipboardList, QrCode, AlertTriangle, FlaskConical,
   Smartphone, Monitor, CheckCircle2, Clock, ShieldCheck,
-  XCircle, RefreshCw,
+  XCircle, RefreshCw, LayoutDashboard,
 } from 'lucide-react'
 
 // ── Helpers ────────────────────────────────────────────────────────────────
@@ -172,6 +174,12 @@ function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message:
 // ── Page ───────────────────────────────────────────────────────────────────
 
 export default function DashboardPage() {
+  const role = useRole()
+  const showProduction = canView(role, 'dashboard.production')
+  const showQuality    = canView(role, 'dashboard.quality')
+  const showTracing    = canView(role, 'dashboard.tracing')
+  const hasAnySections = showProduction || showQuality || showTracing
+
   const [stats,      setStats]      = useState<DashboardStats | null>(null)
   const [loading,    setLoading]    = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -193,7 +201,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load()
-    // Auto-refresh every 30 seconds for a "live" feel
     const interval = setInterval(() => load(true), 30_000)
     return () => clearInterval(interval)
   }, [load])
@@ -219,13 +226,57 @@ export default function DashboardPage() {
         ? 'yellow'
         : 'red'
 
+  // Build visible KPI cards for dynamic grid
+  const kpiCards = [
+    showProduction && (
+      <StatCard
+        key="batches"
+        title="Total Batches"
+        value={totalBatches}
+        subtitle={`${ordersByStatus.in_progress} in progress`}
+        accent="blue"
+        icon={ClipboardList}
+      />
+    ),
+    showQuality && (
+      <StatCard
+        key="passrate"
+        title="QC Pass Rate"
+        value={passRate !== null ? `${passRate}%` : '—'}
+        subtitle={`${qcCounts.pass + qcCounts.fail + qcCounts.hold} total inspections`}
+        accent={passRateAccent}
+        icon={passRate !== null && passRate >= 80 ? CheckCircle2 : passRate !== null && passRate < 60 ? XCircle : ShieldCheck}
+      />
+    ),
+    showTracing && (
+      <StatCard
+        key="scans"
+        title="QR Scans"
+        value={totalScans.toLocaleString()}
+        subtitle="all-time trace events"
+        accent="purple"
+        icon={QrCode}
+      />
+    ),
+    showQuality && (
+      <StatCard
+        key="weekly"
+        title="This Week"
+        value={weeklyInspections}
+        subtitle="QC inspections last 7 days"
+        accent={weeklyInspections > 0 ? 'orange' : 'yellow'}
+        icon={FlaskConical}
+      />
+    ),
+  ].filter(Boolean)
+
   return (
     <div className="px-4 sm:px-6 py-8 max-w-7xl mx-auto space-y-6">
 
       {/* ── Header ────────────────────────────────────────────────────────── */}
       <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Operations Dashboard</h1>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white tracking-tight">Dashboard</h1>
           <p className="mt-1 text-sm text-gray-500 dark:text-gray-400">
             {lastUpdated
               ? `Updated ${timeAgo(lastUpdated.toISOString())}`
@@ -233,7 +284,6 @@ export default function DashboardPage() {
           </p>
         </div>
         <div className="flex items-center gap-3 shrink-0">
-          {/* Live pulsing indicator */}
           <div className="hidden sm:flex items-center gap-1.5 rounded-full border border-emerald-500/25 bg-emerald-500/10 px-2.5 py-1">
             <span className="relative flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-75" />
@@ -241,7 +291,6 @@ export default function DashboardPage() {
             </span>
             <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400">Live</span>
           </div>
-          {/* Manual refresh */}
           <button
             onClick={() => load(true)}
             disabled={refreshing}
@@ -253,40 +302,26 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* ── KPI cards ──────────────────────────────────────────────────────── */}
-      <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          title="Total Batches"
-          value={totalBatches}
-          subtitle={`${ordersByStatus.in_progress} in progress`}
-          accent="blue"
-          icon={ClipboardList}
-        />
-        <StatCard
-          title="QC Pass Rate"
-          value={passRate !== null ? `${passRate}%` : '—'}
-          subtitle={`${qcCounts.pass + qcCounts.fail + qcCounts.hold} total inspections`}
-          accent={passRateAccent}
-          icon={passRate !== null && passRate >= 80 ? CheckCircle2 : passRate !== null && passRate < 60 ? XCircle : ShieldCheck}
-        />
-        <StatCard
-          title="QR Scans"
-          value={totalScans.toLocaleString()}
-          subtitle="all-time trace events"
-          accent="purple"
-          icon={QrCode}
-        />
-        <StatCard
-          title="This Week"
-          value={weeklyInspections}
-          subtitle="QC inspections last 7 days"
-          accent={weeklyInspections > 0 ? 'orange' : 'yellow'}
-          icon={FlaskConical}
-        />
-      </section>
+      {/* ── No-section fallback (e.g. warehouse navigated here) ───────────── */}
+      {!hasAnySections && (
+        <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-2xl border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-gray-500">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gray-100 dark:bg-white/[0.06] border border-gray-200 dark:border-white/[0.06]">
+            <LayoutDashboard size={24} className="opacity-50" />
+          </div>
+          <p className="text-sm font-medium">No dashboard sections are available for your role.</p>
+          <p className="text-xs">Use the sidebar to navigate to your module.</p>
+        </div>
+      )}
 
-      {/* ── Recall risk banner ─────────────────────────────────────────────── */}
-      {hasRisk && (
+      {/* ── KPI cards ──────────────────────────────────────────────────────── */}
+      {kpiCards.length > 0 && (
+        <section className={`grid gap-4 ${kpiCards.length <= 2 ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+          {kpiCards}
+        </section>
+      )}
+
+      {/* ── Recall risk banner (production section) ────────────────────────── */}
+      {showProduction && hasRisk && (
         <div className="flex items-start gap-4 rounded-2xl border border-red-500/25 bg-red-500/10 dark:bg-red-500/[0.08] p-5">
           <AlertTriangle size={20} className="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
           <div className="flex-1 min-w-0">
@@ -312,157 +347,167 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── Trend charts ───────────────────────────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <SectionCard
-          title="QC Trend — Last 7 Days"
-          subtitle="Daily pass / fail / hold inspection counts"
-        >
-          <QcTrendChart data={qcTrend} />
-        </SectionCard>
-
-        <SectionCard
-          title="QR Scan Activity — Last 7 Days"
-          subtitle="Daily product trace scan volume"
-        >
-          <ScanActivityChart data={scanTrend} />
-        </SectionCard>
-      </section>
+      {/* ── Trend charts (quality + tracing) ──────────────────────────────── */}
+      {(showQuality || showTracing) && (
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {showQuality && (
+            <SectionCard title="QC Trend — Last 7 Days" subtitle="Daily pass / fail / hold inspection counts">
+              <QcTrendChart data={qcTrend} />
+            </SectionCard>
+          )}
+          {showTracing && (
+            <SectionCard title="QR Scan Activity — Last 7 Days" subtitle="Daily product trace scan volume">
+              <ScanActivityChart data={scanTrend} />
+            </SectionCard>
+          )}
+        </section>
+      )}
 
       {/* ── Pipeline + QC breakdown ────────────────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-        <SectionCard title="Production Pipeline" subtitle="Orders by current status">
-          <ProductionChart data={ordersByStatus} />
-        </SectionCard>
-
-        <SectionCard title="QC Inspection Results" subtitle="Cumulative pass / fail / hold breakdown">
-          <QcBar pass={qcCounts.pass} fail={qcCounts.fail} hold={qcCounts.hold} />
-        </SectionCard>
-      </section>
+      {(showProduction || showQuality) && (
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {showProduction && (
+            <SectionCard title="Production Pipeline" subtitle="Orders by current status">
+              <ProductionChart data={ordersByStatus} />
+            </SectionCard>
+          )}
+          {showQuality && (
+            <SectionCard title="QC Inspection Results" subtitle="Cumulative pass / fail / hold breakdown">
+              <QcBar pass={qcCounts.pass} fail={qcCounts.fail} hold={qcCounts.hold} />
+            </SectionCard>
+          )}
+        </section>
+      )}
 
       {/* ── Recent QC + Most scanned ───────────────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-        <SectionCard title="Recent QC Inspections" subtitle="Latest across all batches">
-          {recentQc.length === 0 ? (
-            <EmptyState icon={FlaskConical} message="No inspections recorded yet." />
-          ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {recentQc.map((q, i) => (
-                <li key={i} className="py-3 flex items-start gap-3">
-                  <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${qcCfg[q.status].dot}`} />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{q.product_name}</span>
-                      <QcBadge status={q.status} />
-                    </div>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      {q.inspector_name} · {fmt(q.inspected_at)}
-                    </p>
-                    {q.notes && (
-                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{q.notes}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+      {(showQuality || showTracing) && (
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {showQuality && (
+            <SectionCard title="Recent QC Inspections" subtitle="Latest across all batches">
+              {recentQc.length === 0 ? (
+                <EmptyState icon={FlaskConical} message="No inspections recorded yet." />
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                  {recentQc.map((q, i) => (
+                    <li key={i} className="py-3 flex items-start gap-3">
+                      <span className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${qcCfg[q.status].dot}`} />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{q.product_name}</span>
+                          <QcBadge status={q.status} />
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          {q.inspector_name} · {fmt(q.inspected_at)}
+                        </p>
+                        {q.notes && (
+                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{q.notes}</p>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
           )}
-        </SectionCard>
-
-        <SectionCard title="Most Scanned Batches" subtitle="By QR scan event count">
-          {mostScanned.length === 0 ? (
-            <EmptyState icon={QrCode} message="No scan events recorded yet." />
-          ) : (
-            <ul className="space-y-3.5">
-              {mostScanned.map((b, i) => (
-                <li key={b.batch_id}>
-                  <div className="flex items-center justify-between gap-2 mb-1.5">
-                    <div className="flex items-center gap-2 min-w-0">
-                      <span className="shrink-0 text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
-                      <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{b.product_name}</span>
-                      {b.sku && <span className="shrink-0 font-mono text-xs text-gray-400">{b.sku}</span>}
-                    </div>
-                    <span className="shrink-0 text-sm font-bold text-blue-600 dark:text-blue-400">
-                      {b.scan_count}
-                    </span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/[0.06]">
-                    <div
-                      className="h-full rounded-full bg-blue-500 dark:bg-blue-400 transition-all duration-700"
-                      style={{ width: `${(b.scan_count / maxScanCount) * 100}%` }}
-                    />
-                  </div>
-                </li>
-              ))}
-            </ul>
+          {showTracing && (
+            <SectionCard title="Most Scanned Batches" subtitle="By QR scan event count">
+              {mostScanned.length === 0 ? (
+                <EmptyState icon={QrCode} message="No scan events recorded yet." />
+              ) : (
+                <ul className="space-y-3.5">
+                  {mostScanned.map((b, i) => (
+                    <li key={b.batch_id}>
+                      <div className="flex items-center justify-between gap-2 mb-1.5">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="shrink-0 text-xs font-bold text-gray-400 w-5">#{i + 1}</span>
+                          <span className="text-sm font-medium text-gray-900 dark:text-white truncate">{b.product_name}</span>
+                          {b.sku && <span className="shrink-0 font-mono text-xs text-gray-400">{b.sku}</span>}
+                        </div>
+                        <span className="shrink-0 text-sm font-bold text-blue-600 dark:text-blue-400">
+                          {b.scan_count}
+                        </span>
+                      </div>
+                      <div className="h-1.5 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/[0.06]">
+                        <div
+                          className="h-full rounded-full bg-blue-500 dark:bg-blue-400 transition-all duration-700"
+                          style={{ width: `${(b.scan_count / maxScanCount) * 100}%` }}
+                        />
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
           )}
-        </SectionCard>
-
-      </section>
+        </section>
+      )}
 
       {/* ── Failed QC + Recent scan events ────────────────────────────────── */}
-      <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
-
-        <SectionCard title="Batches with Failed QC" subtitle="Latest QC status = fail">
-          {failedBatches.length === 0 ? (
-            <EmptyState icon={CheckCircle2} message="No failed batches — all clear." />
-          ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {failedBatches.map(b => (
-                <li key={b.id} className="py-3 flex items-start gap-3">
-                  <span className="mt-1.5 flex h-2 w-2 shrink-0 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900/30" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-semibold text-gray-900 dark:text-white">{b.product_name}</span>
-                      <span className="font-mono text-xs text-gray-400">{b.sku}</span>
-                      {b.has_sales && (
-                        <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-                          Distributed
-                        </span>
-                      )}
-                    </div>
-                    <p className="mt-0.5 text-xs text-gray-400">
-                      Inspector: {b.latest_qc.inspector_name} · {fmt(b.latest_qc.inspected_at)}
-                    </p>
-                    {b.latest_qc.notes && (
-                      <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{b.latest_qc.notes}</p>
-                    )}
-                  </div>
-                </li>
-              ))}
-            </ul>
+      {(showProduction || showTracing) && (
+        <section className="grid grid-cols-1 gap-5 lg:grid-cols-2">
+          {showProduction && (
+            <SectionCard title="Batches with Failed QC" subtitle="Latest QC status = fail">
+              {failedBatches.length === 0 ? (
+                <EmptyState icon={CheckCircle2} message="No failed batches — all clear." />
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                  {failedBatches.map(b => (
+                    <li key={b.id} className="py-3 flex items-start gap-3">
+                      <span className="mt-1.5 flex h-2 w-2 shrink-0 rounded-full bg-red-500 ring-4 ring-red-100 dark:ring-red-900/30" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-semibold text-gray-900 dark:text-white">{b.product_name}</span>
+                          <span className="font-mono text-xs text-gray-400">{b.sku}</span>
+                          {b.has_sales && (
+                            <span className="rounded px-1.5 py-0.5 text-[10px] font-bold uppercase bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
+                              Distributed
+                            </span>
+                          )}
+                        </div>
+                        <p className="mt-0.5 text-xs text-gray-400">
+                          Inspector: {b.latest_qc.inspector_name} · {fmt(b.latest_qc.inspected_at)}
+                        </p>
+                        {b.latest_qc.notes && (
+                          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 truncate">{b.latest_qc.notes}</p>
+                        )}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
           )}
-        </SectionCard>
-
-        <SectionCard title="Recent Scan Events" subtitle="Latest QR code traces">
-          {recentScans.length === 0 ? (
-            <EmptyState icon={QrCode} message="No scan events recorded yet." />
-          ) : (
-            <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
-              {recentScans.map((s, i) => (
-                <li key={i} className="py-2.5 flex items-center gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 dark:bg-white/[0.06] border border-gray-200 dark:border-white/[0.06] text-gray-500 dark:text-gray-400">
-                    {s.device_type === 'mobile'
-                      ? <Smartphone size={14} />
-                      : <Monitor size={14} />}
-                  </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{s.product_name}</p>
-                    <p className="text-xs text-gray-400">
-                      {s.browser ?? 'Browser'} · {s.device_type ?? 'device'}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-1 shrink-0 text-xs text-gray-400">
-                    <Clock size={11} />
-                    {timeAgo(s.scanned_at)}
-                  </div>
-                </li>
-              ))}
-            </ul>
+          {showTracing && (
+            <SectionCard title="Recent Scan Events" subtitle="Latest QR code traces">
+              {recentScans.length === 0 ? (
+                <EmptyState icon={QrCode} message="No scan events recorded yet." />
+              ) : (
+                <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                  {recentScans.map((s, i) => (
+                    <li key={i} className="py-2.5 flex items-center gap-3">
+                      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-gray-100 dark:bg-white/[0.06] border border-gray-200 dark:border-white/[0.06] text-gray-500 dark:text-gray-400">
+                        {s.device_type === 'mobile'
+                          ? <Smartphone size={14} />
+                          : <Monitor size={14} />}
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-medium text-gray-900 dark:text-white truncate">{s.product_name}</p>
+                        <p className="text-xs text-gray-400">
+                          {s.browser ?? 'Browser'} · {s.device_type ?? 'device'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-1 shrink-0 text-xs text-gray-400">
+                        <Clock size={11} />
+                        {timeAgo(s.scanned_at)}
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </SectionCard>
           )}
-        </SectionCard>
-
-      </section>
+        </section>
+      )}
 
     </div>
   )

@@ -9,11 +9,11 @@ export type Role =
 
 // Pages each restricted role may visit (exact match or prefix)
 const ROLE_PATHS: Partial<Record<Role, string[]>> = {
-  inspector:   ['/production', '/quality-control'],
-  operations:  ['/production'],
-  warehouse:   ['/raw-materials'],
-  qc_inspector:['/production', '/quality-control'],
-  sales:       ['/sales'],
+  inspector:   ['/', '/production', '/quality-control'],
+  operations:  ['/', '/production'],
+  warehouse:   ['/', '/raw-materials'],
+  qc_inspector:['/', '/production', '/quality-control'],
+  sales:       ['/', '/sales', '/products'],
 }
 
 export function canVisit(role: Role | null, pathname: string): boolean {
@@ -29,11 +29,11 @@ export function homeFor(role: Role): string {
   const homes: Record<Role, string> = {
     admin:       '/',
     manager:     '/',
-    inspector:   '/production',
-    operations:  '/production',
-    warehouse:   '/raw-materials',
-    qc_inspector:'/production',
-    sales:       '/sales',
+    inspector:   '/',
+    operations:  '/',
+    warehouse:   '/',
+    qc_inspector:'/',
+    sales:       '/',
   }
   return homes[role] ?? '/'
 }

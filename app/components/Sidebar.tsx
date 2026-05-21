@@ -9,33 +9,33 @@ import {
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth-context'
-import type { Role } from '../lib/roles'
-import { ROLE_META } from '../lib/roles'
+import { ROLE_META, homeFor } from '../lib/roles'
+import { hasPermission, getPermissions, type Permission } from '../lib/permissions'
 import { LogoIcon, LogoLockup } from './Logo'
 
 type NavItem = {
   label: string
   href: string
   icon: React.ElementType
-  roles: Role[]
+  permission: Permission
 }
 
 const nav: NavItem[] = [
-  { label: 'Dashboard',         href: '/',               icon: LayoutDashboard, roles: ['admin', 'manager'] },
-  { label: 'Products',          href: '/products',        icon: Package,         roles: ['admin', 'manager'] },
-  { label: 'Raw Materials',     href: '/raw-materials',   icon: Boxes,           roles: ['admin', 'manager', 'warehouse'] },
-  { label: 'Production Orders', href: '/production',      icon: ClipboardList,   roles: ['admin', 'manager', 'inspector', 'operations', 'qc_inspector'] },
-  { label: 'Quality Control',   href: '/quality-control', icon: ShieldCheck,     roles: ['admin', 'manager', 'inspector', 'qc_inspector'] },
-  { label: 'Sales',             href: '/sales',           icon: ShoppingCart,    roles: ['admin', 'manager', 'sales'] },
-  { label: 'Recall',            href: '/recall',          icon: AlertTriangle,   roles: ['admin', 'manager'] },
-  { label: 'Team',              href: '/team',            icon: Users,           roles: ['admin', 'manager'] },
+  { label: 'Dashboard',         href: '/',               icon: LayoutDashboard, permission: 'view:dashboard'       },
+  { label: 'Products',          href: '/products',        icon: Package,         permission: 'view:products'        },
+  { label: 'Raw Materials',     href: '/raw-materials',   icon: Boxes,           permission: 'view:raw-materials'   },
+  { label: 'Production Orders', href: '/production',      icon: ClipboardList,   permission: 'view:production'      },
+  { label: 'Quality Control',   href: '/quality-control', icon: ShieldCheck,     permission: 'view:quality-control' },
+  { label: 'Sales',             href: '/sales',           icon: ShoppingCart,    permission: 'view:sales'           },
+  { label: 'Recall',            href: '/recall',          icon: AlertTriangle,   permission: 'view:recall'          },
+  { label: 'Team',              href: '/team',            icon: Users,           permission: 'view:team'            },
 ]
 
 export default function Sidebar() {
   const pathname = usePathname()
   const router   = useRouter()
   const { user, role, companyName, signOut } = useAuth()
-  const visibleNav = role ? nav.filter(item => item.roles.includes(role)) : []
+  const visibleNav = role ? nav.filter(item => hasPermission(role, item.permission)) : []
 
   const [open, setOpen] = useState(false)
   const [dark, setDark] = useState(() =>
@@ -133,6 +133,17 @@ export default function Sidebar() {
           <LogOut size={16} />
           Sign out
         </button>
+
+        {/* ── DEBUG BADGE — remove after verifying role propagation ── */}
+        {role && (
+          <div className="mx-0.5 mt-1 rounded-lg border border-yellow-500/25 bg-yellow-900/10 px-2.5 py-2 font-mono space-y-0.5">
+            <p className="text-[9px] text-yellow-500/60 uppercase tracking-widest">debug</p>
+            <p className="text-[10px] text-yellow-400">role: <span className="font-bold">{role}</span></p>
+            <p className="text-[10px] text-yellow-400/60">perms: {getPermissions(role).length}</p>
+            <p className="text-[10px] text-yellow-400/60">home: {homeFor(role)}</p>
+          </div>
+        )}
+        {/* ── END DEBUG ── */}
 
         <p className="px-3 pt-1 text-[10px] text-[#6C6D74]/60">TraceFlow v1.0</p>
       </div>

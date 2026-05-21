@@ -152,6 +152,37 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   // (closure captures the initial null; roleRef always reflects the live value).
   const roleRef = useRef<Role | null>(null)
 
+  // ── Realtime: re-apply profile whenever user_profiles row changes ──────────
+  // This propagates role changes made by an admin immediately, without sign-out.
+  // If Supabase Realtime is not enabled on user_profiles the channel silently
+  // stays unsubscribed — no error, no crash.
+  useEffect(() => {
+    const userId = session?.user?.id
+    if (!userId) return
+
+    const channel = supabase
+      .channel(`profile:${userId}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'user_profiles', filter: `user_id=eq.${userId}` },
+        () => {
+          fetchProfileRow(userId).then(data => {
+            if (!data || activeUserIdRef.current !== userId) return
+            console.log('[auth] realtime: profile row updated — re-applying')
+            const info = buildInfo(data)
+            setRole(info.role)
+            roleRef.current = info.role
+            setCompanyId(info.companyId)
+            setCompanyName(info.companyName)
+          }).catch(() => {})
+        }
+      )
+      .subscribe()
+
+    return () => { supabase.removeChannel(channel) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session?.user?.id])
+
   function applyUserInfo(info: UserInfo) {
     setRole(info.role)
     roleRef.current = info.role
@@ -197,11 +228,26 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         const userId = sess.user.id
 
-        // Token refresh for the same user: skip re-fetching to avoid flicker.
-        // roleRef gives us the live value even though this closure is stable.
+        // Same user already loaded: don't re-run the full login flow.
+        // On TOKEN_REFRESHED, silently re-check in case an admin changed the role.
         if (activeUserIdRef.current === userId && roleRef.current !== null) {
-          console.log('[auth] token refresh, same user — skipping re-fetch')
           setLoading(false)
+          if (event === 'TOKEN_REFRESHED') {
+            fetchProfileRow(userId)
+              .then(data => {
+                if (!data || activeUserIdRef.current !== userId) return
+                const newRole = (data.role as Role | undefined) ?? null
+                if (newRole && newRole !== roleRef.current) {
+                  console.log('[auth] role changed on token refresh:', roleRef.current, '→', newRole)
+                  const info = buildInfo(data)
+                  setRole(info.role)
+                  roleRef.current = info.role
+                  setCompanyId(info.companyId)
+                  setCompanyName(info.companyName)
+                }
+              })
+              .catch(() => {})
+          }
           return
         }
 
