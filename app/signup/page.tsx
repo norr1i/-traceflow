@@ -60,6 +60,7 @@ function SignupContent() {
   const [showPw,      setShowPw]      = useState(false)
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
+  const [alreadyExists, setAlreadyExists] = useState(false)
 
   // Invitation state
   const [invite,        setInvite]        = useState<InviteInfo | null>(null)
@@ -108,6 +109,7 @@ function SignupContent() {
 
     setLoading(true)
     setError(null)
+    setAlreadyExists(false)
 
     const { data, error: signUpErr } = await supabase.auth.signUp({
       email: email.trim().toLowerCase(),
@@ -128,6 +130,18 @@ function SignupContent() {
       return
     }
 
+    // Supabase silently returns identities:[] when the email is already registered.
+    if (data.user?.identities?.length === 0) {
+      setAlreadyExists(true)
+      setError(
+        isInvited
+          ? `This email already has a TraceFlow account. Sign in to automatically join ${invite!.company_name}.`
+          : 'An account with this email already exists. Sign in instead.'
+      )
+      setLoading(false)
+      return
+    }
+
     if (data.session) {
       // Session returned immediately (email confirmation disabled).
       // If the user is accepting an invitation, do it now before navigating.
@@ -139,7 +153,10 @@ function SignupContent() {
     }
 
     // Email confirmation required — tell the user to check their inbox.
-    router.replace(`/verify-email?email=${encodeURIComponent(email.trim())}`)
+    const verifyUrl = new URL('/verify-email', window.location.origin)
+    verifyUrl.searchParams.set('email', email.trim())
+    if (isInvited) verifyUrl.searchParams.set('company', invite!.company_name)
+    router.replace(verifyUrl.pathname + verifyUrl.search)
   }
 
   const roleMeta = invite ? (ROLE_META[invite.role as Role] ?? null) : null
@@ -178,9 +195,19 @@ function SignupContent() {
           <form onSubmit={handleSubmit} className="space-y-5">
 
             {error && (
-              <div className="flex items-start gap-2.5 rounded-xl border border-[#8a3535]/30 bg-[#8a3535]/10 px-4 py-3 text-sm text-[#c47070]">
-                <AlertCircle size={16} className="mt-0.5 shrink-0" />
-                {error}
+              <div className="flex flex-col gap-2 rounded-xl border border-[#8a3535]/30 bg-[#8a3535]/10 px-4 py-3 text-sm text-[#c47070]">
+                <div className="flex items-start gap-2.5">
+                  <AlertCircle size={16} className="mt-0.5 shrink-0" />
+                  {error}
+                </div>
+                {alreadyExists && (
+                  <Link
+                    href={`/login?email=${encodeURIComponent(email.trim())}`}
+                    className="ml-6 font-semibold underline underline-offset-2 hover:text-[#d98080] transition-colors"
+                  >
+                    Go to sign in →
+                  </Link>
+                )}
               </div>
             )}
 

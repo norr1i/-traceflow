@@ -1,8 +1,8 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 import { LogoIcon } from '../components/Logo'
@@ -21,9 +21,11 @@ function friendlyAuthError(raw: string): string {
   return raw
 }
 
-export default function LoginPage() {
-  const router = useRouter()
-  const [email, setEmail]       = useState('')
+function LoginContent() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
+
+  const [email, setEmail]       = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
   const [showPw, setShowPw]     = useState(false)
   const [loading, setLoading]   = useState(false)
@@ -53,13 +55,11 @@ export default function LoginPage() {
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 overflow-hidden bg-[#090F15]">
-      {/* Subtle depth haze */}
       <div className="pointer-events-none absolute inset-0" style={{
         background: 'radial-gradient(ellipse 1600px 1000px at 20% 10%, rgba(74,127,165,0.05) 0%, transparent 65%)',
       }} />
 
       <div className="relative w-full max-w-sm">
-        {/* Logo */}
         <div className="mb-8 flex flex-col items-center">
           <div className="mb-5">
             <LogoIcon size="lg" />
@@ -68,7 +68,6 @@ export default function LoginPage() {
           <p className="mt-1.5 text-sm text-[#6C6D74]">Sign in to your TraceFlow account</p>
         </div>
 
-        {/* Card */}
         <div className="rounded-2xl border border-[#B3B7BA]/[0.09] bg-gradient-to-b from-[#262E36]/85 to-[#1a2230]/80 backdrop-blur-xl p-8 shadow-[0_24px_60px_rgba(0,0,0,0.50)]">
           <form onSubmit={handleSubmit} className="space-y-5">
 
@@ -162,5 +161,21 @@ export default function LoginPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+function LoginFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#090F15]">
+      <Loader2 size={24} className="animate-spin text-[#4a8fb9]" />
+    </div>
+  )
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={<LoginFallback />}>
+      <LoginContent />
+    </Suspense>
   )
 }

@@ -4,12 +4,13 @@ import { Suspense, useEffect, useState } from 'react'
 import Link from 'next/link'
 import { useSearchParams } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import { Mail, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
+import { Mail, AlertCircle, CheckCircle2, Loader2, Clock } from 'lucide-react'
 import { LogoIcon } from '../components/Logo'
 
 function VerifyEmailContent() {
   const searchParams = useSearchParams()
-  const email = searchParams.get('email') ?? ''
+  const email   = searchParams.get('email') ?? ''
+  const company = searchParams.get('company') ?? ''
 
   const [resending, setResending]       = useState(false)
   const [resendStatus, setResendStatus] = useState<'idle' | 'sent' | 'error'>('idle')
@@ -58,12 +59,10 @@ function VerifyEmailContent() {
       }} />
 
       <div className="relative w-full max-w-sm">
-        {/* Logo */}
         <div className="mb-8 flex justify-center">
           <LogoIcon size="lg" />
         </div>
 
-        {/* Card */}
         <div className="rounded-2xl border border-[#B3B7BA]/[0.09] bg-gradient-to-b from-[#262E36]/85 to-[#1a2230]/80 backdrop-blur-xl p-8 shadow-[0_24px_60px_rgba(0,0,0,0.50)] text-center">
           <div className="flex justify-center mb-4">
             <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-[#3a6f8f]/25 bg-[#3a6f8f]/12">
@@ -78,11 +77,17 @@ function VerifyEmailContent() {
               ? <span className="font-medium text-[#B3B7BA]">{email}</span>
               : 'your email address'
             }.
-            {' '}Click it to activate your account.
+            {' '}Click it to activate your account{company ? ` and join ${company}` : ''}.
           </p>
-          <p className="mt-2 text-xs text-[#6C6D74]/70">
-            Don&apos;t see it? Check your spam or junk folder.
-          </p>
+
+          <div className="mt-3 flex items-start gap-2 rounded-xl border border-[#B3B7BA]/[0.08] bg-[#262E36]/40 px-3.5 py-3 text-left">
+            <Clock size={13} className="mt-0.5 shrink-0 text-[#6C6D74]" />
+            <p className="text-xs text-[#6C6D74] leading-relaxed">
+              Emails can take a few minutes to arrive. If nothing shows up, check your spam or junk folder.
+              On Supabase&apos;s free plan, delivery is rate-limited — configure a custom SMTP provider
+              (e.g. Resend or SendGrid) in the Supabase dashboard for reliable delivery.
+            </p>
+          </div>
 
           {resendStatus === 'sent' && (
             <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-[#2d7a5a]/30 bg-[#2d7a5a]/12 px-4 py-3 text-sm text-[#6abf9a]">
@@ -116,14 +121,17 @@ function VerifyEmailContent() {
                 ? 'Sending…'
                 : 'Resend confirmation email'}
           </button>
-        </div>
 
-        <p className="mt-6 text-center text-sm text-[#6C6D74]">
-          Already confirmed?{' '}
-          <Link href="/login" className="font-semibold text-[#4a8fb9] hover:text-[#6aafd9] transition-colors">
-            Sign in
-          </Link>
-        </p>
+          <div className="mt-3 border-t border-[#B3B7BA]/[0.08] pt-4">
+            <p className="text-xs text-[#6C6D74]">Already confirmed your email?</p>
+            <Link
+              href={email ? `/login?email=${encodeURIComponent(email)}` : '/login'}
+              className="mt-1.5 flex w-full items-center justify-center rounded-xl border border-[#4a7fa5]/25 bg-[#3a6f8f]/10 px-4 py-2.5 text-sm font-semibold text-[#4a8fb9] hover:bg-[#3a6f8f]/20 hover:text-[#6aafd9] transition-colors"
+            >
+              Sign in to your account
+            </Link>
+          </div>
+        </div>
       </div>
     </div>
   )
