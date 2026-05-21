@@ -60,7 +60,7 @@ WHERE NOT EXISTS (
   SELECT 1 FROM auth.users au WHERE au.id = user_profiles.user_id
 );
 
-RAISE NOTICE 'Step 1 complete: orphaned user_profiles removed.';
+DO $$ BEGIN RAISE NOTICE 'Step 1 complete: orphaned user_profiles removed.'; END; $$;
 
 
 -- ── STEP 2: Link signed-up invited users to their company ────────────────────
@@ -113,7 +113,7 @@ WHERE lower(au.email) = lower(i.email)
       AND up.company_id = i.company_id
   );
 
-RAISE NOTICE 'Step 2 complete: invited users linked to their companies.';
+DO $$ BEGIN RAISE NOTICE 'Step 2 complete: invited users linked to their companies.'; END; $$;
 
 
 -- ── STEP 3: Reassign company owner + promote to admin ────────────────────────
@@ -280,7 +280,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION accept_my_invitation() TO authenticated;
 
-RAISE NOTICE 'Step 5 complete: accept_my_invitation() updated.';
+DO $$ BEGIN RAISE NOTICE 'Step 5 complete: accept_my_invitation() updated.'; END; $$;
 
 
 -- ── STEP 6: Fix get_my_role() and create get_my_company() ────────────────────
@@ -311,7 +311,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION get_my_company() TO authenticated;
 
-RAISE NOTICE 'Step 6 complete: helper functions corrected.';
+DO $$ BEGIN RAISE NOTICE 'Step 6 complete: helper functions corrected.'; END; $$;
 
 
 -- ── STEP 7: Defensive trigger — auto-reassign owner on deletion ───────────────
@@ -364,7 +364,7 @@ CREATE TRIGGER trg_protect_company_owner
   BEFORE UPDATE ON companies
   FOR EACH ROW EXECUTE FUNCTION tf_protect_company_owner();
 
-RAISE NOTICE 'Step 7 complete: owner-protection trigger installed.';
+DO $$ BEGIN RAISE NOTICE 'Step 7 complete: owner-protection trigger installed.'; END; $$;
 
 
 -- ── STEP 8: Fix RLS — company update policy ───────────────────────────────────
@@ -390,7 +390,7 @@ CREATE POLICY "co_owner_update" ON companies
     (id = get_my_company() AND get_my_role() = 'admin')
   );
 
-RAISE NOTICE 'Step 8 complete: company RLS policy updated.';
+DO $$ BEGIN RAISE NOTICE 'Step 8 complete: company RLS policy updated.'; END; $$;
 
 
 -- ── STEP 9: Expire stale pending invitations ──────────────────────────────────
@@ -401,7 +401,7 @@ SET status = 'expired'
 WHERE status = 'pending'
   AND expires_at < now();
 
-RAISE NOTICE 'Step 9 complete: stale invitations expired.';
+DO $$ BEGIN RAISE NOTICE 'Step 9 complete: stale invitations expired.'; END; $$;
 
 
 -- ── STEP 10: Rebuild RBAC policies (idempotent) ───────────────────────────────
@@ -541,7 +541,7 @@ BEGIN
 END;
 $$;
 
-RAISE NOTICE 'Step 10 complete: all RBAC policies rebuilt.';
+DO $$ BEGIN RAISE NOTICE 'Step 10 complete: all RBAC policies rebuilt.'; END; $$;
 
 
 -- ── STEP 11: Post-recovery verification ──────────────────────────────────────
