@@ -71,13 +71,10 @@ function buildInfo(data: any): UserInfo {
 async function loadUserInfo(userId: string): Promise<UserInfo> {
   const PER_CALL_MS = 6_000
 
-  console.log('[auth] loadUserInfo start, user:', userId)
-
   const timedFetch = () =>
     withTimeout(fetchProfileRow(userId), PER_CALL_MS, null)
 
   let data = await timedFetch()
-  console.log('[auth] initial fetch:', data)
 
   // Happy path: profile fully populated — return immediately.
   if (data?.role && data?.company_id) return buildInfo(data)
@@ -85,7 +82,6 @@ async function loadUserInfo(userId: string): Promise<UserInfo> {
   if (!data?.role) {
     // No profile row at all. Upsert a bare one; the trg_bootstrap_company
     // trigger fires BEFORE INSERT and may set company_id + role = 'admin'.
-    console.log('[auth] no profile row — upserting default')
     await withTimeout(
       supabase
         .from('user_profiles')
@@ -98,8 +94,6 @@ async function loadUserInfo(userId: string): Promise<UserInfo> {
     )
 
     data = await timedFetch()
-    console.log('[auth] post-upsert fetch:', data)
-
     if (data?.role && data?.company_id) return buildInfo(data)
   }
 
@@ -109,7 +103,6 @@ async function loadUserInfo(userId: string): Promise<UserInfo> {
   //   • Invitation expired before the user signed up (>7 days)
   //   • The BEFORE INSERT trigger fired but failed to find the invitation
   // accept_my_invitation() now also checks 'expired' invitations.
-  console.log('[auth] profile has no company — calling accept_my_invitation')
   try {
     const result = await withTimeout(
       supabase.rpc('accept_my_invitation'),
@@ -117,10 +110,8 @@ async function loadUserInfo(userId: string): Promise<UserInfo> {
       null,
     )
     const acceptedCoId = (result as { data?: string | null } | null)?.data ?? null
-    console.log('[auth] accept_my_invitation →', acceptedCoId)
     if (acceptedCoId) {
       data = await timedFetch()
-      console.log('[auth] post-invite fetch:', data)
     }
   } catch { /* timeout or network error — proceed with what we have */ }
 
@@ -168,7 +159,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         () => {
           fetchProfileRow(userId).then(data => {
             if (!data || activeUserIdRef.current !== userId) return
-            console.log('[auth] realtime: profile row updated — re-applying')
             const info = buildInfo(data)
             setRole(info.role)
             roleRef.current = info.role
@@ -203,7 +193,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const outerTimer = setTimeout(() => {
       setLoading(prev => {
         if (prev) {
-          console.log('[auth] outer timer fired — clearing stale loading state')
           activeUserIdRef.current = null
           setSession(null)
           resetUserInfo()
@@ -215,7 +204,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, sess) => {
-        console.log('[auth] event:', event, 'user:', sess?.user?.id ?? 'none')
         clearTimeout(outerTimer)
         setSession(sess)
 
@@ -238,7 +226,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 if (!data || activeUserIdRef.current !== userId) return
                 const newRole = (data.role as Role | undefined) ?? null
                 if (newRole && newRole !== roleRef.current) {
-                  console.log('[auth] role changed on token refresh:', roleRef.current, '→', newRole)
                   const info = buildInfo(data)
                   setRole(info.role)
                   roleRef.current = info.role
@@ -266,12 +253,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         )
 
         // Discard if user changed while we were awaiting.
-        if (activeUserIdRef.current !== userId) {
-          console.log('[auth] user changed during fetch — discarding result')
-          return
-        }
+        if (activeUserIdRef.current !== userId) return
 
-        console.log('[auth] applying user info:', info)
         applyUserInfo(info)
         setLoading(false)
       }
@@ -287,7 +270,6 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [])
 
   async function signOut() {
-    console.log('[auth] signOut')
     activeUserIdRef.current = null
     setSession(null)
     resetUserInfo()
