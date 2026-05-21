@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { Suspense, useState, useEffect, useCallback } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../lib/supabase'
-import { Eye, EyeOff, AlertCircle, Loader2, Building2, User } from 'lucide-react'
+import { ROLE_META } from '../lib/roles'
+import type { Role } from '../lib/roles'
+import { Eye, EyeOff, AlertCircle, Loader2, Building2, User, CheckCircle2 } from 'lucide-react'
 import { LogoIcon } from '../components/Logo'
 
 function getPasswordStrength(pw: string): { bars: number; label: string; color: string } {
@@ -33,8 +35,22 @@ function friendlySignupError(raw: string): string {
   return raw
 }
 
-export default function SignupPage() {
-  const router = useRouter()
+type InviteInfo = {
+  company_name: string
+  role: string
+  expires_at: string
+}
+
+const inputClass = `
+  w-full rounded-xl border border-[#B3B7BA]/[0.12] bg-[#262E36]/50
+  px-4 py-2.5 text-sm text-[#D3D1CE] placeholder-[#6C6D74]
+  focus:border-[#4a7fa5]/50 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]/20
+  transition-colors
+`
+
+function SignupContent() {
+  const router       = useRouter()
+  const searchParams = useSearchParams()
 
   const [companyName, setCompanyName] = useState('')
   const [fullName,    setFullName]    = useState('')
@@ -45,14 +61,48 @@ export default function SignupPage() {
   const [loading,     setLoading]     = useState(false)
   const [error,       setError]       = useState<string | null>(null)
 
+  // Invitation state
+  const [invite,        setInvite]        = useState<InviteInfo | null>(null)
+  const [inviteLoading, setInviteLoading] = useState(false)
+  const [inviteChecked, setInviteChecked] = useState(false)
+
   const strength        = password ? getPasswordStrength(password) : null
   const confirmMismatch = !!confirm && confirm !== password
+  const isInvited       = !!invite
+
+  // Look up invitation for the given email
+  const checkInvitation = useCallback(async (emailToCheck: string) => {
+    const trimmed = emailToCheck.trim().toLowerCase()
+    if (!trimmed || !trimmed.includes('@')) {
+      setInvite(null)
+      setInviteChecked(false)
+      return
+    }
+    setInviteLoading(true)
+    const { data } = await supabase.rpc('lookup_invitation', { p_email: trimmed })
+    setInviteLoading(false)
+    setInviteChecked(true)
+    const rows = data as InviteInfo[] | null
+    setInvite(rows && rows.length > 0 ? rows[0] : null)
+  }, [])
+
+  // Pre-fill email from URL param and auto-check invitation
+  useEffect(() => {
+    const emailParam = searchParams.get('email')
+    if (emailParam) {
+      setEmail(emailParam)
+      checkInvitation(emailParam)
+    }
+  }, [searchParams, checkInvitation])
 
   async function handleSubmit(e: React.SyntheticEvent<HTMLFormElement>) {
     e.preventDefault()
     if (loading) return
-    if (!companyName.trim()) { setError('Please enter your company or factory name.'); return }
-    if (!fullName.trim())    { setError('Please enter your full name.'); return }
+    if (!isInvited && !companyName.trim()) {
+      setError('Please enter your company or factory name.')
+      return
+    }
+    if (!fullName.trim()) { setError('Please enter your full name.'); return }
     if (password !== confirm) { setError('Passwords do not match.'); return }
     if (password.length < 8)  { setError('Password must be at least 8 characters.'); return }
 
@@ -60,14 +110,14 @@ export default function SignupPage() {
     setError(null)
 
     const { data, error: signUpErr } = await supabase.auth.signUp({
-      email,
+      email: email.trim().toLowerCase(),
       password,
       options: {
         emailRedirectTo: typeof window !== 'undefined' ? `${window.location.origin}/` : '/',
-        // Stored in auth.users.raw_user_meta_data — read by tf_bootstrap_company trigger
         data: {
-          company_name: companyName.trim(),
           full_name:    fullName.trim(),
+          // Only pass company_name when creating a new workspace (not for invites)
+          ...(isInvited ? {} : { company_name: companyName.trim() }),
         },
       },
     })
@@ -79,19 +129,20 @@ export default function SignupPage() {
     }
 
     if (data.session) {
+      // Session returned immediately (email confirmation disabled).
+      // If the user is accepting an invitation, do it now before navigating.
+      if (isInvited) {
+        await supabase.rpc('accept_my_invitation')
+      }
       router.replace('/')
       return
     }
 
-    router.replace(`/verify-email?email=${encodeURIComponent(email)}`)
+    // Email confirmation required — tell the user to check their inbox.
+    router.replace(`/verify-email?email=${encodeURIComponent(email.trim())}`)
   }
 
-  const inputClass = `
-    w-full rounded-xl border border-[#B3B7BA]/[0.12] bg-[#262E36]/50
-    px-4 py-2.5 text-sm text-[#D3D1CE] placeholder-[#6C6D74]
-    focus:border-[#4a7fa5]/50 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]/20
-    transition-colors
-  `
+  const roleMeta = invite ? (ROLE_META[invite.role as Role] ?? null) : null
 
   return (
     <div className="relative flex min-h-screen items-center justify-center px-4 py-10 overflow-hidden bg-[#090F15]">
@@ -105,8 +156,21 @@ export default function SignupPage() {
           <div className="mb-5">
             <LogoIcon size="lg" />
           </div>
-          <h1 className="text-2xl font-bold text-[#D3D1CE] tracking-tight">Set up your workspace</h1>
-          <p className="mt-1.5 text-sm text-[#6C6D74]">Create your company account on TraceFlow</p>
+          {isInvited ? (
+            <>
+              <h1 className="text-2xl font-bold text-[#D3D1CE] tracking-tight text-center">
+                Join {invite.company_name}
+              </h1>
+              <p className="mt-1.5 text-sm text-[#6C6D74] text-center">
+                You&apos;ve been invited to TraceFlow
+              </p>
+            </>
+          ) : (
+            <>
+              <h1 className="text-2xl font-bold text-[#D3D1CE] tracking-tight">Set up your workspace</h1>
+              <p className="mt-1.5 text-sm text-[#6C6D74]">Create your company account on TraceFlow</p>
+            </>
+          )}
         </div>
 
         {/* Card */}
@@ -120,33 +184,56 @@ export default function SignupPage() {
               </div>
             )}
 
-            {/* Workspace section */}
-            <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 mb-3">
-                <Building2 size={13} className="text-[#4a8fb9]" />
-                <span className="text-xs font-semibold text-[#4a8fb9] uppercase tracking-wider">Workspace</span>
+            {/* Invitation banner */}
+            {isInvited && (
+              <div className="flex items-start gap-3 rounded-xl border border-emerald-500/20 bg-emerald-500/8 px-4 py-3.5">
+                <CheckCircle2 size={18} className="mt-0.5 shrink-0 text-emerald-400" />
+                <div>
+                  <p className="text-sm font-semibold text-emerald-300">Invitation found</p>
+                  <p className="mt-0.5 text-xs text-emerald-400/80">
+                    You&apos;ll join <span className="font-medium">{invite.company_name}</span> as{' '}
+                    {roleMeta ? (
+                      <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-semibold ${roleMeta.color}`}>
+                        {roleMeta.label}
+                      </span>
+                    ) : (
+                      <span className="font-medium">{invite.role}</span>
+                    )}
+                  </p>
+                </div>
               </div>
+            )}
 
-              <div>
-                <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Company / Factory name</label>
-                <input
-                  type="text"
-                  required
-                  autoComplete="organization"
-                  value={companyName}
-                  onChange={(e) => setCompanyName(e.target.value)}
-                  placeholder="e.g. Al-Faisaliah Foods Co."
-                  className={inputClass}
-                />
+            {/* Workspace section — hidden for invited users */}
+            {!isInvited && (
+              <div className="space-y-1.5">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <Building2 size={13} className="text-[#4a8fb9]" />
+                  <span className="text-xs font-semibold text-[#4a8fb9] uppercase tracking-wider">Workspace</span>
+                </div>
+                <div>
+                  <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Company / Factory name</label>
+                  <input
+                    type="text"
+                    required={!isInvited}
+                    autoComplete="organization"
+                    value={companyName}
+                    onChange={(e) => setCompanyName(e.target.value)}
+                    placeholder="e.g. Al-Faisaliah Foods Co."
+                    className={inputClass}
+                  />
+                </div>
               </div>
-            </div>
+            )}
 
             {/* Account section */}
             <div className="space-y-1.5">
-              <div className="flex items-center gap-1.5 mb-3">
-                <User size={13} className="text-[#4a8fb9]" />
-                <span className="text-xs font-semibold text-[#4a8fb9] uppercase tracking-wider">Your account</span>
-              </div>
+              {!isInvited && (
+                <div className="flex items-center gap-1.5 mb-3">
+                  <User size={13} className="text-[#4a8fb9]" />
+                  <span className="text-xs font-semibold text-[#4a8fb9] uppercase tracking-wider">Your account</span>
+                </div>
+              )}
 
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Full name</label>
@@ -169,9 +256,19 @@ export default function SignupPage() {
                   autoComplete="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  onBlur={(e) => checkInvitation(e.target.value)}
                   placeholder="you@company.com"
-                  className={inputClass}
+                  className={`${inputClass} ${isInvited ? 'opacity-70 cursor-not-allowed' : ''}`}
+                  readOnly={isInvited}
                 />
+                {inviteLoading && (
+                  <p className="mt-1 flex items-center gap-1 text-xs text-[#6C6D74]">
+                    <Loader2 size={10} className="animate-spin" /> Checking invitation…
+                  </p>
+                )}
+                {inviteChecked && !inviteLoading && !isInvited && email.includes('@') && (
+                  <p className="mt-1 text-xs text-[#6C6D74]">No invitation found — creating a new workspace.</p>
+                )}
               </div>
 
               <div>
@@ -248,12 +345,17 @@ export default function SignupPage() {
               "
             >
               {loading && <Loader2 size={15} className="animate-spin" />}
-              {loading ? 'Creating workspace…' : 'Create workspace'}
+              {loading
+                ? isInvited ? 'Joining workspace…' : 'Creating workspace…'
+                : isInvited ? 'Accept invitation' : 'Create workspace'
+              }
             </button>
 
-            <p className="text-center text-xs text-[#6C6D74] leading-relaxed">
-              Your workspace is isolated — no other company can see your data.
-            </p>
+            {!isInvited && (
+              <p className="text-center text-xs text-[#6C6D74] leading-relaxed">
+                Your workspace is isolated — no other company can see your data.
+              </p>
+            )}
           </form>
         </div>
 
@@ -265,5 +367,21 @@ export default function SignupPage() {
         </p>
       </div>
     </div>
+  )
+}
+
+function SignupFallback() {
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-[#090F15]">
+      <Loader2 size={24} className="animate-spin text-[#4a8fb9]" />
+    </div>
+  )
+}
+
+export default function SignupPage() {
+  return (
+    <Suspense fallback={<SignupFallback />}>
+      <SignupContent />
+    </Suspense>
   )
 }

@@ -69,11 +69,25 @@ async function loadUserInfo(userId: string): Promise<UserInfo> {
 
   console.log('[auth] loadUserInfo → insert result:', inserted)
 
-  // Re-fetch regardless: the tf_bootstrap_company trigger runs AFTER INSERT and
-  // updates company_id via a separate UPDATE, so the upsert RETURNING won't see it.
+  // Re-fetch regardless: the tf_bootstrap_company trigger runs BEFORE INSERT and
+  // modifies NEW, but if the row pre-existed the trigger never fires.
   console.log('[auth] loadUserInfo → re-fetching after upsert')
   data = await fetchRow()
   console.log('[auth] loadUserInfo → re-fetch result:', data)
+
+  // If still no company — the BEFORE INSERT trigger may not have fired
+  // (e.g. the row already existed from a prior signup attempt or an auth.users
+  // trigger). Call accept_my_invitation() as a reliable fallback so invited
+  // users never land on the onboarding screen.
+  if (!data?.company_id) {
+    console.log('[auth] no company after upsert — trying accept_my_invitation')
+    const { data: acceptedCoId, error: acceptErr } = await supabase.rpc('accept_my_invitation')
+    console.log('[auth] accept_my_invitation result:', acceptedCoId, acceptErr?.message)
+    if (acceptedCoId) {
+      data = await fetchRow()
+      console.log('[auth] re-fetch after invite accept:', data)
+    }
+  }
 
   return buildInfo(data)
 }

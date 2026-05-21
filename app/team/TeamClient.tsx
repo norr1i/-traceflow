@@ -213,11 +213,19 @@ export default function TeamClient() {
 
   // ── Copy signup link ─────────────────────────────────────────────────────
 
-  function copySignupLink() {
-    const url = typeof window !== 'undefined'
-      ? `${window.location.origin}/signup`
-      : '/signup'
-    navigator.clipboard.writeText(url).then(() => toast.success('Signup link copied'))
+  function copySignupLink(invitedEmail?: string) {
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    const url  = invitedEmail
+      ? `${base}/signup?email=${encodeURIComponent(invitedEmail)}`
+      : `${base}/signup`
+    navigator.clipboard.writeText(url).then(() => toast.success('Invite link copied'))
+  }
+
+  function signupUrl(invitedEmail?: string) {
+    const base = typeof window !== 'undefined' ? window.location.origin : ''
+    return invitedEmail
+      ? `${base}/signup?email=${encodeURIComponent(invitedEmail)}`
+      : `${base}/signup`
   }
 
   // ── Render ────────────────────────────────────────────────────────────────
@@ -255,19 +263,22 @@ export default function TeamClient() {
 
                 <div className="rounded-xl border border-[#B3B7BA]/[0.08] bg-[#262E36]/40 p-3">
                   <p className="mb-1.5 text-xs font-semibold text-[#6C6D74] uppercase tracking-wider">
-                    Share signup link
+                    Share personalised invite link
                   </p>
                   <div className="flex items-center gap-2">
                     <code className="flex-1 truncate rounded-lg bg-[#090F15] px-2.5 py-1.5 text-xs text-[#4a8fb9]">
-                      {typeof window !== 'undefined' ? `${window.location.origin}/signup` : '/signup'}
+                      {signupUrl(invitedEmail)}
                     </code>
                     <button
-                      onClick={copySignupLink}
+                      onClick={() => copySignupLink(invitedEmail ?? undefined)}
                       className="rounded-lg border border-[#B3B7BA]/[0.12] bg-[#262E36]/60 p-1.5 text-[#6C6D74] hover:text-[#B3B7BA] transition-colors"
                     >
                       <Copy size={13} />
                     </button>
                   </div>
+                  <p className="mt-1.5 text-[10px] text-[#6C6D74]">
+                    This link pre-fills their email and shows the invitation context on the signup page.
+                  </p>
                 </div>
 
                 <div className="flex gap-2">
@@ -494,14 +505,23 @@ export default function TeamClient() {
                       <td className="px-5 py-3.5 text-right">
                         <div className="flex items-center justify-end gap-1.5">
                           {isPending ? (
-                            /* Cancel invite */
-                            <button
-                              onClick={() => handleCancelInvite(m)}
-                              title="Cancel invitation"
-                              className="rounded-lg p-1.5 text-gray-400 dark:text-gray-600 hover:bg-red-500/10 hover:text-red-400 transition-colors"
-                            >
-                              <Trash2 size={14} />
-                            </button>
+                            /* Cancel invite + copy per-member invite link */
+                            <>
+                              <button
+                                onClick={() => copySignupLink(m.email)}
+                                title="Copy personalised invite link"
+                                className="rounded-lg p-1.5 text-gray-400 dark:text-gray-600 hover:bg-blue-500/10 hover:text-blue-400 transition-colors"
+                              >
+                                <Copy size={14} />
+                              </button>
+                              <button
+                                onClick={() => handleCancelInvite(m)}
+                                title="Cancel invitation"
+                                className="rounded-lg p-1.5 text-gray-400 dark:text-gray-600 hover:bg-red-500/10 hover:text-red-400 transition-colors"
+                              >
+                                <Trash2 size={14} />
+                              </button>
+                            </>
                           ) : isMe ? (
                             /* Self — cannot edit own role */
                             <span
@@ -563,7 +583,7 @@ export default function TeamClient() {
           <div className="border-t border-gray-100 dark:border-[#B3B7BA]/[0.07] px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
             {activeCount} active · {pendingCount} pending ·{' '}
             <button
-              onClick={copySignupLink}
+              onClick={() => copySignupLink()}
               className="inline-flex items-center gap-1 text-[#4a8fb9] hover:underline"
             >
               <Copy size={10} /> Copy signup link
@@ -578,7 +598,7 @@ export default function TeamClient() {
           <Clock size={15} className="mt-0.5 shrink-0" />
           <span>
             Pending invitations expire after 7 days. Share the{' '}
-            <button onClick={copySignupLink} className="font-medium underline underline-offset-2">
+            <button onClick={() => copySignupLink()} className="font-medium underline underline-offset-2">
               signup link
             </button>{' '}
             with invited members and ask them to register with their invited email address.
