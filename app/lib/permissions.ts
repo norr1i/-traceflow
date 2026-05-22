@@ -36,6 +36,8 @@ export type Permission =
   | 'view:dashboard.production'
   | 'view:dashboard.quality'
   | 'view:dashboard.tracing'
+  | 'view:dashboard.inventory'
+  | 'view:dashboard.sales'
 
   // In-page write capabilities
   | 'edit:products'
@@ -68,6 +70,7 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     'view:quality-control', 'view:sales', 'view:recall', 'view:team',
     // Full dashboard surface
     'view:dashboard.production', 'view:dashboard.quality', 'view:dashboard.tracing',
+    'view:dashboard.inventory', 'view:dashboard.sales',
     // Full write access (QC excluded by default — override:qc unlocks it via UI toggle)
     'edit:products', 'edit:raw-materials', 'edit:production', 'edit:sales',
     // Admin-only capabilities
@@ -75,48 +78,47 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   ],
 
   manager: [
-    // Full sidebar access (no team-admin route, but still sees Team page for management)
+    // Full sidebar access
     'view:dashboard', 'view:products', 'view:raw-materials', 'view:production',
     'view:quality-control', 'view:sales', 'view:recall', 'view:team',
     // Full dashboard surface
     'view:dashboard.production', 'view:dashboard.quality', 'view:dashboard.tracing',
+    'view:dashboard.inventory', 'view:dashboard.sales',
     // Full write access (cannot edit QC or override it)
     'edit:products', 'edit:raw-materials', 'edit:production', 'edit:sales',
-    // Can manage team but cannot elevate to admin
     'manage:team',
   ],
 
   operations: [
-    // Sidebar: dashboard + production only
+    // Sidebar: dashboard + production
     'view:dashboard', 'view:production',
-    // Dashboard: production pipeline, batch KPIs, recall risk, failed QC
-    'view:dashboard.production',
+    // Dashboard: full production pipeline + scan tracing activity
+    'view:dashboard.production', 'view:dashboard.tracing',
     // Write: production orders
     'edit:production',
   ],
 
   qc_inspector: [
-    // Sidebar: dashboard + QC + production (read-only to see batch context)
+    // Sidebar: dashboard + QC + production (read-only for batch context)
     'view:dashboard', 'view:quality-control', 'view:production',
-    // Dashboard: QC metrics, trend charts, inspection results
-    'view:dashboard.quality',
+    // Dashboard: QC metrics + scan tracing for inspected batches
+    'view:dashboard.quality', 'view:dashboard.tracing',
     // Write: quality inspections and defects
     'edit:quality-control',
   ],
 
-  // Legacy alias — identical to qc_inspector; kept for backward compat with DB rows
+  // Legacy alias — identical to qc_inspector
   inspector: [
     'view:dashboard', 'view:quality-control', 'view:production',
-    'view:dashboard.quality',
+    'view:dashboard.quality', 'view:dashboard.tracing',
     'edit:quality-control',
   ],
 
   sales: [
-    // Sidebar: dashboard + sales; products visible for catalog reference
+    // Sidebar: dashboard + sales + products (catalog reference)
     'view:dashboard', 'view:sales', 'view:products',
-    // Dashboard: no dedicated section — page shows a focused prompt to go to Sales.
-    // Sales get recall risk awareness via the production section (read-only).
-    'view:dashboard.production',
+    // Dashboard: sales overview + recall risk awareness via production
+    'view:dashboard.production', 'view:dashboard.sales',
     // Write: sales records
     'edit:sales',
   ],
@@ -124,8 +126,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   warehouse: [
     // Sidebar: dashboard + raw materials
     'view:dashboard', 'view:raw-materials',
-    // Dashboard: production pipeline gives inventory context (what batches need materials)
-    'view:dashboard.production',
+    // Dashboard: inventory status + production demand context
+    'view:dashboard.production', 'view:dashboard.inventory',
     // Write: raw material records
     'edit:raw-materials',
   ],

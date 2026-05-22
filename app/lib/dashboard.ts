@@ -26,7 +26,46 @@ function shortDayLabel(dateStr: string): string {
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })
 }
 
-// ── Main fetch ──────────────────────────────────────────────────────────────
+// ── Row types ────────────────────────────────────────────────────────────────
+
+export type BatchRow = {
+  id: string
+  status: string
+  product_id: string
+  quantity: number
+  created_at: string
+  products: { name: string; sku: string } | null
+}
+
+export type RawMaterialRow = {
+  id: string
+  name: string
+  unit: string
+  quantity_in_stock: number
+  reorder_level: number
+}
+
+export type SaleRow = {
+  id: string
+  product_id: string
+  product_name: string | null
+  quantity: number
+  unit_price: number
+  total_price: number
+  customer_name: string | null
+  status: string
+  sold_at: string
+  created_at: string
+}
+
+export type TopProduct = {
+  product_id: string
+  product_name: string
+  units_sold: number
+  revenue: number
+}
+
+// ── Main fetch ───────────────────────────────────────────────────────────────
 
 export async function getDashboardStats() {
   const sevenDaysAgo = new Date()
@@ -36,15 +75,18 @@ export async function getDashboardStats() {
   const [
     { data: batches },
     { data: qcResults },
-    { data: topScans },         // last 500 batch_ids for mostScanned ranking
+    { data: topScans },
     { count: totalScans },
     { data: salesProducts },
-    { data: recentScanList },   // last 12 with device info for the events feed
-    { data: trend7DayScans },   // all scans in last 7 days for the trend chart
+    { data: recentScanList },
+    { data: trend7DayScans },
+    { data: inventoryData },
+    { data: allSalesData },
   ] = await Promise.all([
     supabase
       .from('production_orders')
-      .select('id, status, product_id, created_at, products(name, sku)'),
+      .select('id, status, product_id, quantity, created_at, products(name, sku)')
+      .order('created_at', { ascending: false }),
     supabase
       .from('batch_qc_results')
       .select('batch_id, status, inspector_name, notes, inspected_at')
@@ -65,21 +107,28 @@ export async function getDashboardStats() {
       .from('scan_events')
       .select('batch_id, scanned_at')
       .gte('scanned_at', sevenDaysAgoIso),
+    supabase
+      .from('raw_materials')
+      .select('id, name, unit, quantity_in_stock, reorder_level')
+      .order('quantity_in_stock', { ascending: true }),
+    supabase
+      .from('sales')
+      .select('id, product_id, product_name, quantity, unit_price, total_price, customer_name, status, sold_at, created_at')
+      .order('sold_at', { ascending: false }),
   ])
 
-  type BatchRow = {
-    id: string
-    status: string
-    product_id: string
-    created_at: string
-    products: { name: string; sku: string } | null
-  }
-
-  const batchList = (batches ?? []) as unknown as BatchRow[]
-  const qcList    = qcResults ?? []
-  const scanTop   = topScans  ?? []
-  const scanRecent = recentScanList ?? []
-  const scanTrend7 = trend7DayScans ?? []
+  const batchList   = (batches       ?? []) as unknown as BatchRow[]
+  const qcList      = qcResults      ?? []
+  const scanTop     = topScans       ?? []
+  const scanRecent  = recentScanList ?? []
+  const scanTrend7  = trend7DayScans ?? []
+  // numeric columns (quantity_in_stock, reorder_level) come from Postgres as strings via Supabase
+  const rawMaterials = ((inventoryData ?? []) as unknown as RawMaterialRow[]).map(m => ({
+    ...m,
+    quantity_in_stock: Number(m.quantity_in_stock),
+    reorder_level:     Number(m.reorder_level),
+  }))
+  const salesList = (allSalesData ?? []) as unknown as SaleRow[]
 
   // ── QC counts ───────────────────────────────────────────────────────────
   const qcCounts = {
@@ -87,14 +136,12 @@ export async function getDashboardStats() {
     fail: qcList.filter(q => q.status === 'fail').length,
     hold: qcList.filter(q => q.status === 'hold').length,
   }
-
-  const totalQc = qcCounts.pass + qcCounts.fail + qcCounts.hold
+  const totalQc  = qcCounts.pass + qcCounts.fail + qcCounts.hold
   const passRate = totalQc > 0 ? Math.round((qcCounts.pass / totalQc) * 100) : null
 
   // ── Batch / QC maps ──────────────────────────────────────────────────────
-  const batchMap = new Map<string, BatchRow>(batchList.map(b => [b.id, b]))
-
-  const latestQcMap = new Map<string, typeof qcList[0]>()
+  const batchMap     = new Map<string, BatchRow>(batchList.map(b => [b.id, b]))
+  const latestQcMap  = new Map<string, typeof qcList[0]>()
   for (const q of qcList) {
     if (!latestQcMap.has(q.batch_id)) latestQcMap.set(q.batch_id, q)
   }
@@ -102,12 +149,8 @@ export async function getDashboardStats() {
   // ── Recall risk ──────────────────────────────────────────────────────────
   const batchesWithQc       = new Set(qcList.map(q => q.batch_id))
   const productIdsWithSales = new Set((salesProducts ?? []).map(s => s.product_id as string))
-
-  const failedBatchIds = batchList
-    .filter(b => latestQcMap.get(b.id)?.status === 'fail')
-    .map(b => b.id)
-  const failedBatchSet = new Set(failedBatchIds)
-
+  const failedBatchIds      = batchList.filter(b => latestQcMap.get(b.id)?.status === 'fail').map(b => b.id)
+  const failedBatchSet      = new Set(failedBatchIds)
   const failedWithSalesCount = batchList.filter(
     b => failedBatchSet.has(b.id) && productIdsWithSales.has(b.product_id)
   ).length
@@ -128,7 +171,7 @@ export async function getDashboardStats() {
       latest_qc:    latestQcMap.get(b.id)!,
     }))
 
-  // ── Recent QC inspections (with product context) ─────────────────────────
+  // ── Recent QC inspections ────────────────────────────────────────────────
   const recentQc = qcList.slice(0, 10).map(q => {
     const b = batchMap.get(q.batch_id)
     return {
@@ -161,14 +204,14 @@ export async function getDashboardStats() {
       }
     })
 
-  // ── Recent scan events (for the feed) ───────────────────────────────────
+  // ── Recent scan events ───────────────────────────────────────────────────
   const recentScans = scanRecent.map(s => {
     const b = batchMap.get(s.batch_id)
     return {
       batch_id:     s.batch_id,
       scanned_at:   s.scanned_at,
       device_type:  s.device_type as string | null,
-      browser:      s.browser as string | null,
+      browser:      s.browser     as string | null,
       product_name: b?.products?.name ?? 'Unknown batch',
     }
   })
@@ -181,8 +224,9 @@ export async function getDashboardStats() {
     cancelled:   batchList.filter(b => b.status === 'cancelled').length,
   }
 
-  // ── QC trend (last 7 days) ───────────────────────────────────────────────
+  // ── Trend data ───────────────────────────────────────────────────────────
   const days7 = lastNDays(7)
+
   const qcTrend = days7.map(dateStr => ({
     date:  dateStr,
     label: shortDayLabel(dateStr),
@@ -191,7 +235,6 @@ export async function getDashboardStats() {
     hold:  qcList.filter(q => toDay(q.inspected_at) === dateStr && q.status === 'hold').length,
   }))
 
-  // ── Scan activity trend (last 7 days) ────────────────────────────────────
   const scanTrend = days7.map(dateStr => {
     const dayScans = scanTrend7.filter(s => toDay(s.scanned_at) === dateStr)
     return {
@@ -202,18 +245,46 @@ export async function getDashboardStats() {
     }
   })
 
-  // ── Weekly inspections count ─────────────────────────────────────────────
   const weeklyInspections = qcList.filter(q => toDay(q.inspected_at) >= days7[0]).length
+  const ordersThisWeek    = batchList.filter(b => toDay(b.created_at) >= days7[0]).length
+
+  // ── Inventory ────────────────────────────────────────────────────────────
+  const lowStockCount = rawMaterials.filter(
+    m => isFinite(m.quantity_in_stock) && isFinite(m.reorder_level) && m.quantity_in_stock <= m.reorder_level
+  ).length
+
+  const inProgressOrders = batchList.filter(b => b.status === 'in_progress').slice(0, 8)
+
+  // ── Sales aggregates ─────────────────────────────────────────────────────
+  const completedSales     = salesList.filter(s => s.status === 'completed')
+  const totalSalesRevenue  = Math.round(completedSales.reduce((sum, s) => sum + (Number(s.total_price) || 0), 0))
+  const totalSalesCount    = salesList.length
+
+  const productRevenueMap  = new Map<string, { product_name: string; units_sold: number; revenue: number }>()
+  for (const s of completedSales) {
+    const entry = productRevenueMap.get(s.product_id) ?? { product_name: s.product_name ?? s.product_id, units_sold: 0, revenue: 0 }
+    entry.units_sold += Number(s.quantity) || 0
+    entry.revenue    += Number(s.total_price) || 0
+    productRevenueMap.set(s.product_id, entry)
+  }
+  const topProducts: TopProduct[] = [...productRevenueMap.entries()]
+    .sort((a, b) => b[1].revenue - a[1].revenue)
+    .slice(0, 6)
+    .map(([product_id, d]) => ({ product_id, ...d }))
 
   return {
+    // Core production
     totalBatches: batchList.length,
     totalScans:   totalScans ?? 0,
     passRate,
     weeklyInspections,
     qcCounts,
     ordersByStatus,
+    ordersThisWeek,
+    // Trend
     qcTrend,
     scanTrend,
+    // Lists
     recentQc,
     failedBatches,
     mostScanned,
@@ -223,6 +294,17 @@ export async function getDashboardStats() {
       failedWithSales: failedWithSalesCount,
       missingQcCount,
     },
+    // Operations
+    recentOrders: batchList.slice(0, 10),
+    // Inventory (warehouse)
+    rawMaterials,
+    lowStockCount,
+    inProgressOrders,
+    // Sales
+    recentSales:       salesList.slice(0, 15),
+    totalSalesRevenue,
+    totalSalesCount,
+    topProducts,
   }
 }
 
