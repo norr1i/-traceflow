@@ -22,8 +22,9 @@ import {
   Upload,
 } from 'lucide-react'
 import CsvImportModal, { type CsvFieldDef, type ImportResult } from '../components/CsvImportModal'
-import { useRole } from '../lib/auth-context'
+import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
+import { logActivity, actorName } from '../lib/activity'
 
 function fmt(n: number) {
   return `${n.toLocaleString('en-US', { maximumFractionDigits: 0 })} SAR`
@@ -142,6 +143,7 @@ export default function SalesClient() {
   const toast     = useToast()
   const confirm   = useConfirm()
   const role      = useRole()
+  const { user, companyId } = useAuth()
   const canWrite  = canEdit(role, 'sales')
   const { sales, metrics, loading, error, refetch, createSale, deleteSale } = useSales()
 
@@ -181,6 +183,11 @@ export default function SalesClient() {
     }
     setShowForm(false)
     toast.success('Sale created')
+    if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+      actionType: 'sale.created', entityType: 'sale', entityId: result.id,
+      message: `${actorName(user?.email)} recorded a sale for ${form.product_name}`,
+      metadata: { quantity: form.quantity, total_price: form.total_price },
+    }).catch(() => {})
   }
 
   async function handleDelete(id: string) {
@@ -215,6 +222,11 @@ export default function SalesClient() {
     const inserted = data?.length ?? 0
     if (inserted > 0) {
       toast.success(`Imported ${inserted} sale${inserted !== 1 ? 's' : ''}`)
+      if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+        actionType: 'sale.imported', entityType: 'sale',
+        message: `${actorName(user?.email)} imported ${inserted} sale${inserted !== 1 ? 's' : ''}`,
+        metadata: { count: inserted },
+      }).catch(() => {})
       refetch()
     }
     return { inserted, skipped: 0, errors: [] }

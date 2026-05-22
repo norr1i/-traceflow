@@ -7,8 +7,9 @@ import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
 import CsvImportModal, { type CsvFieldDef, type ImportResult } from '../components/CsvImportModal'
 import { Plus, Pencil, Trash2, X, Check, AlertTriangle, FlaskConical, Upload } from 'lucide-react'
-import { useRole } from '../lib/auth-context'
+import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
+import { logActivity, actorName } from '../lib/activity'
 
 const empty = { name: '', unit: '', quantity_in_stock: 0, reorder_level: 0 }
 
@@ -28,6 +29,7 @@ export default function RawMaterialsClient() {
   const toast     = useToast()
   const confirm   = useConfirm()
   const role      = useRole()
+  const { user, companyId } = useAuth()
   const canWrite  = canEdit(role, 'raw-materials')
 
   const [materials, setMaterials]   = useState<RawMaterial[]>([])
@@ -107,6 +109,10 @@ export default function RawMaterialsClient() {
       }
       setMaterials((prev) => [data, ...prev])
       toast.success('Material created')
+      if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+        actionType: 'raw_material.created', entityType: 'raw_material', entityId: data.id,
+        message: `${actorName(user?.email)} added raw material ${data.name}`,
+      }).catch(() => {})
     }
 
     setSaving(false); setShowForm(false); setForm(empty)
@@ -156,6 +162,11 @@ export default function RawMaterialsClient() {
     if (inserted > 0) {
       setMaterials((prev) => [...inserted_rows, ...prev])
       toast.success(`Imported ${inserted} material${inserted !== 1 ? 's' : ''}`)
+      if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+        actionType: 'raw_material.imported', entityType: 'raw_material',
+        message: `${actorName(user?.email)} imported ${inserted} raw material${inserted !== 1 ? 's' : ''}`,
+        metadata: { count: inserted },
+      }).catch(() => {})
     }
     return { inserted, skipped: 0, errors }
   }

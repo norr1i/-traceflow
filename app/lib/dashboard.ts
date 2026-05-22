@@ -58,6 +58,17 @@ export type SaleRow = {
   created_at: string
 }
 
+export type ActivityLogRow = {
+  id:          string
+  action_type: string
+  entity_type: string
+  entity_id:   string | null
+  message:     string
+  actor_email: string | null
+  metadata:    Record<string, unknown> | null
+  created_at:  string
+}
+
 export type TopProduct = {
   product_id: string
   product_name: string
@@ -82,6 +93,7 @@ export async function getDashboardStats() {
     { data: trend7DayScans },
     { data: inventoryData },
     { data: allSalesData },
+    { data: activityData },
   ] = await Promise.all([
     supabase
       .from('production_orders')
@@ -115,10 +127,15 @@ export async function getDashboardStats() {
       .from('sales')
       .select('id, product_id, product_name, quantity, unit_price, total_price, customer_name, status, sold_at, created_at')
       .order('sold_at', { ascending: false }),
+    supabase
+      .from('activity_logs')
+      .select('id, action_type, entity_type, entity_id, message, actor_email, metadata, created_at')
+      .order('created_at', { ascending: false })
+      .limit(30),
   ])
 
-  const batchList   = (batches       ?? []) as unknown as BatchRow[]
-  const qcList      = qcResults      ?? []
+  const batchList   = (batches    ?? []) as unknown as BatchRow[]
+  const qcList      = qcResults  ?? []
   const scanTop     = topScans       ?? []
   const scanRecent  = recentScanList ?? []
   const scanTrend7  = trend7DayScans ?? []
@@ -128,7 +145,8 @@ export async function getDashboardStats() {
     quantity_in_stock: Number(m.quantity_in_stock),
     reorder_level:     Number(m.reorder_level),
   }))
-  const salesList = (allSalesData ?? []) as unknown as SaleRow[]
+  const salesList    = (allSalesData  ?? []) as unknown as SaleRow[]
+  const activityFeed = (activityData  ?? []) as unknown as ActivityLogRow[]
 
   // ── QC counts ───────────────────────────────────────────────────────────
   const qcCounts = {
@@ -305,6 +323,8 @@ export async function getDashboardStats() {
     totalSalesRevenue,
     totalSalesCount,
     topProducts,
+    // Activity feed
+    activityFeed,
   }
 }
 

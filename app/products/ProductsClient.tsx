@@ -7,8 +7,9 @@ import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
 import CsvImportModal, { type CsvFieldDef, type ImportResult } from '../components/CsvImportModal'
 import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Package, Upload } from 'lucide-react'
-import { useRole } from '../lib/auth-context'
+import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
+import { logActivity, actorName } from '../lib/activity'
 
 const empty = { name: '', sku: '', description: '' }
 
@@ -27,6 +28,7 @@ export default function ProductsClient() {
   const toast     = useToast()
   const confirm   = useConfirm()
   const role      = useRole()
+  const { user, companyId } = useAuth()
   const canWrite  = canEdit(role, 'products')
 
   const [products, setProducts]     = useState<Product[]>([])
@@ -111,6 +113,10 @@ export default function ProductsClient() {
       }
       setProducts((prev) => [data, ...prev])
       toast.success('Product created')
+      if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+        actionType: 'product.created', entityType: 'product', entityId: data.id,
+        message: `${actorName(user?.email)} added product ${data.name}`,
+      }).catch(() => {})
     }
 
     setSaving(false)
@@ -155,7 +161,14 @@ export default function ProductsClient() {
 
     const inserted = data?.length ?? 0
     setProducts((prev) => [...(data ?? []), ...prev])
-    if (inserted > 0) toast.success(`Imported ${inserted} product${inserted !== 1 ? 's' : ''}`)
+    if (inserted > 0) {
+      toast.success(`Imported ${inserted} product${inserted !== 1 ? 's' : ''}`)
+      if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+        actionType: 'product.imported', entityType: 'product',
+        message: `${actorName(user?.email)} imported ${inserted} product${inserted !== 1 ? 's' : ''}`,
+        metadata: { count: inserted, skipped },
+      }).catch(() => {})
+    }
     return { inserted, skipped, errors: [] }
   }
 

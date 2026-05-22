@@ -5,8 +5,9 @@ import { InspectionFormData } from '../types/quality'
 import { useState } from 'react'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
-import { useRole } from '../lib/auth-context'
+import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit, hasPermission } from '../lib/permissions'
+import { logActivity, actorName } from '../lib/activity'
 import {
   ShieldCheck,
   ShieldX,
@@ -97,6 +98,7 @@ export default function QualityControlClient() {
   const toast   = useToast()
   const confirm = useConfirm()
   const role    = useRole()
+  const { user, companyId } = useAuth()
   const canEditQc      = canEdit(role, 'quality-control')
   const hasOverride    = hasPermission(role, 'override:qc')
   const [qcEditEnabled, setQcEditEnabled] = useState(false)
@@ -140,6 +142,14 @@ export default function QualityControlClient() {
     }
     setShowForm(false)
     toast.success('Inspection created')
+    const actionType = form.status === 'passed' ? 'qc_inspection.passed'
+      : form.status === 'failed' ? 'qc_inspection.failed'
+      : 'qc_inspection.created'
+    if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+      actionType, entityType: 'qc_inspection', entityId: result.id,
+      message: `${actorName(user?.email)} recorded ${form.inspection_type} inspection: ${form.status}`,
+      metadata: { status: form.status, score: form.overall_score },
+    }).catch(() => {})
   }
 
   async function handleDelete(id: string) {

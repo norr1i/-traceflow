@@ -7,8 +7,9 @@ import type { ProductionOrder, BomEntry, BatchQcResult } from '../types/traceflo
 import StatusBadge from '../components/StatusBadge'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
-import { useRole } from '../lib/auth-context'
+import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
+import { logActivity, actorName } from '../lib/activity'
 import {
   Plus, Pencil, Trash2, X, Check, AlertTriangle, ClipboardList,
   QrCode, Copy, Download, ExternalLink, Layers, FlaskConical,
@@ -40,6 +41,7 @@ export default function ProductionClient() {
   const toast   = useToast()
   const confirm = useConfirm()
   const role       = useRole()
+  const { user, companyId } = useAuth()
   const canWrite   = canEdit(role, 'production')
   const canWriteQc = canEdit(role, 'quality-control')
 
@@ -143,6 +145,10 @@ export default function ProductionClient() {
       if (err) { setFormError(err.message); toast.error('Failed to update order'); setSaving(false); return }
       setOrders((prev) => prev.map((o) => (o.id === editing.id ? data : o)))
       toast.success('Order updated')
+      if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+        actionType: 'production_order.updated', entityType: 'production_order', entityId: editing.id,
+        message: `${actorName(user?.email)} updated production order status to ${form.status}`,
+      }).catch(() => {})
     } else {
       const { data, error: err } = await supabase
         .from('production_orders').insert([payload])
@@ -150,6 +156,10 @@ export default function ProductionClient() {
       if (err) { setFormError(err.message); toast.error('Failed to create order'); setSaving(false); return }
       setOrders((prev) => [data, ...prev])
       toast.success('Order created')
+      if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+        actionType: 'production_order.created', entityType: 'production_order', entityId: data.id,
+        message: `${actorName(user?.email)} created a production order`,
+      }).catch(() => {})
     }
     setSaving(false); setShowForm(false)
   }
@@ -236,6 +246,11 @@ export default function ProductionClient() {
     setQcEntries((prev) => [data as BatchQcResult, ...prev])
     setQcForm((f) => ({ ...f, inspector_name: '', notes: '', inspected_at: new Date().toISOString().slice(0, 16) }))
     toast.success('QC result recorded')
+    if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+      actionType: 'qc_result.added', entityType: 'production_order', entityId: qcOrder.id,
+      message: `${actorName(user?.email)} recorded QC ${qcForm.status} for a production batch`,
+      metadata: { status: qcForm.status, inspector: qcForm.inspector_name },
+    }).catch(() => {})
   }
 
   async function deleteQcResult(id: string) {

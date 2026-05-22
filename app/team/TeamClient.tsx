@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
 import { ROLE_META, ASSIGNABLE_ROLES, type Role } from '../lib/roles'
 import { hasPermission } from '../lib/permissions'
+import { logActivity, actorName } from '../lib/activity'
 import {
   Users, Plus, Trash2, X, Check, AlertTriangle,
   Mail, Clock, Pencil, ShieldAlert, Copy,
@@ -72,7 +73,7 @@ const selectClass = `
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function TeamClient() {
-  const { user, role } = useAuth()
+  const { user, role, companyId } = useAuth()
   const toast    = useToast()
   const confirm  = useConfirm()
   const assignableRoles = hasPermission(role as Role | null, 'invite:admin')
@@ -139,6 +140,11 @@ export default function TeamClient() {
 
     setInvitedEmail(inviteEmail.trim().toLowerCase())
     setInviteEmail('')
+    if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+      actionType: 'invitation.created', entityType: 'invitation',
+      message: `${actorName(user?.email)} invited ${inviteEmail.trim().toLowerCase()} as ${inviteRole}`,
+      metadata: { invited_email: inviteEmail.trim().toLowerCase(), role: inviteRole },
+    }).catch(() => {})
     loadMembers()
   }
 
@@ -173,6 +179,11 @@ export default function TeamClient() {
     }
 
     toast.success('Role updated')
+    if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
+      actionType: 'team.role_changed', entityType: 'team_member', entityId: m.user_id,
+      message: `${actorName(user?.email)} changed ${m.email}'s role to ${editRole}`,
+      metadata: { old_role: m.role, new_role: editRole, member_email: m.email },
+    }).catch(() => {})
     setEditingId(null)
     loadMembers()
   }

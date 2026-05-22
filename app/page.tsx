@@ -10,6 +10,7 @@ import ScanActivityChart from './components/charts/ScanActivityChart'
 import SalesChart from './components/charts/SalesChart'
 import { useRole } from './lib/auth-context'
 import { canView } from './lib/permissions'
+import { ACTION_TYPES_BY_SECTION } from './lib/activity'
 import {
   ClipboardList, QrCode, AlertTriangle, FlaskConical,
   Smartphone, Monitor, CheckCircle2, Clock, ShieldCheck,
@@ -208,6 +209,7 @@ export default function DashboardPage() {
     recentOrders,
     rawMaterials, lowStockCount, inProgressOrders,
     recentSales, totalSalesRevenue, totalSalesCount, topProducts,
+    activityFeed,
   } = stats
 
   const maxScanCount   = mostScanned[0]?.scan_count ?? 1
@@ -724,6 +726,40 @@ export default function DashboardPage() {
           </section>
         </>
       )}
+
+      {/* Activity Feed — visible to all roles, filtered to relevant action types */}
+      {(() => {
+        const relevantTypes = new Set<string>([
+          ...(showProduction ? ACTION_TYPES_BY_SECTION.production : []),
+          ...(showQuality    ? ACTION_TYPES_BY_SECTION.quality    : []),
+          ...(showInventory  ? ACTION_TYPES_BY_SECTION.inventory  : []),
+          ...(showSales      ? ACTION_TYPES_BY_SECTION.sales      : []),
+          ...(showProduction && showQuality ? ACTION_TYPES_BY_SECTION.admin : []),
+        ])
+        const feed = activityFeed.filter(e => relevantTypes.has(e.action_type))
+        if (feed.length === 0) return null
+        return (
+          <section className="mt-5">
+            <SectionCard title="Recent Activity" subtitle="Audit log of actions by your team">
+              <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+                {feed.map((entry) => (
+                  <li key={entry.id} className="flex items-start gap-3 py-3 first:pt-0 last:pb-0">
+                    <span className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-[#3a6f8f]/10 text-[#4a7fa5]">
+                      <ClipboardList size={12} />
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm text-gray-800 dark:text-gray-200 truncate">{entry.message}</p>
+                      <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">
+                        {entry.actor_email ?? 'System'} · {timeAgo(entry.created_at)}
+                      </p>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            </SectionCard>
+          </section>
+        )
+      })()}
 
     </div>
   )
