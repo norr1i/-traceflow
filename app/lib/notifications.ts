@@ -21,6 +21,8 @@ export type AppNotification = {
   actor: string | null
   created_at: string
   action_type: string
+  entity_type: string | null
+  entity_id: string | null
 }
 
 // ── Action type → notification metadata ──────────────────────────────────
@@ -77,7 +79,7 @@ export const SEVERITY_CONFIG: Record<NotificationSeverity, {
   info: {
     dotColor:    'bg-[#4a8fb9]',
     borderColor: 'border-[#4a8fb9]',
-    labelColor:  'text-[#4a8fb9]',
+    labelColor:  'text-gray-400 dark:text-[#525563]',
   },
 }
 
@@ -104,6 +106,8 @@ export function mapLogToNotification(log: {
   message: string
   actor_email: string | null
   created_at: string
+  entity_type?: string | null
+  entity_id?: string | null
 }): AppNotification | null {
   const meta = ACTION_META[log.action_type]
   if (!meta) return null
@@ -116,6 +120,8 @@ export function mapLogToNotification(log: {
     actor: log.actor_email,
     created_at: log.created_at,
     action_type: log.action_type,
+    entity_type: log.entity_type ?? null,
+    entity_id: log.entity_id   ?? null,
   }
 }
 
