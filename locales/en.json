@@ -39,6 +39,8 @@
     "no_results": "No results found",
     "no_results_sub": "Try a different search term",
     "hint": "↑↓ navigate · Enter open · Esc close",
+    "min_chars": "Type at least 2 characters to search",
+    "results": "results",
     "categories": {
       "products": "Products",
       "materials": "Materials",

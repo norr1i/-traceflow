@@ -39,6 +39,8 @@
     "no_results": "لا توجد نتائج",
     "no_results_sub": "جرّب مصطلح بحث مختلف",
     "hint": "↑↓ للتنقل · Enter للفتح · Esc للإغلاق",
+    "min_chars": "اكتب حرفين على الأقل للبحث",
+    "results": "نتائج",
     "categories": {
       "products": "المنتجات",
       "materials": "المواد",
