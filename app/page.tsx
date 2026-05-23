@@ -80,7 +80,7 @@ function QcBar({ pass, fail, hold }: { pass: number; fail: number; hold: number 
   const total = pass + fail + hold
   if (total === 0) {
     return (
-      <div className="flex flex-col items-center justify-center gap-2 py-10 text-gray-400 dark:text-[#525563]">
+      <div className="flex flex-col items-center justify-center gap-2 py-10 text-gray-400 dark:text-[#4A5568]">
         <FlaskConical size={20} strokeWidth={1.5} className="opacity-40" />
         <p className="text-sm">No QC inspections recorded yet.</p>
       </div>
@@ -108,12 +108,12 @@ function QcBar({ pass, fail, hold }: { pass: number; fail: number; hold: number 
             <p className={`text-2xl font-bold tabular-nums ${color}`}>{value}</p>
             <div className="mt-1 flex items-center justify-center gap-1">
               <span className={`h-1.5 w-1.5 rounded-full ${dot}`} />
-              <span className="text-[11px] text-gray-500 dark:text-[#525563]">{label} · {pct(value)}</span>
+              <span className="text-[11px] text-gray-500 dark:text-[#4A5568]">{label} · {pct(value)}</span>
             </div>
           </div>
         ))}
       </div>
-      <p className="text-[11px] text-gray-400 dark:text-[#525563]">{total.toLocaleString()} total inspections</p>
+      <p className="text-[11px] text-gray-400 dark:text-[#4A5568]">{total.toLocaleString()} total inspections</p>
     </div>
   )
 }
@@ -146,7 +146,7 @@ function Skeleton() {
 
 function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message: string }) {
   return (
-    <div className="flex flex-col items-center justify-center gap-2 py-10 text-gray-400 dark:text-[#525563]">
+    <div className="flex flex-col items-center justify-center gap-2 py-10 text-gray-400 dark:text-[#4A5568]">
       <Icon size={20} strokeWidth={1.5} className="opacity-40" />
       <p className="text-sm">{message}</p>
     </div>
@@ -158,17 +158,17 @@ function EmptyState({ icon: Icon, message }: { icon: React.ElementType; message:
 function ActivityTimeline({ entries }: { entries: DashboardStats['activityFeed'] }) {
   return (
     <div className="relative pl-5">
-      <div className="absolute left-[6px] top-1.5 h-[calc(100%-12px)] w-px bg-gray-100 dark:bg-white/[0.06]" />
+      <div className="absolute left-[6px] top-1.5 h-[calc(100%-12px)] w-px bg-gray-100 dark:bg-white/[0.08]" />
       <ul className="space-y-4">
         {entries.map((entry) => (
           <li key={entry.id} className="relative">
             <span className="absolute -left-5 top-[3px] flex h-3 w-3 items-center justify-center">
-              <span className="h-[7px] w-[7px] rounded-full bg-[#4a8fb9]/50 ring-[3px] ring-[var(--surface)]" />
+              <span className="h-[7px] w-[7px] rounded-full bg-[#4a8fb9]/70 ring-[3px] ring-[var(--surface)]" />
             </span>
-            <p className="text-[13px] leading-snug text-gray-800 dark:text-[#C9C7C4]">
+            <p className="text-[12.5px] leading-snug text-gray-800 dark:text-[#C4CAD6]">
               {entry.message}
             </p>
-            <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#525563]">
+            <p className="mt-0.5 text-[10.5px] text-gray-400 dark:text-[#4A5568]">
               {entry.actor_email ?? 'System'} · {timeAgo(entry.created_at)}
             </p>
           </li>
@@ -206,23 +206,23 @@ function RankBar({
           <li key={i}>
             <div className="mb-1.5 flex items-center justify-between gap-2">
               <div className="flex items-center gap-2 min-w-0">
-                <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded bg-gray-100 dark:bg-white/[0.06] text-[10px] font-bold text-gray-400 dark:text-[#525563]">
+                <span className="shrink-0 flex h-5 w-5 items-center justify-center rounded-md bg-gray-100 dark:bg-white/[0.07] text-[10px] font-bold tabular-nums text-gray-400 dark:text-[#4A5568]">
                   {i + 1}
                 </span>
-                <span className="text-[13px] font-medium text-gray-900 dark:text-[#E2E8F0] truncate">
+                <span className="text-[12.5px] font-medium text-gray-900 dark:text-[#E8EDF5] truncate">
                   {item[labelKey] as string}
                 </span>
                 {subKey && !!item[subKey] && (
-                  <span className="shrink-0 font-mono text-[11px] text-gray-400 dark:text-[#525563]">
+                  <span className="shrink-0 font-mono text-[11px] text-gray-400 dark:text-[#4A5568]">
                     {String(item[subKey])}
                   </span>
                 )}
               </div>
-              <span className="shrink-0 text-[13px] font-semibold text-gray-700 dark:text-[#A8B3C0] tabular-nums">
+              <span className="shrink-0 text-[12.5px] font-semibold text-gray-700 dark:text-[#A8B3C0] tabular-nums">
                 {formatValue ? formatValue(val) : val}
               </span>
             </div>
-            <div className="h-1 w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/[0.05]">
+            <div className="h-[3px] w-full overflow-hidden rounded-full bg-gray-100 dark:bg-white/[0.06]">
               <div
                 className={`h-full rounded-full ${barColor} transition-all duration-700`}
                 style={{ width: `${pct}%` }}
@@ -297,6 +297,7 @@ export default function DashboardPage() {
     : 'red'
 
   // ── Role-smart KPI cards ─────────────────────────────────────────────────
+
   const kpiCards: React.ReactNode[] = (() => {
     if (showProduction && showQuality) {
       return [
@@ -341,6 +342,7 @@ export default function DashboardPage() {
     return []
   })()
 
+
   // ── Activity feed filtered by role ────────────────────────────────────────
   const feedEntries = (() => {
     const relevantTypes = new Set<string>([
@@ -354,11 +356,11 @@ export default function DashboardPage() {
   })()
 
   return (
-    <div className="px-6 py-6 max-w-[1400px] mx-auto space-y-5">
+    <div className="px-6 py-7 max-w-[1400px] mx-auto space-y-5 pb-10">
 
       {/* ── No-section fallback ──────────────────────────────────────────── */}
       {!hasAnySections && (
-        <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-gray-200 dark:border-white/[0.07] bg-gray-50 dark:bg-white/[0.02] text-gray-400 dark:text-[#525563]">
+        <div className="flex h-64 flex-col items-center justify-center gap-3 rounded-xl border border-gray-200 dark:border-white/[0.07] bg-gray-50 dark:bg-white/[0.02] text-gray-400 dark:text-[#4A5568]">
           <LayoutDashboard size={22} strokeWidth={1.5} className="opacity-40" />
           <div className="text-center">
             <p className="text-sm font-medium text-gray-600 dark:text-[#6B7280]">No dashboard sections available for your role.</p>
@@ -476,7 +478,7 @@ export default function DashboardPage() {
                           <span className="text-[13px] font-medium text-gray-900 dark:text-[#E2E8F0] truncate">{q.product_name}</span>
                           <QcBadge status={q.status} />
                         </div>
-                        <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#525563]">{q.inspector_name} · {fmt(q.inspected_at)}</p>
+                        <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#4A5568]">{q.inspector_name} · {fmt(q.inspected_at)}</p>
                         {q.notes && <p className="mt-0.5 text-[11px] text-gray-500 dark:text-[#4B5563] truncate">{q.notes}</p>}
                       </div>
                     </li>
@@ -519,14 +521,14 @@ export default function DashboardPage() {
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-[13px] font-medium text-gray-900 dark:text-[#E2E8F0]">{b.product_name}</span>
-                          <span className="font-mono text-[11px] text-gray-400 dark:text-[#525563]">{b.sku}</span>
+                          <span className="font-mono text-[11px] text-gray-400 dark:text-[#4A5568]">{b.sku}</span>
                           {b.has_sales && (
                             <span className="rounded-full px-2 py-0.5 text-[10px] font-medium bg-red-50 dark:bg-red-500/10 text-red-700 dark:text-red-400 ring-1 ring-red-200 dark:ring-red-500/20">
                               Distributed
                             </span>
                           )}
                         </div>
-                        <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#525563]">
+                        <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#4A5568]">
                           {b.latest_qc.inspector_name} · {fmt(b.latest_qc.inspected_at)}
                         </p>
                         {b.latest_qc.notes && (
@@ -547,14 +549,14 @@ export default function DashboardPage() {
                 <ul className="divide-y divide-gray-100 dark:divide-white/[0.05]">
                   {recentScans.map((s, i) => (
                     <li key={i} className="flex items-center gap-3 py-2.5 first:pt-0 last:pb-0">
-                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/[0.05] text-gray-400 dark:text-[#525563]">
+                      <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-gray-100 dark:bg-white/[0.05] text-gray-400 dark:text-[#4A5568]">
                         {s.device_type === 'mobile' ? <Smartphone size={13} /> : <Monitor size={13} />}
                       </span>
                       <div className="min-w-0 flex-1">
                         <p className="text-[13px] font-medium text-gray-900 dark:text-[#E2E8F0] truncate">{s.product_name}</p>
-                        <p className="text-[11px] text-gray-400 dark:text-[#525563]">{s.browser ?? 'Browser'} · {s.device_type ?? 'device'}</p>
+                        <p className="text-[11px] text-gray-400 dark:text-[#4A5568]">{s.browser ?? 'Browser'} · {s.device_type ?? 'device'}</p>
                       </div>
-                      <div className="flex items-center gap-1 shrink-0 text-[11px] text-gray-400 dark:text-[#525563]">
+                      <div className="flex items-center gap-1 shrink-0 text-[11px] text-gray-400 dark:text-[#4A5568]">
                         <Clock size={10} />
                         {timeAgo(s.scanned_at)}
                       </div>
@@ -579,7 +581,7 @@ export default function DashboardPage() {
               <div className="overflow-x-auto">
                 <table className="w-full text-sm">
                   <thead>
-                    <tr className="border-b border-gray-100 dark:border-white/[0.05] text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563]">
+                    <tr className="border-b border-gray-100 dark:border-white/[0.05] text-[10.5px] font-semibold uppercase tracking-[0.08em] text-gray-400 dark:text-[#4A5568]">
                       <th className="px-5 pb-3 pt-0.5 text-left">Product</th>
                       <th className="px-5 pb-3 pt-0.5 text-left hidden sm:table-cell">SKU</th>
                       <th className="px-5 pb-3 pt-0.5 text-right">Qty</th>
@@ -589,14 +591,14 @@ export default function DashboardPage() {
                   </thead>
                   <tbody className="divide-y divide-gray-50 dark:divide-white/[0.04]">
                     {recentOrders.map(b => (
-                      <tr key={b.id} className="transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                      <tr key={b.id} className="transition-colors hover:bg-gray-50/80 dark:hover:bg-white/[0.03]">
                         <td className="px-5 py-2.5 text-[13px] font-medium text-gray-900 dark:text-[#E2E8F0]">
                           <span className="truncate block max-w-[200px]">{b.products?.name ?? 'Unknown'}</span>
                         </td>
-                        <td className="px-5 py-2.5 hidden sm:table-cell font-mono text-[11px] text-gray-400 dark:text-[#525563]">{b.products?.sku ?? '—'}</td>
+                        <td className="px-5 py-2.5 hidden sm:table-cell font-mono text-[11px] text-gray-400 dark:text-[#4A5568]">{b.products?.sku ?? '—'}</td>
                         <td className="px-5 py-2.5 text-right tabular-nums text-[13px] text-gray-600 dark:text-[#A8B3C0]">{b.quantity.toLocaleString()}</td>
                         <td className="px-5 py-2.5 text-center"><StatusPill status={b.status} /></td>
-                        <td className="px-5 py-2.5 text-right text-[11px] text-gray-400 dark:text-[#525563]">{fmt(b.created_at)}</td>
+                        <td className="px-5 py-2.5 text-right text-[11px] text-gray-400 dark:text-[#4A5568]">{fmt(b.created_at)}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -640,7 +642,7 @@ export default function DashboardPage() {
                           style={{ width: `${pct}%` }}
                         />
                       </div>
-                      <p className="text-[10px] text-gray-400 dark:text-[#525563]">Reorder at {mat.reorder_level.toLocaleString()} {mat.unit}</p>
+                      <p className="text-[10px] text-gray-400 dark:text-[#4A5568]">Reorder at {mat.reorder_level.toLocaleString()} {mat.unit}</p>
                     </li>
                   )
                 })}
@@ -660,7 +662,7 @@ export default function DashboardPage() {
                       <p className="text-[13px] font-medium text-gray-900 dark:text-[#E2E8F0] truncate">
                         {b.products?.name ?? 'Unknown product'}
                       </p>
-                      <p className="text-[11px] text-gray-400 dark:text-[#525563]">
+                      <p className="text-[11px] text-gray-400 dark:text-[#4A5568]">
                         {b.products?.sku ?? '—'} · Qty: {b.quantity.toLocaleString()}
                       </p>
                     </div>
@@ -710,7 +712,7 @@ export default function DashboardPage() {
                 <div className="overflow-x-auto">
                   <table className="w-full text-sm">
                     <thead>
-                      <tr className="border-b border-gray-100 dark:border-white/[0.05] text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563]">
+                      <tr className="border-b border-gray-100 dark:border-white/[0.05] text-[10.5px] font-semibold uppercase tracking-[0.08em] text-gray-400 dark:text-[#4A5568]">
                         <th className="px-5 pb-3 pt-0.5 text-left">Product</th>
                         <th className="px-5 pb-3 pt-0.5 text-right">Qty</th>
                         <th className="px-5 pb-3 pt-0.5 text-right">Total</th>
@@ -721,7 +723,7 @@ export default function DashboardPage() {
                     </thead>
                     <tbody className="divide-y divide-gray-50 dark:divide-white/[0.04]">
                       {recentSales.map((s, i) => (
-                        <tr key={i} className="transition-colors hover:bg-gray-50 dark:hover:bg-white/[0.02]">
+                        <tr key={i} className="transition-colors hover:bg-gray-50/80 dark:hover:bg-white/[0.03]">
                           <td className="px-5 py-2.5">
                             <p className="text-[13px] font-medium text-gray-900 dark:text-[#E2E8F0] truncate max-w-[160px]">{s.product_name}</p>
                           </td>
@@ -730,10 +732,10 @@ export default function DashboardPage() {
                             {Number(s.total_price).toLocaleString()} SAR
                           </td>
                           <td className="px-5 py-2.5 hidden sm:table-cell">
-                            <p className="truncate max-w-[130px] text-[11px] text-gray-400 dark:text-[#525563]">{s.customer_name || '—'}</p>
+                            <p className="truncate max-w-[130px] text-[11px] text-gray-400 dark:text-[#4A5568]">{s.customer_name || '—'}</p>
                           </td>
                           <td className="px-5 py-2.5 text-center"><StatusPill status={s.status} /></td>
-                          <td className="px-5 py-2.5 text-right text-[11px] text-gray-400 dark:text-[#525563]">{fmt(s.sold_at)}</td>
+                          <td className="px-5 py-2.5 text-right text-[11px] text-gray-400 dark:text-[#4A5568]">{fmt(s.sold_at)}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -755,28 +757,28 @@ export default function DashboardPage() {
           </div>
           {/* Status sidebar */}
           <div className="flex flex-col gap-4">
-            <div className="glass-card rounded-xl px-5 py-4 space-y-3">
-              <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">
+            <div className="glass-card rounded-xl px-5 py-4 space-y-3.5">
+              <p className="text-[10.5px] font-semibold uppercase tracking-[0.12em] text-gray-400 dark:text-[#4A5568]">
                 System Status
               </p>
-              <div className="flex items-center gap-2">
-                <span className="relative flex h-2 w-2">
+              <div className="flex items-center gap-2.5">
+                <span className="relative flex h-2 w-2 shrink-0">
                   <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-emerald-400 opacity-60" />
                   <span className="relative inline-flex h-2 w-2 rounded-full bg-emerald-500" />
                 </span>
-                <span className="text-[13px] text-gray-700 dark:text-[#C9C7C4]">All systems operational</span>
+                <span className="text-[12.5px] text-gray-700 dark:text-[#C4CAD6]">All systems operational</span>
               </div>
               {lastUpdated && (
-                <p className="text-[11px] text-gray-400 dark:text-[#525563]">
+                <p className="text-[10.5px] text-gray-400 dark:text-[#4A5568]">
                   Updated {timeAgo(lastUpdated.toISOString())}
                 </p>
               )}
               <button
                 onClick={() => load(true)}
                 disabled={refreshing}
-                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/[0.07] bg-gray-50 dark:bg-white/[0.03] px-3 py-2 text-[12px] font-medium text-gray-500 dark:text-[#6B7280] hover:bg-gray-100 dark:hover:bg-white/[0.06] disabled:opacity-40 transition-colors"
+                className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.04] px-3 py-2 text-[11.5px] font-medium text-gray-500 dark:text-[#5A6478] hover:bg-gray-100 dark:hover:bg-white/[0.07] disabled:opacity-40 transition-colors"
               >
-                <RefreshCw size={12} className={refreshing ? 'animate-spin' : ''} />
+                <RefreshCw size={11} className={refreshing ? 'animate-spin' : ''} />
                 Refresh data
               </button>
             </div>

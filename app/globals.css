@@ -3,45 +3,45 @@
 @custom-variant dark (&:where(.dark, .dark *));
 
 /* ── Design tokens ──────────────────────────────────────────────────────────
-   Light: clean off-white — crisp surfaces, subtle borders
-   Dark:  deep GitHub-style midnight — layered surfaces
+   Light: warm off-white — crisp hierarchy, clean reads
+   Dark:  deep blue-slate midnight — strong surface layering
    ─────────────────────────────────────────────────────────────────────── */
 :root {
-  --bg:          #F4F4F2;
-  --surface:     #FFFFFF;
-  --elevated:    #FAFAF9;
-  --border:      rgba(0,0,0,0.07);
-  --border-sub:  rgba(0,0,0,0.04);
-  --text:        #111827;
-  --muted:       #6B7280;
-  --subtle:      #9CA3AF;
-  --accent:      #3a6f8f;
-  --accent-fg:   #4a8fb9;
+  --bg:         #F2F1EF;
+  --surface:    #FFFFFF;
+  --elevated:   #F8F8F7;
+  --border:     rgba(0,0,0,0.09);
+  --border-sub: rgba(0,0,0,0.05);
+  --text:       #111827;
+  --muted:      #6B7280;
+  --subtle:     #9CA3AF;
+  --accent:     #3a6f8f;
+  --accent-fg:  #4a8fb9;
 
   /* Surface layer scale */
-  --s0: #F4F4F2;
+  --s0: #F2F1EF;
   --s1: #FFFFFF;
   --s2: #F7F7F6;
   --s3: #EEEDE9;
 }
 
 .dark {
-  --bg:          #07090E;
-  --surface:     #0D1117;
-  --elevated:    #161B22;
-  --border:      rgba(255,255,255,0.07);
-  --border-sub:  rgba(255,255,255,0.04);
-  --text:        #E2E8F0;
-  --muted:       #6B7280;
-  --subtle:      #4B5563;
-  --accent:      #3a6f8f;
-  --accent-fg:   #60a5d4;
+  --bg:         #070A10;
+  --surface:    #0D1219;
+  --elevated:   #131D2A;
+  --border:     rgba(255,255,255,0.08);
+  --border-sub: rgba(255,255,255,0.04);
+  --text:       #E8EDF5;
+  --muted:      #5A6478;
+  --subtle:     #3D4758;
+  --accent:     #3a6f8f;
+  --accent-fg:  #60a5d4;
 
-  /* Surface layer scale */
-  --s0: #07090E;
-  --s1: #0D1117;
-  --s2: #161B22;
-  --s3: #1C2333;
+  /* Surface layer scale — distinct 8-step jumps between each level */
+  --s0: #070A10;
+  --s1: #0D1219;
+  --s2: #131D2A;
+  --s3: #1C2A3C;
 }
 
 body {
@@ -52,60 +52,83 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Dark: single very subtle blue-grey haze for depth */
+/* Dark: layered atmospheric gradient — cool blue-slate depth */
 .dark body {
   background:
-    radial-gradient(ellipse 2400px 1200px at 20% -5%, rgba(74,127,165,0.04) 0%, transparent 60%),
-    #07090E;
+    radial-gradient(ellipse 1100px 700px at 12% -8%,  rgba(60,95,170,0.10) 0%, transparent 60%),
+    radial-gradient(ellipse 700px  500px at 92% 105%, rgba(40,70,140,0.07) 0%, transparent 55%),
+    #070A10;
 }
 
 /* ── Glass card ─────────────────────────────────────────────────────────────
-   Light: clean white card with subtle shadow
-   Dark:  layered dark surface with inset highlight
+   Light: white card with clean shadow
+   Dark:  layered surface with inset highlight + deep shadow
    ─────────────────────────────────────────────────────────────────────── */
 .glass-card {
   background: var(--surface);
-  border: 1px solid var(--border);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.04), 0 2px 8px rgba(0,0,0,0.03);
+  border: 1px solid rgba(0,0,0,0.09);
+  box-shadow:
+    0 1px 2px rgba(0,0,0,0.05),
+    0 3px 10px rgba(0,0,0,0.04);
+}
+
+.glass-card:hover {
+  box-shadow:
+    0 1px 3px rgba(0,0,0,0.07),
+    0 6px 20px rgba(0,0,0,0.06);
 }
 
 .dark .glass-card {
   background: var(--s1);
-  border: 1px solid rgba(255,255,255,0.07);
+  border: 1px solid rgba(255,255,255,0.08);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.04),
-    0 1px 3px rgba(0,0,0,0.30),
-    0 4px 16px rgba(0,0,0,0.20);
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 1px 4px rgba(0,0,0,0.60),
+    0 6px 24px rgba(0,0,0,0.35),
+    0 20px 60px rgba(0,0,0,0.20);
 }
 
 .dark .glass-card:hover {
-  border-color: rgba(255,255,255,0.10);
+  border-color: rgba(255,255,255,0.12);
+  box-shadow:
+    inset 0 1px 0 rgba(255,255,255,0.09),
+    0 1px 4px rgba(0,0,0,0.65),
+    0 8px 32px rgba(0,0,0,0.40),
+    0 24px 64px rgba(0,0,0,0.25);
 }
 
 /* ── Elevated card (modals, dropdowns) ──────────────────────────────────── */
 .glass-elevated {
   background: var(--elevated);
-  border: 1px solid var(--border);
-  box-shadow: 0 4px 16px rgba(0,0,0,0.06), 0 1px 3px rgba(0,0,0,0.04);
+  border: 1px solid rgba(0,0,0,0.09);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.07), 0 1px 3px rgba(0,0,0,0.05);
 }
 
 .dark .glass-elevated {
   background: var(--s2);
-  border: 1px solid rgba(255,255,255,0.08);
+  border: 1px solid rgba(255,255,255,0.09);
   box-shadow:
-    inset 0 1px 0 rgba(255,255,255,0.05),
-    0 8px 32px rgba(0,0,0,0.40),
-    0 24px 64px rgba(0,0,0,0.30);
+    inset 0 1px 0 rgba(255,255,255,0.07),
+    0 8px 40px rgba(0,0,0,0.50),
+    0 32px 80px rgba(0,0,0,0.35);
 }
 
-/* ── Utility glass class (misc) ─────────────────────────────────────────── */
+/* ── Utility glass class ────────────────────────────────────────────────── */
 @layer utilities {
   .glass {
     background: var(--s2);
-    border: 1px solid rgba(255,255,255,0.07);
-    box-shadow: inset 0 1px 0 rgba(255,255,255,0.04), 0 8px 32px rgba(0,0,0,0.40);
+    border: 1px solid rgba(255,255,255,0.08);
+    box-shadow: inset 0 1px 0 rgba(255,255,255,0.05), 0 8px 32px rgba(0,0,0,0.45);
   }
 }
+
+/* ── KPI glow animation ─────────────────────────────────────────────────── */
+@keyframes kpi-glow {
+  0%, 100% { opacity: 0.55; }
+  50%       { opacity: 1;    }
+}
+.kpi-glow { animation: kpi-glow 5s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) { .kpi-glow { animation: none; opacity: 0.8; } }
 
 /* ── Logo mark animations ───────────────────────────────────────────────── */
 @keyframes tf-halo-pulse {
@@ -151,23 +174,23 @@ body {
 ::-webkit-scrollbar        { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track  { background: transparent; }
 ::-webkit-scrollbar-thumb  { background: rgba(0,0,0,0.12); border-radius: 99px; }
-::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.20); }
-.dark ::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.08); }
-.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.14); }
+::-webkit-scrollbar-thumb:hover { background: rgba(0,0,0,0.22); }
+.dark ::-webkit-scrollbar-thumb  { background: rgba(255,255,255,0.09); }
+.dark ::-webkit-scrollbar-thumb:hover { background: rgba(255,255,255,0.16); }
 
 /* ── Table utilities ────────────────────────────────────────────────────── */
 .table-row-hover:hover { background: rgba(74,127,165,0.04); }
 
 /* ── Topbar blur backdrop ───────────────────────────────────────────────── */
 .topbar-surface {
-  background: rgba(244,244,242,0.88);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
-  border-bottom: 1px solid rgba(0,0,0,0.07);
+  background: rgba(242,241,239,0.90);
+  backdrop-filter: blur(16px) saturate(200%);
+  -webkit-backdrop-filter: blur(16px) saturate(200%);
+  border-bottom: 1px solid rgba(0,0,0,0.08);
 }
 .dark .topbar-surface {
-  background: rgba(7,9,14,0.85);
-  backdrop-filter: blur(12px) saturate(180%);
-  -webkit-backdrop-filter: blur(12px) saturate(180%);
+  background: rgba(7,10,16,0.88);
+  backdrop-filter: blur(16px) saturate(200%);
+  -webkit-backdrop-filter: blur(16px) saturate(200%);
   border-bottom: 1px solid rgba(255,255,255,0.06);
 }

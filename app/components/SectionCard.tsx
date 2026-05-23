@@ -17,13 +17,13 @@ export default function SectionCard({
 }: Props) {
   return (
     <div className={`glass-card overflow-hidden rounded-xl ${className}`}>
-      <div className="flex items-center justify-between gap-3 border-b border-gray-100 dark:border-white/[0.06] px-5 py-3.5">
+      <div className="flex items-center justify-between gap-3 border-b border-gray-100 dark:border-white/[0.07] px-5 py-3.5">
         <div className="min-w-0">
-          <h2 className="text-[13px] font-semibold text-gray-900 dark:text-[#E2E8F0] tracking-tight truncate">
+          <h2 className="text-[13.5px] font-semibold tracking-[-0.01em] text-gray-900 dark:text-[#E8EDF5] truncate">
             {title}
           </h2>
           {subtitle && (
-            <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#525563] truncate">{subtitle}</p>
+            <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#4A5568] truncate">{subtitle}</p>
           )}
         </div>
         {action && <div className="shrink-0">{action}</div>}
