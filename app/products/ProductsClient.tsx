@@ -304,9 +304,9 @@ export default function ProductsClient() {
             <thead className="bg-[#D1CFC9]/50 dark:bg-[#262E36]/55/50 text-xs text-gray-500 dark:text-gray-400">
               <tr>
                 <th className="px-4 py-3 text-start font-medium">{t('common.name')}</th>
-                <th className="px-4 py-3 text-start font-medium">{t('common.sku')}</th>
-                <th className="px-4 py-3 text-start font-medium hidden md:table-cell">{t('common.description')}</th>
-                <th className="px-4 py-3 text-start font-medium hidden sm:table-cell">{t('common.created')}</th>
+                <th className="px-4 py-3 text-start font-medium w-24">SKU</th>
+                <th className="px-4 py-3 text-start font-medium hidden md:table-cell w-1/3">Description</th>
+                <th className="px-4 py-3 text-start font-medium hidden sm:table-cell w-28">Created</th>
                 <th className="px-4 py-3 text-end font-medium">{t('common.actions')}</th>
               </tr>
             </thead>
@@ -319,8 +319,11 @@ export default function ProductsClient() {
                       {p.sku}
                     </span>
                   </td>
-                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 hidden md:table-cell">
-                    {p.description ?? '—'}
+                  <td className="px-4 py-3 text-gray-500 dark:text-gray-400 hidden md:table-cell w-1/3 whitespace-normal break-words">
+                    {p.description
+                      ? <span>{p.description}</span>
+                      : <span className="italic text-gray-400 dark:text-gray-600">No description</span>
+                    }
                   </td>
                   <td className="px-4 py-3 text-gray-400 dark:text-gray-500 hidden sm:table-cell">
                     {new Date(p.created_at).toLocaleDateString(locale)}
