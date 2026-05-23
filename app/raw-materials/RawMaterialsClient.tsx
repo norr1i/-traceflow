@@ -10,6 +10,7 @@ import { Plus, Pencil, Trash2, X, Check, AlertTriangle, FlaskConical, Upload } f
 import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
+import { useT } from '../lib/i18n'
 
 const empty = { name: '', unit: '', quantity_in_stock: 0, reorder_level: 0 }
 
@@ -31,6 +32,7 @@ export default function RawMaterialsClient() {
   const role      = useRole()
   const { user, companyId } = useAuth()
   const canWrite  = canEdit(role, 'raw-materials')
+  const { t, lang } = useT()
 
   const [materials, setMaterials]   = useState<RawMaterial[]>([])
   const [loading, setLoading]       = useState(true)
@@ -92,23 +94,23 @@ export default function RawMaterialsClient() {
         .from('raw_materials').update(payload).eq('id', editing.id).select().single()
       if (err) {
         setFormError(err.message)
-        toast.error('Failed to update material')
+        toast.error(t('materials.error_update'))
         setSaving(false)
         return
       }
       setMaterials((prev) => prev.map((m) => (m.id === editing.id ? data : m)))
-      toast.success('Material updated')
+      toast.success(t('materials.updated_toast'))
     } else {
       const { data, error: err } = await supabase
         .from('raw_materials').insert([payload]).select().single()
       if (err) {
         setFormError(err.message)
-        toast.error('Failed to create material')
+        toast.error(t('materials.error_create'))
         setSaving(false)
         return
       }
       setMaterials((prev) => [data, ...prev])
-      toast.success('Material created')
+      toast.success(t('materials.created_toast'))
       console.log('[logActivity] pre-call raw_material.created | companyId:', companyId, '| user:', user?.email)
       if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
         actionType: 'raw_material.created', entityType: 'raw_material', entityId: data.id,
@@ -122,22 +124,22 @@ export default function RawMaterialsClient() {
 
   async function handleDelete(id: string) {
     const ok = await confirm({
-      title: 'Delete material?',
-      message: 'This cannot be undone. Materials referenced by production records cannot be deleted.',
-      confirmLabel: 'Delete',
+      title: t('materials.delete_title'),
+      message: t('materials.delete_message'),
+      confirmLabel: t('common.delete'),
     })
     if (!ok) return
 
     const { error: err } = await supabase.from('raw_materials').delete().eq('id', id)
     if (err) {
       const msg = err.message.includes('foreign key')
-        ? 'Cannot delete: this material is referenced by existing production records.'
+        ? t('materials.error_fk')
         : err.message
       toast.error(msg)
       return
     }
     setMaterials((prev) => prev.filter((m) => m.id !== id))
-    toast.success('Material deleted')
+    toast.success(t('materials.deleted_toast'))
   }
 
   async function handleMaterialImport(rows: Record<string, string>[]): Promise<ImportResult> {
@@ -163,7 +165,7 @@ export default function RawMaterialsClient() {
     const inserted = inserted_rows.length
     if (inserted > 0) {
       setMaterials((prev) => [...inserted_rows, ...prev])
-      toast.success(`Imported ${inserted} material${inserted !== 1 ? 's' : ''}`)
+      toast.success(t(inserted !== 1 ? 'materials.count_plural' : 'materials.count', { n: inserted }))
       console.log('[logActivity] pre-call raw_material.imported | companyId:', companyId, '| count:', inserted)
       if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
         actionType: 'raw_material.imported', entityType: 'raw_material',
@@ -176,13 +178,21 @@ export default function RawMaterialsClient() {
   }
 
   const lowStock = materials.filter((m) => m.quantity_in_stock <= m.reorder_level)
+  const locale = lang === 'ar' ? 'ar-SA' : 'en-US'
+
+  const formFields = [
+    { label: t('common.name'),              key: 'name',              type: 'text',   placeholder: t('materials.name_placeholder') },
+    { label: t('common.unit'),              key: 'unit',              type: 'text',   placeholder: t('materials.unit_placeholder') },
+    { label: t('materials.quantity_in_stock'), key: 'quantity_in_stock', type: 'number', placeholder: '0' },
+    { label: t('materials.reorder_level'),  key: 'reorder_level',     type: 'number', placeholder: '0' },
+  ] as const
 
   return (
     <>
       {/* Import modal */}
       {showImport && (
         <CsvImportModal
-          title="Import Raw Materials"
+          title={t('materials.import_title')}
           fields={MATERIAL_FIELDS}
           sampleFilename="raw_materials_template.csv"
           sampleRows={MATERIAL_SAMPLE_ROWS}
@@ -195,15 +205,15 @@ export default function RawMaterialsClient() {
       {lowStock.length > 0 && (
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
-          <span>
-            <strong>{lowStock.length}</strong> material{lowStock.length > 1 ? 's' : ''} at or below reorder level.
-          </span>
+          <span dangerouslySetInnerHTML={{ __html:
+            t(lowStock.length > 1 ? 'materials.low_stock_banner_plural' : 'materials.low_stock_banner', { n: lowStock.length })
+          }} />
         </div>
       )}
 
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {materials.length} material{materials.length !== 1 ? 's' : ''}
+          {t(materials.length !== 1 ? 'materials.count_plural' : 'materials.count', { n: materials.length })}
         </p>
         {canWrite && (
           <div className="flex gap-2">
@@ -211,13 +221,13 @@ export default function RawMaterialsClient() {
               onClick={() => setShowImport(true)}
               className="flex items-center gap-2 rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/55 transition-colors"
             >
-              <Upload size={15} /> Import CSV
+              <Upload size={15} /> {t('common.import_csv')}
             </button>
             <button
               onClick={openCreate}
               className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d5a74] transition-colors"
             >
-              <Plus size={16} /> Add Material
+              <Plus size={16} /> {t('materials.add')}
             </button>
           </div>
         )}
@@ -229,7 +239,7 @@ export default function RawMaterialsClient() {
           <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#F1EFEC] dark:bg-[#141e28] dark:backdrop-blur-xl p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editing ? 'Edit Material' : 'New Material'}
+                {editing ? t('materials.edit') : t('materials.new')}
               </h2>
               <button onClick={closeForm} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
                 <X size={20} />
@@ -237,14 +247,7 @@ export default function RawMaterialsClient() {
             </div>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-              {(
-                [
-                  { label: 'Name',              key: 'name',              type: 'text',   placeholder: 'e.g. Steel Rod' },
-                  { label: 'Unit',              key: 'unit',              type: 'text',   placeholder: 'e.g. kg, pcs, liters' },
-                  { label: 'Quantity in Stock', key: 'quantity_in_stock', type: 'number', placeholder: '0' },
-                  { label: 'Reorder Level',     key: 'reorder_level',     type: 'number', placeholder: '0' },
-                ] as const
-              ).map(({ label, key, type, placeholder }) => (
+              {formFields.map(({ label, key, type, placeholder }) => (
                 <div key={key}>
                   <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{label}</label>
                   <input
@@ -272,14 +275,14 @@ export default function RawMaterialsClient() {
                   onClick={closeForm}
                   className="rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-gray-700"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d5a74] disabled:opacity-60"
                 >
-                  <Check size={15} /> {saving ? 'Saving…' : editing ? 'Update' : 'Create'}
+                  <Check size={15} /> {saving ? t('common.saving') : editing ? t('common.update') : t('common.create')}
                 </button>
               </div>
             </form>
@@ -292,19 +295,19 @@ export default function RawMaterialsClient() {
         {materials.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
             <FlaskConical size={40} className="mb-3 opacity-40" />
-            <p className="text-sm font-medium">No materials yet</p>
-            <p className="mt-1 text-xs">Add raw materials to track inventory.</p>
+            <p className="text-sm font-medium">{t('materials.empty')}</p>
+            <p className="mt-1 text-xs">{t('materials.empty_sub')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-[#D1CFC9]/50 dark:bg-[#262E36]/55/50 text-xs text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">Unit</th>
-                <th className="px-4 py-3 text-left font-medium">In Stock</th>
-                <th className="px-4 py-3 text-left font-medium">Reorder At</th>
-                <th className="px-4 py-3 text-left font-medium">Status</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="px-4 py-3 text-start font-medium">{t('common.name')}</th>
+                <th className="px-4 py-3 text-start font-medium">{t('common.unit')}</th>
+                <th className="px-4 py-3 text-start font-medium">{t('common.in_stock')}</th>
+                <th className="px-4 py-3 text-start font-medium">{t('common.reorder_at')}</th>
+                <th className="px-4 py-3 text-start font-medium">{t('common.status')}</th>
+                <th className="px-4 py-3 text-end font-medium">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.07]">
@@ -314,14 +317,18 @@ export default function RawMaterialsClient() {
                   <tr key={m.id} className="hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/22 transition-colors">
                     <td className="px-4 py-3 font-medium text-gray-900 dark:text-white">{m.name}</td>
                     <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{m.unit}</td>
-                    <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">{m.quantity_in_stock}</td>
-                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{m.reorder_level}</td>
+                    <td className="px-4 py-3 font-semibold text-gray-800 dark:text-gray-200">
+                      {m.quantity_in_stock.toLocaleString(locale)}
+                    </td>
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">
+                      {m.reorder_level.toLocaleString(locale)}
+                    </td>
                     <td className="px-4 py-3">
                       {isLow
-                        ? <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400"><AlertTriangle size={12} /> Low Stock</span>
-                        : <span className="text-xs font-medium text-green-600 dark:text-green-400">OK</span>}
+                        ? <span className="flex items-center gap-1 text-xs font-medium text-red-600 dark:text-red-400"><AlertTriangle size={12} /> {t('materials.low_stock')}</span>
+                        : <span className="text-xs font-medium text-green-600 dark:text-green-400">{t('materials.ok_stock')}</span>}
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-end">
                       {canWrite && (
                         <div className="flex items-center justify-end gap-2">
                           <button

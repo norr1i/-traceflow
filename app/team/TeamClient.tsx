@@ -8,6 +8,7 @@ import { useConfirm } from '../components/ConfirmDialog'
 import { ROLE_META, ASSIGNABLE_ROLES, type Role } from '../lib/roles'
 import { hasPermission } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
+import { useT } from '../lib/i18n'
 import {
   Users, Plus, Trash2, X, Check, AlertTriangle,
   Mail, Clock, Pencil, ShieldAlert, Copy, UserCheck,
@@ -56,17 +57,17 @@ function RoleBadge({ role }: { role: string }) {
   )
 }
 
-function StatusBadge({ status }: { status: 'active' | 'pending' }) {
+function StatusBadge({ status, tFn }: { status: 'active' | 'pending'; tFn: (k: string) => string }) {
   if (status === 'active') return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 px-2.5 py-0.5 text-[11px] font-medium text-emerald-700 dark:text-emerald-400">
       <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-      Active
+      {tFn('team.active')}
     </span>
   )
   return (
     <span className="inline-flex items-center gap-1.5 rounded-full border border-amber-200 dark:border-amber-500/20 bg-amber-50 dark:bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-medium text-amber-700 dark:text-amber-400">
       <Clock size={9} />
-      Pending
+      {tFn('team.pending')}
     </span>
   )
 }
@@ -144,6 +145,8 @@ export default function TeamClient() {
   const { user, role, companyId } = useAuth()
   const toast    = useToast()
   const confirm  = useConfirm()
+  const { t, lang } = useT()
+  const locale = lang === 'ar' ? 'ar-SA' : 'en-US'
   const assignableRoles = hasPermission(role as Role | null, 'invite:admin')
     ? ASSIGNABLE_ROLES
     : ASSIGNABLE_ROLES.filter((r) => r !== 'admin')
@@ -243,7 +246,7 @@ export default function TeamClient() {
 
     if (err) { toast.error(err.message); return }
 
-    toast.success('Role updated')
+    toast.success(t('team.role_updated'))
     console.log('[logActivity] pre-call team.role_changed | companyId:', companyId, '| user:', user?.email)
     if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
       actionType: 'team.role_changed', entityType: 'team_member', entityId: m.user_id,
@@ -259,27 +262,27 @@ export default function TeamClient() {
 
   async function handleRemove(m: TeamMember) {
     const ok = await confirm({
-      title: 'Remove team member?',
-      message: `${m.email} will lose access to all company data. Their account is not deleted.`,
-      confirmLabel: 'Remove',
+      title: t('team.delete_title'),
+      message: t('team.remove_msg', { email: m.email }),
+      confirmLabel: t('team.remove'),
     })
     if (!ok) return
     const { error: err } = await supabase.rpc('remove_team_member', { p_user_id: m.user_id })
     if (err) { toast.error(err.message); return }
-    toast.success('Member removed')
+    toast.success(t('team.removed_toast'))
     loadMembers()
   }
 
   async function handleCancelInvite(m: TeamMember) {
     const ok = await confirm({
-      title: 'Cancel invitation?',
-      message: `The pending invite to ${m.email} will be revoked.`,
-      confirmLabel: 'Cancel Invite',
+      title: t('team.cancel_invite'),
+      message: t('team.cancel_invite_msg', { email: m.email }),
+      confirmLabel: t('common.cancel'),
     })
     if (!ok) return
     const { error: err } = await supabase.rpc('cancel_invitation', { p_invitation_id: m.invitation_id })
     if (err) { toast.error(err.message); return }
-    toast.success('Invitation cancelled')
+    toast.success(t('team.invited_toast'))
     loadMembers()
   }
 
@@ -290,7 +293,7 @@ export default function TeamClient() {
     const url  = invitedEmail
       ? `${base}/signup?email=${encodeURIComponent(invitedEmail)}`
       : `${base}/signup`
-    navigator.clipboard.writeText(url).then(() => toast.success('Invite link copied'))
+    navigator.clipboard.writeText(url).then(() => toast.success(t('team.copy_link')))
   }
 
   function signupUrl(email: string) {
@@ -331,7 +334,7 @@ export default function TeamClient() {
                 <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-[#4a8fb9]/10">
                   <Mail size={14} className="text-[#4a8fb9]" />
                 </div>
-                <h2 className="text-[14px] font-semibold text-gray-900 dark:text-white">Invite team member</h2>
+                <h2 className="text-[14px] font-semibold text-gray-900 dark:text-white">{t('team.invite_title')}</h2>
               </div>
               <button onClick={closeInvite} className="p-1.5 rounded-lg text-gray-400 hover:text-gray-600 dark:text-[#525563] dark:hover:text-[#A8B3C0] hover:bg-gray-100 dark:hover:bg-white/[0.06] transition-colors">
                 <X size={16} />
@@ -345,16 +348,16 @@ export default function TeamClient() {
                   <div className="flex items-start gap-3 rounded-xl border border-emerald-200 dark:border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/10 px-4 py-3.5">
                     <Check size={16} className="mt-0.5 shrink-0 text-emerald-600 dark:text-emerald-400" />
                     <div>
-                      <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">Invitation created</p>
+                      <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{t('team.invitation_created')}</p>
                       <p className="mt-0.5 text-[12px] text-emerald-700/80 dark:text-emerald-400/80">
-                        Ask <span className="font-medium">{invitedEmail}</span> to sign up using their email address.
+                        {t('team.invitation_sub', { email: invitedEmail ?? '' })}
                       </p>
                     </div>
                   </div>
 
                   <div className="rounded-lg border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-white/[0.03] p-3">
                     <p className="mb-2 text-[11px] font-semibold text-gray-400 dark:text-[#525563] uppercase tracking-wider">
-                      Personalised invite link
+                      {t('team.personalised_link')}
                     </p>
                     <div className="flex items-center gap-2">
                       <code className="flex-1 truncate rounded-md bg-white dark:bg-[#161B22] border border-gray-200 dark:border-white/[0.07] px-2.5 py-1.5 text-[11px] text-[#4a8fb9]">
@@ -374,13 +377,13 @@ export default function TeamClient() {
                       onClick={() => { setInvitedEmail(null); setInviteEmail(''); setInviteError(null) }}
                       className="flex-1 rounded-lg border border-gray-200 dark:border-white/[0.09] bg-white dark:bg-[#161B22] py-2.5 text-sm font-medium text-gray-700 dark:text-[#C9C7C4] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
                     >
-                      Invite another
+                      {t('team.invite_another')}
                     </button>
                     <button
                       onClick={closeInvite}
                       className="flex-1 rounded-lg bg-[#3a6f8f] hover:bg-[#2d5a74] py-2.5 text-sm font-medium text-white transition-colors"
                     >
-                      Done
+                      {t('team.done')}
                     </button>
                   </div>
                 </div>
@@ -388,7 +391,7 @@ export default function TeamClient() {
                 /* ── Invite form ── */
                 <form onSubmit={handleInvite} className="space-y-4">
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-semibold text-gray-600 dark:text-[#8B9BAA]">Email address</label>
+                    <label className="mb-1.5 block text-[12px] font-semibold text-gray-600 dark:text-[#8B9BAA]">{t('team.email_label')}</label>
                     <div className="relative">
                       <Mail size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 dark:text-[#525563]" />
                       <input
@@ -403,7 +406,7 @@ export default function TeamClient() {
                   </div>
 
                   <div>
-                    <label className="mb-1.5 block text-[12px] font-semibold text-gray-600 dark:text-[#8B9BAA]">Role</label>
+                    <label className="mb-1.5 block text-[12px] font-semibold text-gray-600 dark:text-[#8B9BAA]">{t('team.role_label')}</label>
                     <select
                       value={inviteRole}
                       onChange={(e) => setInviteRole(e.target.value as Role)}
@@ -433,14 +436,14 @@ export default function TeamClient() {
                       onClick={closeInvite}
                       className="flex-1 rounded-lg border border-gray-200 dark:border-white/[0.09] py-2.5 text-sm font-medium text-gray-600 dark:text-[#8B9BAA] hover:bg-gray-50 dark:hover:bg-white/[0.05] transition-colors"
                     >
-                      Cancel
+                      {t('common.cancel')}
                     </button>
                     <button
                       type="submit"
                       disabled={inviting}
                       className="flex-1 rounded-lg bg-[#3a6f8f] hover:bg-[#2d5a74] py-2.5 text-sm font-medium text-white disabled:opacity-60 transition-colors"
                     >
-                      {inviting ? 'Sending…' : 'Send invitation'}
+                      {inviting ? t('team.sending') : t('team.send_invite')}
                     </button>
                   </div>
                 </form>
@@ -455,19 +458,19 @@ export default function TeamClient() {
         {/* Total members */}
         <div className="glass-card rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">Members</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">{t('team.members_label')}</p>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#4a8fb9]/10">
               <Users size={14} className="text-[#4a8fb9]" />
             </span>
           </div>
           <p className="text-3xl font-bold tabular-nums text-gray-900 dark:text-[#E2E8F0]">{activeCount}</p>
-          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">active accounts</p>
+          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">{t('team.active_accounts')}</p>
         </div>
 
         {/* Pending invitations */}
         <div className="glass-card rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">Pending</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">{t('team.pending_label')}</p>
             <span className={`flex h-7 w-7 items-center justify-center rounded-lg ${pendingCount > 0 ? 'bg-amber-500/10' : 'bg-gray-100 dark:bg-white/[0.04]'}`}>
               <Clock size={14} className={pendingCount > 0 ? 'text-amber-500' : 'text-gray-400 dark:text-[#525563]'} />
             </span>
@@ -475,31 +478,31 @@ export default function TeamClient() {
           <p className={`text-3xl font-bold tabular-nums ${pendingCount > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-gray-900 dark:text-[#E2E8F0]'}`}>
             {pendingCount}
           </p>
-          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">awaiting signup</p>
+          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">{t('team.awaiting_signup')}</p>
         </div>
 
         {/* Roles */}
         <div className="glass-card rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">Roles</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">{t('team.roles_label')}</p>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-violet-500/10">
               <Shield size={14} className="text-violet-500" />
             </span>
           </div>
           <p className="text-3xl font-bold tabular-nums text-gray-900 dark:text-[#E2E8F0]">{roleCount}</p>
-          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">distinct roles assigned</p>
+          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">{t('team.distinct_roles')}</p>
         </div>
 
         {/* Verified */}
         <div className="glass-card rounded-xl p-4">
           <div className="flex items-center justify-between mb-2">
-            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">Verified</p>
+            <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-[#525563]">{t('team.verified_label')}</p>
             <span className="flex h-7 w-7 items-center justify-center rounded-lg bg-emerald-500/10">
               <UserCheck size={14} className="text-emerald-600 dark:text-emerald-400" />
             </span>
           </div>
           <p className="text-3xl font-bold tabular-nums text-gray-900 dark:text-[#E2E8F0]">{activeCount}</p>
-          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">confirmed users</p>
+          <p className="mt-1 text-[11px] text-gray-400 dark:text-[#525563]">{t('team.confirmed_users')}</p>
         </div>
       </div>
 
@@ -507,8 +510,8 @@ export default function TeamClient() {
       {!loading && activeCount > 0 && (
         <div className="glass-card rounded-xl px-5 py-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-[13px] font-semibold text-gray-800 dark:text-[#E2E8F0]">Role Distribution</p>
-            <p className="text-[11px] text-gray-400 dark:text-[#525563]">{activeCount} active member{activeCount !== 1 ? 's' : ''}</p>
+            <p className="text-[13px] font-semibold text-gray-800 dark:text-[#E2E8F0]">{t('team.role_distribution')}</p>
+            <p className="text-[11px] text-gray-400 dark:text-[#525563]">{t(activeCount !== 1 ? 'team.active_count_plural' : 'team.active_count', { n: activeCount })}</p>
           </div>
           <RoleDistribution members={members} />
         </div>
@@ -527,10 +530,10 @@ export default function TeamClient() {
         {/* Table header */}
         <div className="flex items-center justify-between gap-3 border-b border-gray-100 dark:border-white/[0.06] px-5 py-3.5">
           <div>
-            <h2 className="text-[13px] font-semibold text-gray-900 dark:text-[#E2E8F0]">Team Members</h2>
+            <h2 className="text-[13px] font-semibold text-gray-900 dark:text-[#E2E8F0]">{t('team.team_members_title')}</h2>
             {!loading && (
               <p className="mt-0.5 text-[11px] text-gray-400 dark:text-[#525563]">
-                {activeCount} active · {pendingCount} pending invitation{pendingCount !== 1 ? 's' : ''}
+                {t(pendingCount !== 1 ? 'team.active_pending_plural' : 'team.active_pending', { active: activeCount, pending: pendingCount })}
               </p>
             )}
           </div>
@@ -539,7 +542,7 @@ export default function TeamClient() {
             className="flex items-center gap-1.5 rounded-lg bg-[#3a6f8f] hover:bg-[#2d5a74] px-3.5 py-2 text-[12px] font-medium text-white transition-colors"
           >
             <Plus size={13} />
-            Invite member
+            {t('team.invite')}
           </button>
         </div>
 
@@ -559,13 +562,13 @@ export default function TeamClient() {
         ) : members.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-[#525563]">
             <UserX size={32} className="mb-3 opacity-30" />
-            <p className="text-sm font-medium text-gray-600 dark:text-[#6B7280]">No team members yet</p>
-            <p className="mt-1 text-[12px]">Invite your first colleague to get started.</p>
+            <p className="text-sm font-medium text-gray-600 dark:text-[#6B7280]">{t('team.empty')}</p>
+            <p className="mt-1 text-[12px]">{t('team.empty_sub')}</p>
             <button
               onClick={openInvite}
               className="mt-5 flex items-center gap-1.5 rounded-lg bg-[#3a6f8f] hover:bg-[#2d5a74] px-4 py-2 text-sm font-medium text-white transition-colors"
             >
-              <Plus size={14} /> Invite member
+              <Plus size={14} /> {t('team.invite')}
             </button>
           </div>
         ) : (
@@ -573,11 +576,11 @@ export default function TeamClient() {
             <table className="w-full">
               <thead>
                 <tr className="border-b border-gray-50 dark:border-white/[0.05] bg-gray-50/50 dark:bg-white/[0.01]">
-                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563]">Member</th>
-                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563] hidden sm:table-cell">Role</th>
-                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563] hidden md:table-cell">Status</th>
-                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563] hidden lg:table-cell">Joined</th>
-                  <th className="px-5 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563]">Actions</th>
+                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563]">{t('team.member_col')}</th>
+                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563] hidden sm:table-cell">{t('team.role_label')}</th>
+                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563] hidden md:table-cell">{t('common.status')}</th>
+                  <th className="px-5 py-2.5 text-left text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563] hidden lg:table-cell">{t('team.joined_col')}</th>
+                  <th className="px-5 py-2.5 text-right text-[11px] font-semibold uppercase tracking-wider text-gray-400 dark:text-[#525563]">{t('team.actions_col')}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-gray-50 dark:divide-white/[0.04]">
@@ -630,12 +633,12 @@ export default function TeamClient() {
 
                       {/* Status */}
                       <td className="px-5 py-3.5 hidden md:table-cell">
-                        <StatusBadge status={m.status} />
+                        <StatusBadge status={m.status} tFn={t} />
                       </td>
 
                       {/* Joined */}
                       <td className="px-5 py-3.5 hidden lg:table-cell text-[12px] text-gray-400 dark:text-[#525563]">
-                        {new Date(m.joined_at).toLocaleDateString('en-US', {
+                        {new Date(m.joined_at).toLocaleDateString(locale, {
                           month: 'short', day: 'numeric', year: 'numeric',
                         })}
                       </td>
@@ -720,7 +723,7 @@ export default function TeamClient() {
               onClick={() => copySignupLink()}
               className="flex items-center gap-1.5 text-[11px] text-[#4a8fb9] hover:underline"
             >
-              <Copy size={10} /> Copy signup link
+              <Copy size={10} /> {t('team.copy_signup')}
             </button>
           </div>
         )}

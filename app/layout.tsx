@@ -1,10 +1,16 @@
 import type { Metadata } from 'next'
-import { Inter } from 'next/font/google'
+import { Inter, IBM_Plex_Sans_Arabic } from 'next/font/google'
 import './globals.css'
 import Providers from './components/Providers'
 import AppShell from './components/AppShell'
 
 const inter = Inter({ subsets: ['latin'], display: 'swap' })
+const ibmPlexArabic = IBM_Plex_Sans_Arabic({
+  subsets: ['arabic'],
+  weight: ['300', '400', '500', '600', '700'],
+  display: 'swap',
+  variable: '--font-arabic',
+})
 
 export const metadata: Metadata = {
   title: 'TraceFlow',
@@ -25,7 +31,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           }}
         />
       </head>
-      <body className={`${inter.className} bg-[var(--bg)] text-[var(--text)]`}>
+      <body className={`${inter.className} ${ibmPlexArabic.variable} bg-[var(--bg)] text-[var(--text)]`}>
         <Providers>
           <AppShell>{children}</AppShell>
         </Providers>

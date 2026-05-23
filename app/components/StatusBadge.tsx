@@ -1,3 +1,7 @@
+'use client'
+
+import { useT } from '../lib/i18n'
+
 type Props = { status: string }
 
 const styles: Record<string, string> = {
@@ -8,13 +12,15 @@ const styles: Record<string, string> = {
 }
 
 export default function StatusBadge({ status }: Props) {
+  const { t } = useT()
+  const label = t(`status.${status}`)
   return (
     <span
-      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium capitalize ${
+      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ${
         styles[status] ?? 'bg-gray-100 text-gray-700 dark:bg-gray-700 dark:text-gray-300'
       }`}
     >
-      {status.replace('_', ' ')}
+      {label === `status.${status}` ? status.replace(/_/g, ' ') : label}
     </span>
   )
 }

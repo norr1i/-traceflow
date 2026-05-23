@@ -52,6 +52,10 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
+html[lang="ar"] body {
+  font-family: var(--font-arabic), 'IBM Plex Sans Arabic', sans-serif;
+}
+
 /* Dark: layered atmospheric gradient — cool blue-slate depth */
 .dark body {
   background:

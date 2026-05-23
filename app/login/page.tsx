@@ -6,24 +6,21 @@ import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { Eye, EyeOff, AlertCircle, Loader2 } from 'lucide-react'
 import { LogoIcon } from '../components/Logo'
+import { useT } from '../lib/i18n'
 
-function friendlyAuthError(raw: string): string {
-  if (raw.includes('Invalid login credentials'))
-    return 'Wrong email or password. Please check and try again.'
-  if (raw.includes('Email not confirmed'))
-    return 'Your email address has not been verified yet.'
-  if (raw.includes('User not found') || raw.includes('No user found'))
-    return 'No account found with this email address. Try creating one.'
-  if (raw.includes('rate limit') || raw.includes('over_email_send_rate_limit'))
-    return 'Too many attempts. Please wait a few minutes before trying again.'
-  if (raw.includes('Token has expired') || raw.includes('token is expired'))
-    return 'Your confirmation link has expired. Request a new one below.'
+function friendlyAuthError(raw: string, t: (k: string) => string): string {
+  if (raw.includes('Invalid login credentials'))   return t('login.error_invalid')
+  if (raw.includes('Email not confirmed'))          return t('login.error_unconfirmed')
+  if (raw.includes('User not found') || raw.includes('No user found')) return t('login.error_not_found')
+  if (raw.includes('rate limit') || raw.includes('over_email_send_rate_limit')) return t('login.error_rate_limit')
+  if (raw.includes('Token has expired') || raw.includes('token is expired')) return t('login.error_expired')
   return raw
 }
 
 function LoginContent() {
   const router       = useRouter()
   const searchParams = useSearchParams()
+  const { t }        = useT()
 
   const [email, setEmail]       = useState(searchParams.get('email') ?? '')
   const [password, setPassword] = useState('')
@@ -46,7 +43,7 @@ function LoginContent() {
 
     if (err) {
       setRawError(err.message)
-      setError(friendlyAuthError(err.message))
+      setError(friendlyAuthError(err.message, t))
       return
     }
 
@@ -64,8 +61,8 @@ function LoginContent() {
           <div className="mb-5">
             <LogoIcon size="lg" />
           </div>
-          <h1 className="text-2xl font-bold text-[#D3D1CE] tracking-tight">Welcome back</h1>
-          <p className="mt-1.5 text-sm text-[#6C6D74]">Sign in to your TraceFlow account</p>
+          <h1 className="text-2xl font-bold text-[#D3D1CE] tracking-tight">{t('login.title')}</h1>
+          <p className="mt-1.5 text-sm text-[#6C6D74]">{t('login.subtitle')}</p>
         </div>
 
         <div className="rounded-2xl border border-[#B3B7BA]/[0.09] bg-gradient-to-b from-[#262E36]/85 to-[#1a2230]/80 backdrop-blur-xl p-8 shadow-[0_24px_60px_rgba(0,0,0,0.50)]">
@@ -82,14 +79,14 @@ function LoginContent() {
                     href={`/verify-email?email=${encodeURIComponent(email)}`}
                     className="mt-2 block font-medium underline underline-offset-2 hover:text-[#d98080]"
                   >
-                    Resend confirmation email →
+                    {t('login.resend_email')}
                   </Link>
                 )}
               </div>
             )}
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Email</label>
+              <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">{t('login.email')}</label>
               <input
                 type="email"
                 required
@@ -107,7 +104,7 @@ function LoginContent() {
             </div>
 
             <div>
-              <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">Password</label>
+              <label className="mb-1.5 block text-sm font-medium text-[#B3B7BA]">{t('login.password')}</label>
               <div className="relative">
                 <input
                   type={showPw ? 'text' : 'password'}
@@ -148,15 +145,15 @@ function LoginContent() {
               "
             >
               {loading && <Loader2 size={15} className="animate-spin" />}
-              {loading ? 'Signing in…' : 'Sign in'}
+              {loading ? t('login.signing_in') : t('login.sign_in')}
             </button>
           </form>
         </div>
 
         <p className="mt-6 text-center text-sm text-[#6C6D74]">
-          Don&apos;t have an account?{' '}
+          {t('login.no_account')}{' '}
           <Link href="/signup" className="font-semibold text-[#4a8fb9] hover:text-[#6aafd9] transition-colors">
-            Create one
+            {t('login.create_one')}
           </Link>
         </p>
       </div>

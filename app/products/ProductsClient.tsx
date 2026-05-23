@@ -10,6 +10,7 @@ import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Package, Upload } from '
 import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
+import { useT } from '../lib/i18n'
 
 const empty = { name: '', sku: '', description: '' }
 
@@ -30,6 +31,7 @@ export default function ProductsClient() {
   const role      = useRole()
   const { user, companyId } = useAuth()
   const canWrite  = canEdit(role, 'products')
+  const { t, lang } = useT()
 
   const [products, setProducts]     = useState<Product[]>([])
   const [loading, setLoading]       = useState(true)
@@ -92,12 +94,12 @@ export default function ProductsClient() {
 
       if (err) {
         setFormError(err.message)
-        toast.error('Failed to update product')
+        toast.error(t('products.error_update'))
         setSaving(false)
         return
       }
       setProducts((prev) => prev.map((p) => (p.id === editing.id ? data : p)))
-      toast.success('Product updated')
+      toast.success(t('products.updated_toast'))
     } else {
       const { data, error: err } = await supabase
         .from('products')
@@ -107,12 +109,12 @@ export default function ProductsClient() {
 
       if (err) {
         setFormError(err.message)
-        toast.error('Failed to create product')
+        toast.error(t('products.error_create'))
         setSaving(false)
         return
       }
       setProducts((prev) => [data, ...prev])
-      toast.success('Product created')
+      toast.success(t('products.created_toast'))
       console.log('[logActivity] pre-call product.created | companyId:', companyId, '| user:', user?.email)
       if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
         actionType: 'product.created', entityType: 'product', entityId: data.id,
@@ -128,9 +130,9 @@ export default function ProductsClient() {
 
   async function handleDelete(id: string) {
     const ok = await confirm({
-      title: 'Delete product?',
-      message: 'Any linked production orders will also be deleted. This cannot be undone.',
-      confirmLabel: 'Delete',
+      title: t('products.delete_title'),
+      message: t('products.delete_message'),
+      confirmLabel: t('common.delete'),
     })
     if (!ok) return
 
@@ -140,7 +142,7 @@ export default function ProductsClient() {
       return
     }
     setProducts((prev) => prev.filter((p) => p.id !== id))
-    toast.success('Product deleted')
+    toast.success(t('products.deleted_toast'))
   }
 
   async function handleProductImport(rows: Record<string, string>[]): Promise<ImportResult> {
@@ -164,7 +166,7 @@ export default function ProductsClient() {
     const inserted = data?.length ?? 0
     setProducts((prev) => [...(data ?? []), ...prev])
     if (inserted > 0) {
-      toast.success(`Imported ${inserted} product${inserted !== 1 ? 's' : ''}`)
+      toast.success(t(inserted !== 1 ? 'products.count_plural' : 'products.count', { n: inserted }))
       console.log('[logActivity] pre-call product.imported | companyId:', companyId, '| count:', inserted)
       if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
         actionType: 'product.imported', entityType: 'product',
@@ -176,12 +178,14 @@ export default function ProductsClient() {
     return { inserted, skipped, errors: [] }
   }
 
+  const locale = lang === 'ar' ? 'ar-SA' : 'en-US'
+
   return (
     <>
       {/* Import modal */}
       {showImport && (
         <CsvImportModal
-          title="Import Products"
+          title={t('products.import_title')}
           fields={PRODUCT_FIELDS}
           sampleFilename="products_template.csv"
           sampleRows={PRODUCT_SAMPLE_ROWS}
@@ -193,7 +197,7 @@ export default function ProductsClient() {
       {/* Toolbar */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {products.length} product{products.length !== 1 ? 's' : ''}
+          {t(products.length !== 1 ? 'products.count_plural' : 'products.count', { n: products.length })}
         </p>
         {canWrite && (
           <div className="flex gap-2">
@@ -201,13 +205,13 @@ export default function ProductsClient() {
               onClick={() => setShowImport(true)}
               className="flex items-center gap-2 rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 px-3 py-2 text-sm font-medium text-gray-600 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/55 transition-colors"
             >
-              <Upload size={15} /> Import CSV
+              <Upload size={15} /> {t('common.import_csv')}
             </button>
             <button
               onClick={openCreate}
               className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d5a74] transition-colors"
             >
-              <Plus size={16} /> Add Product
+              <Plus size={16} /> {t('products.add')}
             </button>
           </div>
         )}
@@ -219,7 +223,7 @@ export default function ProductsClient() {
           <div className="w-full max-w-md rounded-2xl border border-white/[0.08] bg-[#F1EFEC] dark:bg-[#141e28] dark:backdrop-blur-xl p-6 shadow-2xl">
             <div className="mb-4 flex items-center justify-between">
               <h2 className="text-lg font-semibold text-gray-900 dark:text-white">
-                {editing ? 'Edit Product' : 'New Product'}
+                {editing ? t('products.edit') : t('products.new')}
               </h2>
               <button onClick={closeForm} className="text-gray-400 hover:text-gray-700 dark:hover:text-gray-200">
                 <X size={20} />
@@ -228,33 +232,33 @@ export default function ProductsClient() {
 
             <form onSubmit={handleSubmit} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Name</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.name')}</label>
                 <input
                   required
                   value={form.name}
                   onChange={(e) => setForm({ ...form, name: e.target.value })}
                   className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
-                  placeholder="e.g. Steel Bolt M8"
+                  placeholder={t('products.name_placeholder')}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">SKU</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.sku')}</label>
                 <input
                   required
                   value={form.sku}
                   onChange={(e) => setForm({ ...form, sku: e.target.value })}
                   className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
-                  placeholder="e.g. BOLT-M8-001"
+                  placeholder={t('products.sku_placeholder')}
                 />
               </div>
               <div>
-                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">Description</label>
+                <label className="mb-1 block text-sm font-medium text-gray-700 dark:text-gray-300">{t('common.description')}</label>
                 <textarea
                   rows={3}
                   value={form.description}
                   onChange={(e) => setForm({ ...form, description: e.target.value })}
                   className="w-full rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#F1EFEC] dark:bg-[#262E36]/55 px-3 py-2 text-sm text-gray-900 dark:text-white placeholder-gray-400 dark:placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-[#4a7fa5]"
-                  placeholder="Optional description…"
+                  placeholder={t('products.desc_placeholder')}
                 />
               </div>
 
@@ -271,7 +275,7 @@ export default function ProductsClient() {
                   onClick={closeForm}
                   className="rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-gray-700"
                 >
-                  Cancel
+                  {t('common.cancel')}
                 </button>
                 <button
                   type="submit"
@@ -279,7 +283,7 @@ export default function ProductsClient() {
                   className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] px-4 py-2 text-sm font-medium text-white hover:bg-[#2d5a74] disabled:opacity-60"
                 >
                   <Check size={15} />
-                  {saving ? 'Saving…' : editing ? 'Update' : 'Create'}
+                  {saving ? t('common.saving') : editing ? t('common.update') : t('common.create')}
                 </button>
               </div>
             </form>
@@ -292,18 +296,18 @@ export default function ProductsClient() {
         {products.length === 0 ? (
           <div className="flex flex-col items-center justify-center py-16 text-gray-400 dark:text-gray-500">
             <Package size={40} className="mb-3 opacity-40" />
-            <p className="text-sm font-medium">No products yet</p>
-            <p className="mt-1 text-xs">Add your first product to get started.</p>
+            <p className="text-sm font-medium">{t('products.empty')}</p>
+            <p className="mt-1 text-xs">{t('products.empty_sub')}</p>
           </div>
         ) : (
           <table className="w-full text-sm">
             <thead className="bg-[#D1CFC9]/50 dark:bg-[#262E36]/55/50 text-xs text-gray-500 dark:text-gray-400">
               <tr>
-                <th className="px-4 py-3 text-left font-medium">Name</th>
-                <th className="px-4 py-3 text-left font-medium">SKU</th>
-                <th className="px-4 py-3 text-left font-medium hidden md:table-cell">Description</th>
-                <th className="px-4 py-3 text-left font-medium hidden sm:table-cell">Created</th>
-                <th className="px-4 py-3 text-right font-medium">Actions</th>
+                <th className="px-4 py-3 text-start font-medium">{t('common.name')}</th>
+                <th className="px-4 py-3 text-start font-medium">{t('common.sku')}</th>
+                <th className="px-4 py-3 text-start font-medium hidden md:table-cell">{t('common.description')}</th>
+                <th className="px-4 py-3 text-start font-medium hidden sm:table-cell">{t('common.created')}</th>
+                <th className="px-4 py-3 text-end font-medium">{t('common.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.07]">
@@ -319,9 +323,9 @@ export default function ProductsClient() {
                     {p.description ?? '—'}
                   </td>
                   <td className="px-4 py-3 text-gray-400 dark:text-gray-500 hidden sm:table-cell">
-                    {new Date(p.created_at).toLocaleDateString()}
+                    {new Date(p.created_at).toLocaleDateString(locale)}
                   </td>
-                  <td className="px-4 py-3 text-right">
+                  <td className="px-4 py-3 text-end">
                     {canWrite && (
                       <div className="flex items-center justify-end gap-2">
                         <button

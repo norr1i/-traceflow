@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useT, fmtNum } from '../lib/i18n'
 import {
   AlertTriangle, Search, Download, ChevronDown, ChevronRight,
   Package, FlaskConical, Layers, ShoppingCart, Network,
@@ -81,8 +82,8 @@ const qcNodeColors: Record<string, { fill: string; stroke: string; text: string 
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
-function fmt(iso: string) {
-  return new Date(iso).toLocaleDateString(undefined, {
+function fmt(iso: string, locale: string) {
+  return new Date(iso).toLocaleDateString(locale, {
     year: 'numeric', month: 'short', day: 'numeric',
   })
 }
@@ -168,7 +169,7 @@ function computeLayout(batches: RecallBatch[], edges: LineageEdge[]) {
 
 // ── Lineage graph ──────────────────────────────────────────────────────────
 
-function LineageGraph({ batches, edges }: { batches: RecallBatch[]; edges: LineageEdge[] }) {
+function LineageGraph({ batches, edges, t, lang }: { batches: RecallBatch[]; edges: LineageEdge[]; t: (k: string, v?: Record<string, string | number>) => string; lang: string }) {
   const capped = batches.slice(0, 30)
   const { positions, svgW, svgH } = useMemo(
     () => computeLayout(capped, edges),
@@ -179,10 +180,10 @@ function LineageGraph({ batches, edges }: { batches: RecallBatch[]; edges: Linea
     <div className="rounded-2xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 shadow-sm overflow-hidden">
       <div className="flex items-center gap-2 border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] px-5 py-3">
         <Network size={15} className="text-gray-400" />
-        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">Batch Lineage Graph</span>
+        <span className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t('recall.lineage_graph')}</span>
         {batches.length > 30 && (
           <span className="ml-auto text-xs text-amber-600 dark:text-amber-400">
-            Showing first 30 of {batches.length}
+            {t('recall.first_n_of', { total: fmtNum(batches.length, lang as 'en' | 'ar') })}
           </span>
         )}
         <div className="ml-auto flex items-center gap-3 text-[10px] text-gray-400">
@@ -192,7 +193,7 @@ function LineageGraph({ batches, edges }: { batches: RecallBatch[]; edges: Linea
                 className="inline-block h-2.5 w-2.5 rounded-sm border"
                 style={{ background: qcNodeColors[s].fill, borderColor: qcNodeColors[s].stroke }}
               />
-              {s === 'none' ? 'No QC' : s.toUpperCase()}
+              {s === 'none' ? t('recall.no_qc_label') : s.toUpperCase()}
             </span>
           ))}
         </div>
@@ -343,6 +344,9 @@ function exportToCSV(batches: RecallBatch[]) {
 // ── Main component ─────────────────────────────────────────────────────────
 
 export default function RecallClient() {
+  const { t, lang } = useT()
+  const locale = lang === 'ar' ? 'ar-SA' : 'en-US'
+
   const [searchType, setSearchType] = useState<SearchType>('lot')
   const [query,      setQuery]      = useState('')
   const [searching,  setSearching]  = useState(false)
@@ -521,17 +525,17 @@ export default function RecallClient() {
       {/* ── Search panel ──────────────────────────────────────────────────── */}
       <div className="rounded-2xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 shadow-sm p-5">
         <div className="flex flex-wrap gap-2 mb-4">
-          {(['lot', 'batch_id', 'sku'] as const).map(t => (
+          {(['lot', 'batch_id', 'sku'] as const).map(stype => (
             <button
-              key={t}
-              onClick={() => { setSearchType(t); setQuery('') }}
+              key={stype}
+              onClick={() => { setSearchType(stype); setQuery('') }}
               className={`rounded-lg px-3 py-1.5 text-xs font-semibold transition-colors ${
-                searchType === t
+                searchType === stype
                   ? 'bg-[#3a6f8f] text-white'
                   : 'bg-[#E6E4E0] dark:bg-[#262E36]/55 text-gray-600 dark:text-gray-300 hover:bg-[#D1CFC9] dark:hover:bg-[#262E36]/55'
               }`}
             >
-              {t === 'lot' ? 'Lot Number' : t === 'batch_id' ? 'Batch ID' : 'SKU'}
+              {stype === 'lot' ? t('recall.lot_number') : stype === 'batch_id' ? t('recall.batch_id_label') : t('recall.sku_label')}
             </button>
           ))}
         </div>
@@ -545,9 +549,9 @@ export default function RecallClient() {
               onChange={e => setQuery(e.target.value)}
               onKeyDown={e => e.key === 'Enter' && handleSearch()}
               placeholder={
-                searchType === 'lot'      ? 'Enter lot number, e.g. LOT-2024-001…' :
-                searchType === 'batch_id' ? 'Enter batch UUID…' :
-                                           'Enter product SKU…'
+                searchType === 'lot'      ? t('recall.enter_lot') :
+                searchType === 'batch_id' ? t('recall.enter_batch') :
+                                            t('recall.enter_sku')
               }
               className="w-full rounded-xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/55 pl-9 pr-9 py-2.5 text-sm text-gray-900 dark:text-white placeholder-gray-400 focus:border-[#4a7fa5] focus:outline-none focus:ring-1 focus:ring-[#4a7fa5]"
             />
@@ -568,7 +572,7 @@ export default function RecallClient() {
             {searching
               ? <Loader2 size={15} className="animate-spin" />
               : <Search size={15} />}
-            {searching ? 'Searching…' : 'Search'}
+            {searching ? t('recall.searching') : t('recall.search')}
           </button>
         </div>
       </div>
@@ -578,11 +582,9 @@ export default function RecallClient() {
         <div className="flex items-start gap-3 rounded-2xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4">
           <AlertTriangle size={18} className="mt-0.5 shrink-0 text-red-600 dark:text-red-400" />
           <div>
-            <p className="text-sm font-bold text-red-700 dark:text-red-400">Recall Alert</p>
+            <p className="text-sm font-bold text-red-700 dark:text-red-400">{t('recall.recall_alert')}</p>
             <p className="mt-0.5 text-xs text-red-600 dark:text-red-500">
-              {highRiskBatches.length} batch{highRiskBatches.length !== 1 ? 'es' : ''} with failed QC
-              {' '}{highRiskBatches.length !== 1 ? 'have' : 'has'} been distributed to customers.
-              Immediate review recommended.
+              {t(highRiskBatches.length !== 1 ? 'recall.recall_alert_sub_plural' : 'recall.recall_alert_sub', { n: fmtNum(highRiskBatches.length, lang) })}
             </p>
           </div>
         </div>
@@ -593,28 +595,28 @@ export default function RecallClient() {
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
           {[
             {
-              label: 'Affected Batches',
-              value: summary.totalBatches,
+              label: t('recall.affected_batches'),
+              value: fmtNum(summary.totalBatches, lang),
               icon: <ClipboardList size={16} />,
               color: 'bg-blue-50 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400',
             },
             {
-              label: 'Affected Products',
-              value: summary.uniqueProducts,
+              label: t('recall.affected_products'),
+              value: fmtNum(summary.uniqueProducts, lang),
               icon: <Package size={16} />,
               color: 'bg-purple-50 dark:bg-purple-900/30 text-purple-600 dark:text-purple-400',
             },
             {
-              label: 'Failed QC',
-              value: summary.failedQc,
+              label: t('recall.failed_qc'),
+              value: fmtNum(summary.failedQc, lang),
               icon: <XCircle size={16} />,
               color: summary.failedQc > 0
                 ? 'bg-red-50 dark:bg-red-900/30 text-red-600 dark:text-red-400'
                 : 'bg-[#D1CFC9]/50 dark:bg-[#262E36]/55 text-gray-400 dark:text-gray-500',
             },
             {
-              label: 'Sale Records',
-              value: summary.totalSales,
+              label: t('recall.sale_records'),
+              value: fmtNum(summary.totalSales, lang),
               icon: <ShoppingCart size={16} />,
               color: 'bg-amber-50 dark:bg-amber-900/30 text-amber-600 dark:text-amber-400',
             },
@@ -637,16 +639,16 @@ export default function RecallClient() {
       {searched && batches?.length === 0 && (
         <div className="flex flex-col items-center justify-center rounded-2xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 py-16 text-center shadow-sm">
           <AlertCircle size={36} className="mb-3 text-gray-300 dark:text-gray-600" />
-          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">No batches found</p>
+          <p className="text-sm font-medium text-gray-700 dark:text-gray-300">{t('recall.no_batches')}</p>
           <p className="mt-1 text-xs text-gray-400 dark:text-gray-500">
-            No production batches match &ldquo;{query}&rdquo;.
+            {t('recall.no_batches_sub', { query })}
           </p>
         </div>
       )}
 
       {/* ── Lineage graph ─────────────────────────────────────────────────── */}
       {batches && batches.length > 0 && (
-        <LineageGraph batches={batches} edges={edges} />
+        <LineageGraph batches={batches} edges={edges} t={t} lang={lang} />
       )}
 
       {/* ── Affected batches list ─────────────────────────────────────────── */}
@@ -655,7 +657,7 @@ export default function RecallClient() {
           <div className="flex items-center justify-between border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] px-5 py-3.5">
             <div className="flex items-center gap-2">
               <ClipboardList size={15} className="text-gray-400" />
-              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">Affected Batches</h2>
+              <h2 className="text-sm font-semibold text-gray-700 dark:text-gray-200">{t('recall.affected_batches')}</h2>
               <span className="rounded-full bg-[#E6E4E0] dark:bg-[#262E36]/55 px-2 py-0.5 text-xs text-gray-500 dark:text-gray-400">
                 {batches.length}
               </span>
@@ -665,7 +667,7 @@ export default function RecallClient() {
               className="flex items-center gap-1.5 rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] px-3 py-1.5 text-xs font-medium text-gray-600 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/45 transition-colors"
             >
               <Download size={13} />
-              Export CSV
+              {t('recall.export_csv')}
             </button>
           </div>
 
@@ -705,10 +707,10 @@ export default function RecallClient() {
                       </div>
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-0.5 text-xs text-gray-400">
                         <span className="font-mono">{batch.id.slice(0, 13)}…</span>
-                        <span>Qty {batch.quantity.toLocaleString()}</span>
-                        <span>Created {fmt(batch.created_at)}</span>
-                        {batch.completed_at && <span>Done {fmt(batch.completed_at)}</span>}
-                        <span>{batch.scan_count} scan{batch.scan_count !== 1 ? 's' : ''}</span>
+                        <span>{t('recall.qty_row', { n: fmtNum(batch.quantity, lang) })}</span>
+                        <span>{t('recall.created_row', { date: fmt(batch.created_at, locale) })}</span>
+                        {batch.completed_at && <span>{t('recall.done_row', { date: fmt(batch.completed_at, locale) })}</span>}
+                        <span>{t(batch.scan_count !== 1 ? 'recall.scans_plural' : 'recall.scans', { n: fmtNum(batch.scan_count, lang) })}</span>
                       </div>
                     </div>
                   </button>
@@ -720,17 +722,17 @@ export default function RecallClient() {
                       {/* Materials */}
                       <div>
                         <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                          <Layers size={12} /> Raw Materials ({batch.materials.length})
+                          <Layers size={12} /> {t('recall.raw_materials_section')} ({fmtNum(batch.materials.length, lang)})
                         </h3>
                         {batch.materials.length === 0
-                          ? <p className="text-xs italic text-gray-400">No materials linked.</p>
+                          ? <p className="text-xs italic text-gray-400">{t('recall.no_materials')}</p>
                           : (
                             <table className="w-full text-xs">
                               <thead>
                                 <tr className="border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] text-gray-400">
-                                  <th className="pb-1.5 text-left font-medium">Material</th>
-                                  <th className="pb-1.5 text-left font-medium">Lot #</th>
-                                  <th className="pb-1.5 text-right font-medium">Qty</th>
+                                  <th className="pb-1.5 text-left font-medium">{t('materials.mat_col')}</th>
+                                  <th className="pb-1.5 text-left font-medium">{t('materials.lot_col')}</th>
+                                  <th className="pb-1.5 text-right font-medium">{t('materials.qty_col')}</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-gray-100 dark:divide-[#B3B7BA]/[0.07]">
@@ -750,10 +752,10 @@ export default function RecallClient() {
                       {/* QC inspections */}
                       <div>
                         <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                          <FlaskConical size={12} /> QC Inspections ({batch.qc_results.length})
+                          <FlaskConical size={12} /> {t('recall.qc_section')} ({fmtNum(batch.qc_results.length, lang)})
                         </h3>
                         {batch.qc_results.length === 0
-                          ? <p className="text-xs italic text-gray-400">No QC inspections recorded.</p>
+                          ? <p className="text-xs italic text-gray-400">{t('recall.no_qc')}</p>
                           : (
                             <div className="space-y-1.5">
                               {batch.qc_results.map((q, i) => (
@@ -765,7 +767,7 @@ export default function RecallClient() {
                                   <div className="min-w-0 flex-1">
                                     <div className="flex items-center justify-between gap-2">
                                       <span className="text-xs font-medium text-gray-900 dark:text-white">{q.inspector_name}</span>
-                                      <span className="shrink-0 text-[10px] text-gray-400">{fmt(q.inspected_at)}</span>
+                                      <span className="shrink-0 text-[10px] text-gray-400">{fmt(q.inspected_at, locale)}</span>
                                     </div>
                                     {q.notes && (
                                       <p className="mt-0.5 text-[11px] text-gray-500 dark:text-gray-400">{q.notes}</p>
@@ -781,26 +783,26 @@ export default function RecallClient() {
                       {/* Distribution */}
                       <div>
                         <h3 className="mb-2 flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-gray-400">
-                          <ShoppingCart size={12} /> Distribution ({batch.sales.length} records)
+                          <ShoppingCart size={12} /> {t('recall.distribution_section')} ({fmtNum(batch.sales.length, lang)})
                         </h3>
                         {batch.sales.length === 0
-                          ? <p className="text-xs italic text-gray-400">No distribution records.</p>
+                          ? <p className="text-xs italic text-gray-400">{t('recall.no_distribution')}</p>
                           : (
                             <div className="space-y-1">
                               {batch.sales.slice(0, 8).map((s, i) => (
                                 <div key={i} className="flex items-center justify-between gap-3 text-xs">
                                   <span className="font-medium text-gray-900 dark:text-white">
-                                    {s.customer_name ?? 'Customer'}
+                                    {s.customer_name ?? t('common.customer')}
                                   </span>
-                                  <span className="text-gray-400">{fmt(s.sold_at)}</span>
+                                  <span className="text-gray-400">{fmt(s.sold_at, locale)}</span>
                                   <span className="font-medium text-gray-700 dark:text-gray-300">
-                                    {s.quantity.toLocaleString()} units
+                                    {fmtNum(s.quantity, lang)} {t('recall.units')}
                                   </span>
                                 </div>
                               ))}
                               {batch.sales.length > 8 && (
                                 <p className="text-[10px] text-gray-400">
-                                  +{batch.sales.length - 8} more records
+                                  {t('recall.more_records', { n: fmtNum(batch.sales.length - 8, lang) })}
                                 </p>
                               )}
                             </div>

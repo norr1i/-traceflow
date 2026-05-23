@@ -2,6 +2,7 @@
 
 import { createContext, useCallback, useContext, useState } from 'react'
 import { AlertTriangle } from 'lucide-react'
+import { useT } from '../lib/i18n'
 
 interface ConfirmOpts {
   title?: string
@@ -15,6 +16,7 @@ type ConfirmFn = (opts: ConfirmOpts) => Promise<boolean>
 const Ctx = createContext<ConfirmFn | null>(null)
 
 export function ConfirmProvider({ children }: { children: React.ReactNode }) {
+  const { t } = useT()
   const [state, setState] = useState<{
     opts: ConfirmOpts
     resolve: (v: boolean) => void
@@ -47,7 +49,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
               </div>
               <div>
                 <h3 className="font-semibold text-[#D3D1CE]">
-                  {state.opts.title ?? 'Confirm action'}
+                  {state.opts.title ?? t('common.confirm_action')}
                 </h3>
                 <p className="mt-1 text-sm text-[#6C6D74]">
                   {state.opts.message}
@@ -60,7 +62,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                 onClick={() => handle(false)}
                 className="rounded-xl border border-[#B3B7BA]/[0.12] bg-[#262E36]/40 px-4 py-2 text-sm font-medium text-[#B3B7BA] hover:bg-[#262E36]/60 transition-colors"
               >
-                Cancel
+                {t('common.cancel')}
               </button>
               <button
                 onClick={() => handle(true)}
@@ -70,7 +72,7 @@ export function ConfirmProvider({ children }: { children: React.ReactNode }) {
                     : 'bg-[#3a6f8f] hover:bg-[#2d5a74] shadow-[0_0_16px_rgba(74,127,165,0.22)]'
                 }`}
               >
-                {state.opts.confirmLabel ?? 'Delete'}
+                {state.opts.confirmLabel ?? t('common.delete')}
               </button>
             </div>
           </div>
