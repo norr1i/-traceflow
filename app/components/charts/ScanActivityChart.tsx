@@ -13,14 +13,14 @@ export type ScanTrendPoint = {
   uniqueBatches: number
 }
 
-const TIP_STYLE = {
-  backgroundColor: '#111827',
-  border: '1px solid #374151',
+const TOOLTIP_STYLE = {
+  backgroundColor: '#0F1923',
+  border: '1px solid rgba(255,255,255,0.08)',
   borderRadius: '10px',
   fontSize: '12px',
-  color: '#f9fafb',
+  color: '#D3D1CE',
   padding: '8px 12px',
-  boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
 }
 
 export default function ScanActivityChart({ data }: { data: ScanTrendPoint[] }) {
@@ -28,8 +28,8 @@ export default function ScanActivityChart({ data }: { data: ScanTrendPoint[] }) 
 
   if (!hasData) {
     return (
-      <div className="flex h-52 flex-col items-center justify-center gap-2 text-gray-400 dark:text-gray-500">
-        <QrCode size={28} className="opacity-40" />
+      <div className="flex h-52 flex-col items-center justify-center gap-2 text-[#525563]">
+        <QrCode size={24} strokeWidth={1.5} className="opacity-40" />
         <p className="text-sm">No QR scan activity in the last 7 days.</p>
       </div>
     )
@@ -37,46 +37,40 @@ export default function ScanActivityChart({ data }: { data: ScanTrendPoint[] }) 
 
   return (
     <ResponsiveContainer width="100%" height={208}>
-      <BarChart data={data} margin={{ top: 4, right: 4, left: -22, bottom: 0 }} barSize={20}>
+      <BarChart data={data} margin={{ top: 4, right: 4, left: -22, bottom: 0 }} barSize={18}>
         <defs>
           <linearGradient id="tfScanBar" x1="0" y1="0" x2="0" y2="1">
-            <stop offset="0%"   stopColor="#3b82f6" stopOpacity={0.9} />
-            <stop offset="100%" stopColor="#6366f1" stopOpacity={0.6} />
+            <stop offset="0%"   stopColor="#4a8fb9" stopOpacity={0.85} />
+            <stop offset="100%" stopColor="#4a8fb9" stopOpacity={0.40} />
           </linearGradient>
         </defs>
 
-        <CartesianGrid strokeDasharray="3 3" stroke="#374151" vertical={false} />
+        <CartesianGrid strokeDasharray="3 3" stroke="rgba(179,183,186,0.08)" vertical={false} />
 
         <XAxis
           dataKey="label"
-          tick={{ fill: '#9ca3af', fontSize: 11 }}
+          tick={{ fill: '#525563', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
         />
         <YAxis
-          tick={{ fill: '#9ca3af', fontSize: 11 }}
+          tick={{ fill: '#525563', fontSize: 11 }}
           axisLine={false}
           tickLine={false}
           allowDecimals={false}
-          width={32}
+          width={28}
         />
 
         <Tooltip
-          contentStyle={TIP_STYLE}
-          labelStyle={{ color: '#9ca3af', marginBottom: 4, fontSize: 11 }}
-          itemStyle={{ color: '#f9fafb', fontSize: 12 }}
-          cursor={{ fill: '#374151', opacity: 0.25 }}
+          contentStyle={TOOLTIP_STYLE}
+          labelStyle={{ color: '#6B7280', marginBottom: 4, fontSize: 11 }}
+          itemStyle={{ color: '#D3D1CE', fontSize: 12 }}
+          cursor={{ fill: 'rgba(255,255,255,0.03)' }}
           formatter={(val) => [Number(val ?? 0), 'Total scans'] as [number, string]}
         />
 
-        <Bar
-          dataKey="scans"
-          name="scans"
-          fill="url(#tfScanBar)"
-          radius={[4, 4, 0, 0]}
-          isAnimationActive
-          animationDuration={700}
-        />
+        <Bar dataKey="scans" name="scans" fill="url(#tfScanBar)"
+          radius={[4, 4, 0, 0]} isAnimationActive animationDuration={600} />
       </BarChart>
     </ResponsiveContainer>
   )

@@ -2,7 +2,17 @@
 
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
 
-const COLORS = ['#f59e0b', '#3b82f6', '#22c55e', '#ef4444']
+const PALETTE = ['#f59e0b', '#4a8fb9', '#10b981', '#6b7280']
+
+const TOOLTIP_STYLE = {
+  backgroundColor: '#0F1923',
+  border: '1px solid rgba(255,255,255,0.08)',
+  borderRadius: '10px',
+  fontSize: '12px',
+  color: '#D3D1CE',
+  padding: '8px 12px',
+  boxShadow: '0 8px 32px rgba(0,0,0,0.5)',
+}
 
 type Props = { data: Record<string, number> }
 
@@ -13,7 +23,7 @@ export default function ProductionChart({ data }: Props) {
 
   if (chartData.length === 0 || chartData.every(d => d.value === 0)) {
     return (
-      <div className="flex h-[220px] items-center justify-center text-sm text-gray-400 dark:text-gray-500">
+      <div className="flex h-[220px] items-center justify-center text-sm text-[#525563]">
         No production orders yet.
       </div>
     )
@@ -26,35 +36,28 @@ export default function ProductionChart({ data }: Props) {
           data={chartData}
           cx="50%"
           cy="50%"
-          innerRadius={58}
+          innerRadius={60}
           outerRadius={88}
           paddingAngle={3}
           dataKey="value"
           strokeWidth={0}
         >
           {chartData.map((_, i) => (
-            <Cell key={i} fill={COLORS[i % COLORS.length]} />
+            <Cell key={i} fill={PALETTE[i % PALETTE.length]} />
           ))}
         </Pie>
         <Tooltip
-          contentStyle={{
-            backgroundColor: '#111827',
-            border: '1px solid #374151',
-            borderRadius: '10px',
-            fontSize: '12px',
-            color: '#f9fafb',
-            boxShadow: '0 8px 24px rgba(0,0,0,0.4)',
-          }}
-          labelStyle={{ color: '#9ca3af' }}
-          itemStyle={{ color: '#f9fafb' }}
+          contentStyle={TOOLTIP_STYLE}
+          labelStyle={{ color: '#6B7280' }}
+          itemStyle={{ color: '#D3D1CE' }}
           formatter={(value: unknown, name: unknown) => [Number(value ?? 0), String(name)]}
         />
         <Legend
           iconType="circle"
-          iconSize={8}
+          iconSize={6}
           wrapperStyle={{ paddingTop: 8 }}
           formatter={(value) => (
-            <span style={{ fontSize: 11, color: '#9ca3af' }}>{value}</span>
+            <span style={{ fontSize: 11, color: '#6B7280' }}>{value}</span>
           )}
         />
       </PieChart>
