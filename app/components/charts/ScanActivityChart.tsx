@@ -5,6 +5,7 @@ import {
   Tooltip, ResponsiveContainer,
 } from 'recharts'
 import { QrCode } from 'lucide-react'
+import { useT } from '../../lib/i18n'
 
 export type ScanTrendPoint = {
   date:          string
@@ -24,13 +25,14 @@ const TOOLTIP_STYLE = {
 }
 
 export default function ScanActivityChart({ data }: { data: ScanTrendPoint[] }) {
+  const { t } = useT()
   const hasData = data.some(d => d.scans > 0)
 
   if (!hasData) {
     return (
       <div className="flex h-52 flex-col items-center justify-center gap-2 text-[#525563]">
         <QrCode size={24} strokeWidth={1.5} className="opacity-40" />
-        <p className="text-sm">No QR scan activity in the last 7 days.</p>
+        <p className="text-sm">{t('chart.no_scans_7days')}</p>
       </div>
     )
   }
@@ -66,7 +68,7 @@ export default function ScanActivityChart({ data }: { data: ScanTrendPoint[] }) 
           labelStyle={{ color: '#6B7280', marginBottom: 4, fontSize: 11 }}
           itemStyle={{ color: '#D3D1CE', fontSize: 12 }}
           cursor={{ fill: 'rgba(255,255,255,0.03)' }}
-          formatter={(val) => [Number(val ?? 0), 'Total scans'] as [number, string]}
+          formatter={(val) => [Number(val ?? 0), t('chart.total_scans')] as [number, string]}
         />
 
         <Bar dataKey="scans" name="scans" fill="url(#tfScanBar)"

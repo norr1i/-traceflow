@@ -10,7 +10,7 @@ import { Plus, Pencil, Trash2, X, Check, AlertTriangle, FlaskConical, Upload } f
 import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
-import { useT } from '../lib/i18n'
+import { useT, fmtNum } from '../lib/i18n'
 
 const empty = { name: '', unit: '', quantity_in_stock: 0, reorder_level: 0 }
 
@@ -165,7 +165,7 @@ export default function RawMaterialsClient() {
     const inserted = inserted_rows.length
     if (inserted > 0) {
       setMaterials((prev) => [...inserted_rows, ...prev])
-      toast.success(t(inserted !== 1 ? 'materials.count_plural' : 'materials.count', { n: inserted }))
+      toast.success(t(inserted !== 1 ? 'materials.count_plural' : 'materials.count', { n: fmtNum(inserted, lang) }))
       console.log('[logActivity] pre-call raw_material.imported | companyId:', companyId, '| count:', inserted)
       if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
         actionType: 'raw_material.imported', entityType: 'raw_material',
@@ -206,14 +206,14 @@ export default function RawMaterialsClient() {
         <div className="mb-4 flex items-center gap-2 rounded-lg bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 px-4 py-3 text-sm text-amber-800 dark:text-amber-300">
           <AlertTriangle size={16} className="shrink-0 text-amber-600 dark:text-amber-400" />
           <span dangerouslySetInnerHTML={{ __html:
-            t(lowStock.length > 1 ? 'materials.low_stock_banner_plural' : 'materials.low_stock_banner', { n: lowStock.length })
+            t(lowStock.length > 1 ? 'materials.low_stock_banner_plural' : 'materials.low_stock_banner', { n: fmtNum(lowStock.length, lang) })
           }} />
         </div>
       )}
 
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t(materials.length !== 1 ? 'materials.count_plural' : 'materials.count', { n: materials.length })}
+          {t(materials.length !== 1 ? 'materials.count_plural' : 'materials.count', { n: fmtNum(materials.length, lang) })}
         </p>
         {canWrite && (
           <div className="flex gap-2">

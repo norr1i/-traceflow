@@ -24,6 +24,12 @@
     "/recall": "Recall Center",
     "/team": "Team Management"
   },
+  "page_subtitle": {
+    "/products": "Manage your product catalog.",
+    "/raw-materials": "Track inventory levels and reorder points.",
+    "/production": "Manage and track all production runs.",
+    "/recall": "Search any lot number, batch ID, or SKU to trace affected batches, QC results, and downstream shipments."
+  },
   "topbar": {
     "search_placeholder": "Search…",
     "switch_dark": "Switch to dark",
@@ -49,6 +55,14 @@
       "sales": "Sales"
     }
   },
+  "chart": {
+    "no_qc_7days": "No QC inspections in the last 7 days.",
+    "no_scans_7days": "No QR scan activity in the last 7 days.",
+    "no_orders": "No production orders yet.",
+    "no_sales": "No sales data yet.",
+    "total_scans": "Total scans",
+    "revenue": "Revenue"
+  },
   "status": {
     "pending": "Pending",
     "in_progress": "In Progress",
@@ -61,6 +75,15 @@
     "passed": "Passed",
     "failed": "Failed",
     "conditional": "Conditional"
+  },
+  "role": {
+    "admin": "Admin",
+    "manager": "Manager",
+    "inspector": "Inspector",
+    "operations": "Operations",
+    "warehouse": "Warehouse",
+    "qc_inspector": "QC Inspector",
+    "sales": "Sales"
   },
   "common": {
     "unknown": "Unknown",

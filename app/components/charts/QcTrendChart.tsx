@@ -5,6 +5,7 @@ import {
   Tooltip, Legend, ResponsiveContainer,
 } from 'recharts'
 import { FlaskConical } from 'lucide-react'
+import { useT } from '../../lib/i18n'
 
 export type QcTrendPoint = {
   date:  string
@@ -25,13 +26,14 @@ const TOOLTIP_STYLE = {
 }
 
 export default function QcTrendChart({ data }: { data: QcTrendPoint[] }) {
+  const { t } = useT()
   const hasData = data.some(d => d.pass + d.fail + d.hold > 0)
 
   if (!hasData) {
     return (
       <div className="flex h-52 flex-col items-center justify-center gap-2 text-[#525563]">
         <FlaskConical size={24} strokeWidth={1.5} className="opacity-40" />
-        <p className="text-sm">No QC inspections in the last 7 days.</p>
+        <p className="text-sm">{t('chart.no_qc_7days')}</p>
       </div>
     )
   }
@@ -82,13 +84,13 @@ export default function QcTrendChart({ data }: { data: QcTrendPoint[] }) {
           formatter={(v) => <span style={{ fontSize: 11, color: '#6B7280' }}>{v}</span>}
         />
 
-        <Area type="monotone" dataKey="pass" name="Pass" stroke="#10b981" strokeWidth={1.5}
+        <Area type="monotone" dataKey="pass" name={t('status.pass')} stroke="#10b981" strokeWidth={1.5}
           fill="url(#tfQcPass)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: '#10b981' }}
           isAnimationActive animationDuration={600} />
-        <Area type="monotone" dataKey="fail" name="Fail" stroke="#ef4444" strokeWidth={1.5}
+        <Area type="monotone" dataKey="fail" name={t('status.fail')} stroke="#ef4444" strokeWidth={1.5}
           fill="url(#tfQcFail)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: '#ef4444' }}
           isAnimationActive animationDuration={600} animationBegin={100} />
-        <Area type="monotone" dataKey="hold" name="Hold" stroke="#f59e0b" strokeWidth={1.5}
+        <Area type="monotone" dataKey="hold" name={t('status.hold')} stroke="#f59e0b" strokeWidth={1.5}
           fill="url(#tfQcHold)" dot={false} activeDot={{ r: 4, strokeWidth: 0, fill: '#f59e0b' }}
           isAnimationActive animationDuration={600} animationBegin={200} />
       </AreaChart>

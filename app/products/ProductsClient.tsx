@@ -10,7 +10,7 @@ import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Package, Upload } from '
 import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
-import { useT } from '../lib/i18n'
+import { useT, fmtNum } from '../lib/i18n'
 
 const empty = { name: '', sku: '', description: '' }
 
@@ -166,7 +166,7 @@ export default function ProductsClient() {
     const inserted = data?.length ?? 0
     setProducts((prev) => [...(data ?? []), ...prev])
     if (inserted > 0) {
-      toast.success(t(inserted !== 1 ? 'products.count_plural' : 'products.count', { n: inserted }))
+      toast.success(t(inserted !== 1 ? 'products.count_plural' : 'products.count', { n: fmtNum(inserted, lang) }))
       console.log('[logActivity] pre-call product.imported | companyId:', companyId, '| count:', inserted)
       if (companyId) logActivity({ companyId, actorUserId: user?.id, actorEmail: user?.email,
         actionType: 'product.imported', entityType: 'product',
@@ -197,7 +197,7 @@ export default function ProductsClient() {
       {/* Toolbar */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t(products.length !== 1 ? 'products.count_plural' : 'products.count', { n: products.length })}
+          {t(products.length !== 1 ? 'products.count_plural' : 'products.count', { n: fmtNum(products.length, lang) })}
         </p>
         {canWrite && (
           <div className="flex gap-2">

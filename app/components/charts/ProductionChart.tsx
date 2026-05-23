@@ -1,6 +1,7 @@
 'use client'
 
 import { PieChart, Pie, Cell, Tooltip, Legend, ResponsiveContainer } from 'recharts'
+import { useT } from '../../lib/i18n'
 
 // Semantic status colors — muted, readable on dark, never neon
 const STATUS_COLOR: Record<string, string> = {
@@ -25,11 +26,13 @@ const TOOLTIP_STYLE = {
 type Props = { data: Record<string, number> }
 
 export default function ProductionChart({ data }: Props) {
+  const { t } = useT()
+
   const chartData = Object.entries(data)
     .filter(([, v]) => v > 0)
     .map(([key, value]) => ({
       key,
-      name: key.replace(/_/g, ' '),
+      name: t(`status.${key}`) || key.replace(/_/g, ' '),
       value,
       fill: STATUS_COLOR[key] ?? FALLBACK_COLOR,
     }))
@@ -37,7 +40,7 @@ export default function ProductionChart({ data }: Props) {
   if (chartData.length === 0) {
     return (
       <div className="flex h-[220px] items-center justify-center text-sm text-[#525563]">
-        No production orders yet.
+        {t('chart.no_orders')}
       </div>
     )
   }

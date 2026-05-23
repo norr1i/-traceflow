@@ -129,9 +129,9 @@ export default function Topbar({
               <p className="text-[12px] font-medium text-gray-700 dark:text-[#C9C7C4] truncate max-w-[100px] leading-none">
                 {username}
               </p>
-              {roleMeta && (
+              {roleMeta && role && (
                 <p className={`text-[10px] truncate leading-none mt-0.5 ${roleMeta.color.split(' ').find(c => c.startsWith('text-')) ?? 'text-gray-400'}`}>
-                  {roleMeta.label}
+                  {t(`role.${role}`)}
                 </p>
               )}
             </div>
@@ -150,9 +150,9 @@ export default function Topbar({
                 {/* User info */}
                 <div className="px-3 py-2.5 border-b border-gray-100 dark:border-white/[0.06] mb-1">
                   <p className="text-[12px] font-semibold text-gray-800 dark:text-[#E2E8F0] truncate">{user?.email}</p>
-                  {roleMeta && (
+                  {roleMeta && role && (
                     <span className={`inline-flex mt-1 rounded-sm px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${roleMeta.color}`}>
-                      {roleMeta.label}
+                      {t(`role.${role}`)}
                     </span>
                   )}
                 </div>
