@@ -5,7 +5,8 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useAuth } from '../lib/auth-context'
 import { ROLE_META } from '../lib/roles'
 import { hasPermission } from '../lib/permissions'
-import { Bell, Search, ChevronDown, Sun, Moon, LogOut, Settings, RefreshCw } from 'lucide-react'
+import { Search, ChevronDown, Sun, Moon, LogOut, Settings, RefreshCw } from 'lucide-react'
+import NotificationPanel from './NotificationPanel'
 
 const PAGE_TITLES: Record<string, string> = {
   '/':               'Dashboard',
@@ -16,13 +17,6 @@ const PAGE_TITLES: Record<string, string> = {
   '/sales':          'Sales',
   '/recall':         'Recall Center',
   '/team':           'Team Management',
-}
-
-type TopbarAction = {
-  label: string
-  icon: React.ElementType
-  onClick: () => void
-  variant?: 'default' | 'destructive'
 }
 
 export default function Topbar({
@@ -110,13 +104,7 @@ export default function Topbar({
       )}
 
       {/* Notifications */}
-      <button
-        className="relative p-2 rounded-lg text-gray-400 dark:text-[#525563] hover:bg-gray-100 dark:hover:bg-white/[0.06] hover:text-gray-600 dark:hover:text-[#A8B3C0] transition-colors"
-        title="Notifications"
-      >
-        <Bell size={15} strokeWidth={1.75} />
-        <span className="absolute right-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-[#4a8fb9] ring-1 ring-white dark:ring-[#07090E]" />
-      </button>
+      <NotificationPanel />
 
       {/* User menu */}
       <div className="relative">
