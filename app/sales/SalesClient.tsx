@@ -273,7 +273,7 @@ export default function SalesClient() {
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-gray-300">
                   {t('sales.total_price')}
-                  <span className="ml-1 text-xs font-normal text-gray-500">{t('sales.auto_calculated')}</span>
+                  <span className="ms-1 text-xs font-normal text-gray-500">{t('sales.auto_calculated')}</span>
                 </label>
                 <input type="number" min={0} step="0.01" value={form.total_price}
                   onChange={(e) => setForm({ ...form, total_price: Number(e.target.value) })}
@@ -455,7 +455,7 @@ export default function SalesClient() {
           <div className="border-t border-gray-100 dark:border-[#B3B7BA]/[0.07] px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
             {fmtNum(filtered.length, lang)} / {fmtNum(sales.length, lang)}
             {metrics && (
-              <span className="ml-3 font-medium text-gray-600 dark:text-gray-300">
+              <span className="ms-3 font-medium text-gray-600 dark:text-gray-300">
                 {t('sales.showing', { revenue: fmt(filtered.reduce((s, r) => s + (r.total_price ?? 0), 0)) })}
               </span>
             )}

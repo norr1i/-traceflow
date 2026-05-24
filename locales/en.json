@@ -165,7 +165,8 @@
     "error_update": "Failed to update product",
     "delete_title": "Delete product?",
     "delete_message": "Any linked production orders will also be deleted. This cannot be undone.",
-    "import_title": "Import Products"
+    "import_title": "Import Products",
+    "no_description": "No description"
   },
   "materials": {
     "add": "Add Material",

@@ -305,8 +305,8 @@ export default function ProductsClient() {
               <tr>
                 <th className="px-4 py-3 text-start font-medium">{t('common.name')}</th>
                 <th className="px-4 py-3 text-start font-medium w-24">SKU</th>
-                <th className="px-4 py-3 text-start font-medium hidden md:table-cell w-1/3">Description</th>
-                <th className="px-4 py-3 text-start font-medium hidden sm:table-cell w-28">Created</th>
+                <th className="px-4 py-3 text-start font-medium hidden md:table-cell w-1/3">{t('common.description')}</th>
+                <th className="px-4 py-3 text-start font-medium hidden sm:table-cell w-28">{t('common.created')}</th>
                 <th className="px-4 py-3 text-end font-medium">{t('common.actions')}</th>
               </tr>
             </thead>
@@ -322,7 +322,7 @@ export default function ProductsClient() {
                   <td className="px-4 py-3 text-gray-500 dark:text-gray-400 hidden md:table-cell w-1/3 whitespace-normal break-words">
                     {p.description
                       ? <span>{p.description}</span>
-                      : <span className="italic text-gray-400 dark:text-gray-600">No description</span>
+                      : <span className="italic text-gray-400 dark:text-gray-600">{t('products.no_description')}</span>
                     }
                   </td>
                   <td className="px-4 py-3 text-gray-400 dark:text-gray-500 hidden sm:table-cell">
