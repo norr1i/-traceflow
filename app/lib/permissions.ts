@@ -46,6 +46,10 @@ export type Permission =
   | 'edit:quality-control'
   | 'edit:sales'
 
+  // Compliance
+  | 'view:sfda'
+  | 'edit:sfda'
+
   // Administrative
   | 'manage:team'   // invite, remove, change roles (except promoting to admin)
   | 'invite:admin'  // elevated: only an existing admin may invite another admin
@@ -68,6 +72,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     // Full sidebar access
     'view:dashboard', 'view:products', 'view:raw-materials', 'view:production',
     'view:quality-control', 'view:sales', 'view:recall', 'view:team',
+    // Compliance
+    'view:sfda', 'edit:sfda',
     // Full dashboard surface
     'view:dashboard.production', 'view:dashboard.quality', 'view:dashboard.tracing',
     'view:dashboard.inventory', 'view:dashboard.sales',
@@ -81,6 +87,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
     // Full sidebar access
     'view:dashboard', 'view:products', 'view:raw-materials', 'view:production',
     'view:quality-control', 'view:sales', 'view:recall', 'view:team',
+    // Compliance
+    'view:sfda', 'edit:sfda',
     // Full dashboard surface
     'view:dashboard.production', 'view:dashboard.quality', 'view:dashboard.tracing',
     'view:dashboard.inventory', 'view:dashboard.sales',
@@ -101,6 +109,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   qc_inspector: [
     // Sidebar: dashboard + QC + production (read-only for batch context)
     'view:dashboard', 'view:quality-control', 'view:production',
+    // Compliance (read-only)
+    'view:sfda',
     // Dashboard: QC metrics + scan tracing for inspected batches
     'view:dashboard.quality', 'view:dashboard.tracing',
     // Write: quality inspections and defects
@@ -110,6 +120,8 @@ const ROLE_PERMISSIONS: Record<Role, Permission[]> = {
   // Legacy alias — identical to qc_inspector
   inspector: [
     'view:dashboard', 'view:quality-control', 'view:production',
+    // Compliance (read-only)
+    'view:sfda',
     'view:dashboard.quality', 'view:dashboard.tracing',
     'edit:quality-control',
   ],
