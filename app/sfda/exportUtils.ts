@@ -15,10 +15,10 @@ const C = {
   red:    [168, 18,  18]  as const,
   amber:  [145, 84,  0]   as const,
   green:  [14,  104, 45]  as const,
-  slate:  [88,  102, 122] as const,   // MINOR severity / neutral status
+  slate:  [88,  102, 122] as const,
   rowalt: [246, 248, 252] as const,
   rowhdr: [222, 229, 243] as const,
-  wmark:  [242, 245, 250] as const,   // very faint — never obstructs content
+  wmark:  [251, 253, 255] as const,   // near-invisible — premium subtle watermark
   white:  [255, 255, 255] as const,
 }
 
@@ -28,18 +28,17 @@ const PH    = 297
 const ML    = 20
 const MR    = 20
 const CW    = PW - ML - MR   // 170mm
-const LBL   = 40              // label column for field() rows
-const HDR1  = 74              // first-page content start y
-const HDRC  = 22              // continuation-page content start y
-const FOOTY = 276             // footer rule y
-const GUARD = 14              // trigger newPage if y + h > FOOTY - GUARD
+const LBL   = 40
+const HDR1  = 74
+const HDRC  = 22
+const FOOTY = 276
+const GUARD = 14
 
 // ── Low-level helpers ─────────────────────────────────────────────────────────
 function tc(doc: jsPDF, c: readonly [number, number, number]) { doc.setTextColor(c[0], c[1], c[2]) }
 function dc(doc: jsPDF, c: readonly [number, number, number]) { doc.setDrawColor(c[0], c[1], c[2]) }
 function fc(doc: jsPDF, c: readonly [number, number, number]) { doc.setFillColor(c[0], c[1], c[2]) }
 
-// Auto-detects compliance keywords and returns an appropriate status color
 function cellStatusColor(val: string): readonly [number, number, number] {
   const v = val.toUpperCase().trim()
   const greenSet = new Set(['PASS', 'RELEASED', 'CLOSED', 'COMPLIANT', 'VERIFIED',
@@ -48,7 +47,6 @@ function cellStatusColor(val: string): readonly [number, number, number] {
   const amberSet = new Set(['MAJOR', 'IN PROGRESS', 'PARTIAL', 'UNDER REVIEW'])
   const blueSet  = new Set(['OPEN', 'INFORMATION', 'PENDING'])
   const slateSet = new Set(['MINOR'])
-
   if (greenSet.has(v)) return C.green
   if (redSet.has(v))   return C.red
   if (amberSet.has(v)) return C.amber
@@ -111,13 +109,13 @@ class PDFDoc {
     this.y = HDR1
   }
 
-  // ── Watermark — drawn first, content rendered on top ──────────────────────
+  // ── Watermark — ghost diagonal, drawn before content ─────────────────────
   private drawWatermark() {
     const { doc } = this
     doc.setFont('helvetica', 'bold')
-    doc.setFontSize(50)
-    tc(doc, C.wmark)     // very faint — won't obstruct reading
-    doc.text('CONFIDENTIAL', PW / 2, PH / 2 + 5, { angle: 45, align: 'center' })
+    doc.setFontSize(36)
+    tc(doc, C.wmark)
+    doc.text('CONFIDENTIAL', PW / 2, PH / 2, { angle: 45, align: 'center' })
   }
 
   // ── First-page header ─────────────────────────────────────────────────────
@@ -125,29 +123,23 @@ class PDFDoc {
     const { doc, meta } = this
     this.drawWatermark()
 
-    // 3.5mm IBM-blue accent bar at top
     fc(doc, C.blue); doc.rect(0, 0, PW, 3.5, 'F')
 
-    // Platform branding (top-left)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(7)
     tc(doc, C.muted)
     doc.text('TraceFlow Regulatory Compliance Engine', ML, 11)
 
-    // Classification label (top-right)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(7)
     tc(doc, C.red)
     doc.text(meta.classif, PW - MR, 11, { align: 'right' })
 
-    // Document title
     doc.setFont('helvetica', 'bold'); doc.setFontSize(17)
     tc(doc, C.dark)
     doc.text(meta.title, ML, 23)
 
-    // Thin rule
     dc(doc, C.rule); doc.setLineWidth(0.4)
     doc.line(ML, 28, PW - MR, 28)
 
-    // Metadata grid
     const metaRows: [string, string, boolean?][] = [
       ['Document No.',    meta.docNo],
       ['Generated',       meta.generated],
@@ -168,7 +160,6 @@ class PDFDoc {
       my += lines.length > 1 ? lines.length * 4.2 + 0.5 : 5
     })
 
-    // Rule below metadata
     dc(doc, C.rule); doc.setLineWidth(0.4)
     doc.line(ML, Math.max(my + 3, 64), PW - MR, Math.max(my + 3, 64))
   }
@@ -192,24 +183,24 @@ class PDFDoc {
     doc.line(ML, 14, PW - MR, 14)
   }
 
-  // ── Footer — stamped in two-pass finalize ─────────────────────────────────
+  // ── Footer — two-pass stamped ─────────────────────────────────────────────
   private drawFooter(page: number, total: number) {
     const { doc } = this
     dc(doc, C.rule); doc.setLineWidth(0.3)
     doc.line(ML, FOOTY, PW - MR, FOOTY)
 
+    // Line 1 — platform + page number
     doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5)
     tc(doc, C.muted)
-    doc.text('TraceFlow Regulatory Compliance Engine  ·  Electronically Generated Document', ML, FOOTY + 5)
-
+    doc.text('TraceFlow Regulatory Compliance Engine  ·  Electronically Generated', ML, FOOTY + 5)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5)
     tc(doc, C.dark)
     doc.text(`Page ${page} of ${total}`, PW - MR, FOOTY + 5, { align: 'right' })
 
+    // Line 2 — classification notices (lighter)
     doc.setFont('helvetica', 'normal'); doc.setFontSize(5.8)
     tc(doc, C.subtle)
-    doc.text('No Handwritten Signature Required  ·  For Authorized SFDA Inspection Use Only  ·  Tamper-Evident Record', ML, FOOTY + 10)
-
+    doc.text('No Handwritten Signature Required  ·  Tamper-Evident  ·  SFDA Authorized Use Only', ML, FOOTY + 10)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(5.8)
     tc(doc, C.subtle)
     doc.text('CONFIDENTIAL', PW - MR, FOOTY + 10, { align: 'right' })
@@ -237,8 +228,9 @@ class PDFDoc {
 
   spacer(h = 5) { this.y += h }
 
-  sectionTitle(text: string) {
-    this.ensure(18)
+  // minFollowing: ensures the title only renders if at least minFollowing mm follow on the same page
+  sectionTitle(text: string, minFollowing = 0) {
+    this.ensure(18 + minFollowing)
     this.spacer(3)
     this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(8.5)
     tc(this.doc, C.blue)
@@ -264,7 +256,6 @@ class PDFDoc {
     this.y += vlines.length * 4.8 + 1.5
   }
 
-  // Card-style status row: colored left bar + subtle background
   statusRow(label: string, value: string, level: 'ok'|'partial'|'error'|'warn'|'info') {
     const col = { ok: C.green, partial: C.amber, error: C.red, warn: C.amber, info: C.blue }[level]
     const h   = 9
@@ -283,7 +274,7 @@ class PDFDoc {
     this.y = y0 + h + 1.5
   }
 
-  // 2-column executive scorecard grid
+  // 2-column executive scorecard
   scorecard(items: Array<{ label: string; value: string; level: 'ok'|'partial'|'error'|'warn'|'info' }>) {
     const cols  = 2
     const cellW = (CW - 3) / cols
@@ -336,30 +327,27 @@ class PDFDoc {
     this.y += 8
   }
 
-  // Enterprise table — fixed header height, auto status badge colors
+  // Enterprise table — auto status badge colors, clean proportions
   table(headers: string[], rows: string[][], widths?: number[]) {
     const cols = headers.length
     const ws   = widths ?? headers.map(() => +(CW / cols).toFixed(1))
-    const hrh  = 10    // header row height (taller for clarity)
-    const drh  = 7.5   // data row height
+    const hrh  = 10
+    const drh  = 7.5
     const hpad = 3
 
     this.ensure(hrh + drh + 6)
-    const tsY = this.y    // table start y
+    const tsY = this.y
 
-    // Header background + text
     fc(this.doc, C.rowhdr); this.doc.rect(ML, tsY, CW, hrh, 'F')
     this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(7.5)
     tc(this.doc, C.dark)
     let x = ML + hpad
     headers.forEach((h, i) => { this.doc.text(h, x, tsY + 6.5); x += ws[i] })
 
-    // Blue rule under header
     dc(this.doc, C.blue); this.doc.setLineWidth(0.5)
     this.doc.line(ML, tsY + hrh, ML + CW, tsY + hrh)
     this.y = tsY + hrh
 
-    // Data rows
     rows.forEach((row, ri) => {
       this.ensure(drh)
       const rowY = this.y
@@ -376,13 +364,12 @@ class PDFDoc {
       this.y = rowY + drh
     })
 
-    // Outer border
     dc(this.doc, C.border); this.doc.setLineWidth(0.3)
     this.doc.rect(ML, tsY, CW, hrh + rows.length * drh, 'S')
     this.y += 5
   }
 
-  // CAPA record block — colored left stripe, indented field grid
+  // CAPA record block — prominent header band, colored pill badge
   capaBlock(b: {
     id: string; finding: string; ncClass: string; severity: string
     due: string; assigned: string; root: string
@@ -390,17 +377,37 @@ class PDFDoc {
     status: string; statusNote: string
   }) {
     this.ensure(65)
-    const sCol = b.status === 'CLOSED' ? C.green : b.severity === 'CRITICAL' ? C.red : C.amber
 
-    // Left stripe + CAPA ID bar
-    fc(this.doc, sCol); this.doc.rect(ML, this.y - 1, 3, 8, 'F')
-    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(9.5)
-    tc(this.doc, C.dark); this.doc.text(b.id, ML + 7, this.y + 4.5)
-    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(8)
-    tc(this.doc, sCol);   this.doc.text(b.status, PW - MR, this.y + 4.5, { align: 'right' })
-    dc(this.doc, C.border); this.doc.setLineWidth(0.2)
-    this.doc.line(ML + 7, this.y + 7, ML + CW, this.y + 7)
-    this.y += 12
+    const sCol = b.status === 'CLOSED'     ? C.green
+               : b.status === 'OVERDUE'    ? C.red
+               : b.severity === 'CRITICAL' ? C.red
+               : b.severity === 'MAJOR'    ? C.amber
+               : C.slate
+
+    // Header band with accent stripe
+    const hH = 11, y0 = this.y
+    fc(this.doc, C.rowalt); this.doc.rect(ML, y0, CW, hH, 'F')
+    fc(this.doc, sCol);     this.doc.rect(ML, y0, 4, hH, 'F')
+
+    // CAPA ID — large and authoritative
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(10.5)
+    tc(this.doc, C.dark); this.doc.text(b.id, ML + 9, y0 + 7.5)
+
+    // Status pill (colored chip, right-aligned)
+    const pillW = 30
+    fc(this.doc, sCol); this.doc.rect(PW - MR - pillW, y0 + 2.5, pillW, 6, 'F')
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(6.5)
+    tc(this.doc, C.white)
+    this.doc.text(b.status, PW - MR - 2, y0 + 7, { align: 'right' })
+
+    // Severity label — just before pill
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(7)
+    tc(this.doc, sCol)
+    this.doc.text(b.severity, PW - MR - pillW - 3, y0 + 7.2, { align: 'right' })
+
+    dc(this.doc, C.border); this.doc.setLineWidth(0.15)
+    this.doc.line(ML, y0 + hH, ML + CW, y0 + hH)
+    this.y = y0 + hH + 3
 
     const indent = 7
     const ifield = (lbl: string, val: string, opts?: { color?: readonly [number,number,number]; bold?: boolean; mono?: boolean }) => {
@@ -417,7 +424,6 @@ class PDFDoc {
 
     ifield('Finding',              b.finding)
     ifield('Non-Conformity Class', b.ncClass,   { color: sCol, bold: true })
-    ifield('Severity',             b.severity,  { color: sCol, bold: true })
     ifield('Due Date',             b.due)
     ifield('Assigned To',          b.assigned)
     ifield('Root Cause',           b.root)
@@ -432,9 +438,124 @@ class PDFDoc {
     this.y += 9
   }
 
-  // ── Document closing sections ─────────────────────────────────────────────
+  // ── Document closing: certification seal ──────────────────────────────────
+  private certSeal() {
+    const w = 114, h = 30
+    this.ensure(h + 8)
+    const sx = PW / 2 - w / 2, sy = this.y
+    // Background
+    fc(this.doc, [247, 249, 253] as const); this.doc.rect(sx, sy, w, h, 'F')
+    // Outer border — blue
+    dc(this.doc, C.blue); this.doc.setLineWidth(0.8)
+    this.doc.rect(sx, sy, w, h, 'S')
+    // Inner inset border
+    dc(this.doc, C.rule); this.doc.setLineWidth(0.3)
+    this.doc.rect(sx + 2.5, sy + 2.5, w - 5, h - 5, 'S')
+    // Blue accent top bar
+    fc(this.doc, C.blue); this.doc.rect(sx, sy, w, 3.5, 'F')
+    // Title
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(9.5)
+    tc(this.doc, C.white)
+    this.doc.text('REGULATORY COMPLIANCE CERTIFIED', PW / 2, sy + 2.8, { align: 'center' })
+    // Sub-line 1
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(7.5)
+    tc(this.doc, C.blue)
+    this.doc.text('TraceFlow Quality Management System  ·  Saudi FDA GMP Guidelines v2024', PW / 2, sy + 14, { align: 'center' })
+    // Sub-line 2
+    this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(6.5)
+    tc(this.doc, C.muted)
+    this.doc.text('ICH Q10 Pharmaceutical Quality System  ·  ISO 9001:2015 Aligned', PW / 2, sy + 20, { align: 'center' })
+    // Doc reference
+    this.doc.setFont('courier', 'normal'); this.doc.setFontSize(6)
+    tc(this.doc, C.subtle)
+    this.doc.text(this.meta.docNo + '  ·  ' + this.meta.generated, PW / 2, sy + 26, { align: 'center' })
+    this.y = sy + h + 6
+  }
 
-  // Electronic approval matrix — enterprise GMP audit system style
+  // ── Revision timeline — horizontal lifecycle visualization ────────────────
+  private revisionTimeline() {
+    this.ensure(24)
+    const steps = ['Initiated', 'Generated', 'Certified', 'Approved', 'Filed']
+    const lineY  = this.y + 8
+    const x0     = ML + 8
+    const x1     = ML + CW - 8
+    const span   = x1 - x0
+
+    // Base line
+    dc(this.doc, C.rule); this.doc.setLineWidth(0.6)
+    this.doc.line(x0, lineY, x1, lineY)
+
+    steps.forEach((step, i) => {
+      const x    = x0 + (span * i) / (steps.length - 1)
+      const done = i <= 2  // first 3 steps are complete
+      const col  = done ? C.blue : C.rule
+
+      // Dot
+      fc(this.doc, col); dc(this.doc, done ? C.blue : C.border)
+      this.doc.setLineWidth(0.3)
+      this.doc.rect(x - 2, lineY - 2, 4, 4, done ? 'FD' : 'D')
+
+      // Label
+      this.doc.setFont('helvetica', done ? 'bold' : 'normal'); this.doc.setFontSize(6.5)
+      tc(this.doc, done ? C.muted : C.subtle)
+      this.doc.text(step, x, lineY + 6, { align: 'center' })
+
+      // Date under completed steps
+      if (done) {
+        this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(5.5)
+        tc(this.doc, C.subtle)
+        const d = this.meta.generated.split(' ')[0] ?? ''
+        this.doc.text(d, x, lineY + 10.5, { align: 'center' })
+      }
+    })
+    this.y += 22
+  }
+
+  // ── QR verification placeholder + hash block ──────────────────────────────
+  private qrPlaceholder() {
+    const qw = 22, qh = 22
+    this.ensure(qh + 10)
+    const qx = PW - MR - qw, qy = this.y
+
+    // QR box background
+    fc(this.doc, C.rowalt); dc(this.doc, C.border); this.doc.setLineWidth(0.3)
+    this.doc.rect(qx, qy, qw, qh, 'FD')
+
+    // Simulated QR grid — alternating small squares
+    fc(this.doc, C.muted)
+    for (let row = 0; row < 5; row++) {
+      for (let col = 0; col < 5; col++) {
+        if ((row + col) % 2 === 0 || (row === 0 && col === 0) || (row === 4 && col === 4)) {
+          this.doc.rect(qx + 3 + col * 3.2, qy + 3 + row * 3.2, 2.6, 2.6, 'F')
+        }
+      }
+    }
+    // QR label
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(5.8)
+    tc(this.doc, C.muted)
+    this.doc.text('VERIFY', qx + qw / 2, qy + qh + 4, { align: 'center' })
+
+    // Left side — document hash reference
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(7)
+    tc(this.doc, C.muted)
+    this.doc.text('Document Integrity Verification', ML, qy + 4)
+
+    this.doc.setFont('courier', 'normal'); this.doc.setFontSize(7)
+    tc(this.doc, C.blue)
+    this.doc.text(this.meta.hash, ML, qy + 10)
+
+    this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(7)
+    tc(this.doc, C.text)
+    this.doc.text('Generated: ' + this.meta.generated, ML, qy + 16)
+
+    this.doc.setFont('helvetica', 'italic'); this.doc.setFontSize(6.5)
+    tc(this.doc, C.subtle)
+    this.doc.text('This hash uniquely identifies this document. Any modification invalidates the record.', ML, qy + 22)
+
+    this.y = qy + qh + 8
+  }
+
+  // ── Electronic approval matrix ────────────────────────────────────────────
   private approvalMatrix() {
     this.sectionTitle('Electronic Approval Record')
     this.table(
@@ -451,7 +572,7 @@ class PDFDoc {
     this.note('Electronic approval constitutes a legally equivalent signature in accordance with SFDA Electronic Records & Signatures Guidance. No handwritten signature required. Approval records are immutable once generated.')
   }
 
-  // Document control revision table
+  // ── Document revision history ─────────────────────────────────────────────
   private revisionTable() {
     this.sectionTitle('Document Control — Revision History')
     this.table(
@@ -462,7 +583,7 @@ class PDFDoc {
     )
   }
 
-  // Retention and distribution notice
+  // ── Controlled distribution & retention ──────────────────────────────────
   private retentionNotice() {
     this.spacer(4)
     this.doc.setFont('helvetica', 'italic'); this.doc.setFontSize(7)
@@ -478,7 +599,7 @@ class PDFDoc {
     this.y += lines.length * 4 + 2
   }
 
-  // Full closing block — certification + approval matrix + revision history
+  // ── Full closing block — certification + last-page visual elements ────────
   inspectionCertification() {
     this.spacer(8)
     this.sectionTitle('Inspection Certification')
@@ -500,11 +621,18 @@ class PDFDoc {
     this.field('Integrity Hash', this.meta.hash,     { mono: true, color: C.blue })
     this.field('Certification',  'CERTIFIED — For Authorized SFDA Inspection Use Only', { color: C.blue, bold: true })
 
-    this.spacer(7)
+    this.spacer(6)
+    this.certSeal()                     // visual certification seal
+
+    this.spacer(5)
     this.approvalMatrix()
 
     this.spacer(5)
     this.revisionTable()
+
+    this.spacer(6)
+    this.sectionTitle('Document Lifecycle')
+    this.revisionTimeline()             // horizontal timeline visualization
 
     this.spacer(5)
     this.sectionTitle('Regulatory Review Confirmation')
@@ -512,6 +640,9 @@ class PDFDoc {
     this.statusRow('Data Integrity',         'VERIFIED — Hash-validated at time of generation',        'ok')
     this.statusRow('Distribution Control',   'CONTROLLED — Authorized recipients only',               'info')
     this.statusRow('Regulatory Framework',   'Saudi FDA GMP Guidelines v2024  |  ICH Q10',            'info')
+
+    this.spacer(6)
+    this.qrPlaceholder()                // digital verification block
 
     this.retentionNotice()
   }
@@ -741,30 +872,49 @@ export function buildCAPAReportPDF(): Blob {
     regRef: 'CAPA-REG-2024  |  ICH Q10 Pharmaceutical Quality System',
   })
 
+  // ── Page 1: executive dashboard ───────────────────────────────────────────
   p.sectionTitle('CAPA Register — Executive Summary')
   p.scorecard([
-    { label: 'Total on Record', value: '5',      level: 'info'    },
-    { label: 'Overdue',         value: '1',      level: 'error'   },
-    { label: 'In Progress',     value: '2',      level: 'warn'    },
-    { label: 'Closed / Verified', value: '1',   level: 'ok'      },
+    { label: 'Total on Record',   value: '5',  level: 'info'  },
+    { label: 'Overdue',           value: '1',  level: 'error' },
+    { label: 'In Progress',       value: '2',  level: 'warn'  },
+    { label: 'Closed / Verified', value: '1',  level: 'ok'    },
   ])
 
-  p.spacer(2)
+  p.spacer(3)
+  p.sectionTitle('Executive Risk Summary')
+  p.field('Overall CAPA Risk Level',   'HIGH — 1 Overdue + 2 Open Critical Actions Pending Resolution', { color: C.red, bold: true })
+  p.field('Compliance Impact',         'Equipment failure and cold chain breach present direct batch release risk')
+  p.field('Regulatory Exposure',       '2 Critical NCRs require full closure before SFDA inspection clearance can be issued')
+  p.field('Recommended Escalation',    'Immediate Quality Director review of CAPA-2024-002; SFDA notification timeline under review')
+  p.spacer(1)
+  p.field('Risk Owner',                'Quality Assurance Department  |  TraceFlow QMS')
+  p.field('Assessment Date',           ts)
+
+  p.spacer(3)
+  p.sectionTitle('Escalation Alerts')
+  p.statusRow('CAPA-2024-002 — Cold Chain Excursion',    'OVERDUE since 2026-05-28 — Quality Director escalation in effect',    'error')
+  p.statusRow('CAPA-2024-001 — Equipment Calibration',  'Due 2026-05-30 — 3 days remaining — immediate corrective action',     'warn')
+  p.statusRow('2 Critical Actions Open',                'Regulatory inspection risk ELEVATED — resolution required',            'error')
+  p.statusRow('Recall Exposure (RCL-2024-001)',          'Linked to CAPA-2024-002 — escalated simultaneously',                  'warn')
+
+  p.spacer(3)
   p.sectionTitle('CAPA Status Overview')
+  // Column widths: ID(28) + Classification(40) + Severity(20) + Due(22) + Assigned(34) + Status(26) = 170
   p.table(
     ['CAPA ID', 'Classification', 'Severity', 'Due Date', 'Assigned To', 'Status'],
     [
-      ['CAPA-2024-001', 'NC — Equipment',       'CRITICAL', '2026-05-30', 'Eng. K. Al-Otaibi',      'OPEN'],
-      ['CAPA-2024-002', 'NC — Cold Chain',      'CRITICAL', '2026-05-28', 'Eng. S. Al-Zahrani',     'OVERDUE'],
-      ['CAPA-2024-003', 'NC — QC Documentation','MAJOR',    '2026-06-10', 'Eng. N. Al-Harbi',       'IN PROGRESS'],
-      ['CAPA-2024-004', 'NC — Supplier Qual.',  'MAJOR',    '2026-06-20', 'Eng. A. Al-Qahtani',     'IN PROGRESS'],
-      ['CAPA-2024-005', 'NC — Traceability',    'MINOR',    '2026-06-05', 'Eng. F. Al-Dosari',      'CLOSED'],
+      ['CAPA-2024-001', 'NC / Equipment Calibration', 'CRITICAL', '2026-05-30', 'Eng. K. Al-Otaibi',  'OPEN'],
+      ['CAPA-2024-002', 'NC / Cold Chain Excursion',  'CRITICAL', '2026-05-28', 'Eng. S. Al-Zahrani', 'OVERDUE'],
+      ['CAPA-2024-003', 'NC / QC Documentation',      'MAJOR',    '2026-06-10', 'Eng. N. Al-Harbi',   'IN PROGRESS'],
+      ['CAPA-2024-004', 'NC / Supplier Qual.',         'MAJOR',    '2026-06-20', 'Eng. A. Al-Qahtani', 'IN PROGRESS'],
+      ['CAPA-2024-005', 'NC / Lot Traceability',       'MINOR',    '2026-06-05', 'Eng. F. Al-Dosari',  'CLOSED'],
     ],
-    [28, 34, 18, 24, 36, 30]
+    [28, 40, 20, 22, 34, 26]
   )
 
-  p.spacer(2)
-  p.sectionTitle('CAPA Detail Register')
+  // ── CAPA detail blocks (minFollowing=60 prevents orphan title at page bottom) ──
+  p.sectionTitle('CAPA Detail Register', 60)
 
   p.capaBlock({
     id: 'CAPA-2024-001',
@@ -843,9 +993,9 @@ export function buildCAPAReportPDF(): Blob {
 
   p.spacer(2)
   p.sectionTitle('Compliance Verification Status')
-  p.statusRow('Overdue Critical CAPAs',      '1  (CAPA-2024-002) — Escalated',                  'error')
-  p.statusRow('Approaching Due Date',        '1  (CAPA-2024-001) — Due 2026-05-30',             'warn')
-  p.statusRow('Effectiveness Verification',  'Pending for 3 open / in-progress items',           'partial')
+  p.statusRow('Overdue Critical CAPAs',     '1  (CAPA-2024-002) — Escalated to Quality Director',   'error')
+  p.statusRow('Approaching Due Date',       '1  (CAPA-2024-001) — Due 2026-05-30',                  'warn')
+  p.statusRow('Effectiveness Verification', 'Pending for 3 open / in-progress items',                'partial')
 
   p.inspectionCertification()
   return p.blob()
