@@ -224,24 +224,72 @@ class PDFDoc {
   // ── Footer — stamped in finalize two-pass ─────────────────────────────────
   private drawFooter(page: number, total: number) {
     const { doc, meta } = this
+
+    // Footer rule
     dc(doc, C.rule); doc.setLineWidth(0.25)
     doc.line(ML, FOOTY, PW - MR, FOOTY)
 
+    // ── Compact QR verification mark — bottom-right corner ───────────────
+    // 12 × 12 mm: professional compliance mark, not a visual feature
+    const qw = 12, qh = 12
+    const qx  = PW - MR - qw      // x = 178 mm
+    const qy  = FOOTY + 3         // y = 279 mm
+
+    // White field (no border — clean integration with footer zone)
+    fc(doc, C.white); doc.rect(qx, qy, qw, qh, 'F')
+
+    // Corner detection patterns — scaled to fit 12 mm footprint
+    const m  = 0.6, cs = 0.55, cp = 7 * cs   // cp = 3.85 mm
+    const drawCP = (cx: number, cy: number) => {
+      fc(doc, C.dark);  doc.rect(cx, cy, cp, cp, 'F')
+      fc(doc, C.white); doc.rect(cx + cs, cy + cs, 5 * cs, 5 * cs, 'F')
+      fc(doc, C.dark);  doc.rect(cx + 2 * cs, cy + 2 * cs, 3 * cs, 3 * cs, 'F')
+    }
+    drawCP(qx + m,            qy + m)              // top-left
+    drawCP(qx + qw - m - cp,  qy + m)              // top-right
+    drawCP(qx + m,            qy + qh - m - cp)    // bottom-left
+
+    // Data modules — consistent pseudo-random pattern
+    fc(doc, C.dark)
+    ;[[7,6],[8,6],[7,8],[9,6],[7,10],[9,8],[8,10]].forEach(([c, r]) => {
+      doc.rect(qx + m + c * cs, qy + m + r * cs, cs * 0.8, cs * 0.8, 'F')
+    })
+
+    // ── Metadata left of QR — low-contrast, right-aligned ───────────────
+    // metaRX: right edge of metadata block (gap between text and QR)
+    const metaRX = qx - 3   // 175 mm
+    // pageRX: right edge for page number / confidential label
+    const pageRX = metaRX - 32  // 143 mm
+
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(5.5)
+    tc(doc, C.muted)
+    doc.text('Regulatory Verification', metaRX, qy + 3.5, { align: 'right' })
+
+    doc.setFont('courier', 'normal'); doc.setFontSize(5.2)
+    tc(doc, C.subtle)
+    doc.text(meta.hash.slice(0, 17), metaRX, qy + 7.5, { align: 'right' })
+
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(5.2)
+    tc(doc, C.subtle)
+    doc.text(meta.generated.split(' ')[0] ?? '', metaRX, qy + 11.5, { align: 'right' })
+
+    // ── Footer line 1: platform · docNo  |  Page N of M ──────────────────
     doc.setFont('helvetica', 'normal'); doc.setFontSize(6.5)
     tc(doc, C.muted)
     doc.text(`TraceFlow Regulatory Compliance Engine  ·  ${meta.docNo}`, ML, FOOTY + 5)
 
     doc.setFont('helvetica', 'bold'); doc.setFontSize(6.5)
     tc(doc, C.dark)
-    doc.text(`Page ${page} of ${total}`, PW - MR, FOOTY + 5, { align: 'right' })
+    doc.text(`Page ${page} of ${total}`, pageRX, FOOTY + 5, { align: 'right' })
 
+    // ── Footer line 2: regulatory notices  |  CONFIDENTIAL ───────────────
     doc.setFont('helvetica', 'normal'); doc.setFontSize(5.6)
     tc(doc, C.subtle)
-    doc.text('Electronically Generated  ·  Tamper-Evident  ·  No Handwritten Signature Required  ·  SFDA Authorized Use Only', ML, FOOTY + 10)
+    doc.text('Electronically Generated  ·  Tamper-Evident  ·  No Handwritten Signature Required', ML, FOOTY + 10)
 
     doc.setFont('helvetica', 'bold'); doc.setFontSize(5.6)
     tc(doc, C.subtle)
-    doc.text('CONFIDENTIAL', PW - MR, FOOTY + 10, { align: 'right' })
+    doc.text('CONFIDENTIAL', pageRX, FOOTY + 10, { align: 'right' })
   }
 
   finalize(): this {
@@ -577,89 +625,6 @@ class PDFDoc {
     this.y = y0 + cardH + 4
   }
 
-  // ── QR verification card — enterprise layout with real QR corner patterns ─
-  private qrVerification() {
-    const cardH = 34, qSz = 24
-    this.ensure(cardH + 6)
-    const y0 = this.y
-    const qx = ML + CW - qSz - 5
-    const qy = y0 + 5
-
-    // Card
-    fc(this.doc, C.certbg); this.doc.rect(ML, y0, CW, cardH, 'F')
-    dc(this.doc, C.border); this.doc.setLineWidth(0.25)
-    this.doc.rect(ML, y0, CW, cardH, 'S')
-    // Blue accent bar
-    fc(this.doc, C.blue); this.doc.rect(ML, y0, CW, 3, 'F')
-
-    // Card title
-    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(8)
-    tc(this.doc, C.dark)
-    this.doc.text('DOCUMENT INTEGRITY VERIFICATION', ML + 5, y0 + 10)
-
-    // Hash label + value
-    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(6.5)
-    tc(this.doc, C.muted)
-    this.doc.text('Integrity Hash', ML + 5, y0 + 17)
-    this.doc.setFont('courier', 'bold'); this.doc.setFontSize(8)
-    tc(this.doc, C.blue)
-    this.doc.text(this.meta.hash, ML + 5, y0 + 23)
-
-    // Generated + ref
-    this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(6.5)
-    tc(this.doc, C.subtle)
-    this.doc.text(
-      `Generated: ${this.meta.generated}   ·   Document: ${this.meta.docNo}`,
-      ML + 5, y0 + 29.5
-    )
-
-    // ── QR code placeholder with proper corner detection patterns ────────────
-    const m  = 1.8   // QR inner margin
-    const cs = 1.3   // module cell size
-    const cp = 7 * cs   // corner pattern size = 9.1 mm — fits in 24mm QR ✓
-
-    // QR white background + border
-    fc(this.doc, C.white); dc(this.doc, C.dark); this.doc.setLineWidth(0.5)
-    this.doc.rect(qx, qy, qSz, qSz, 'FD')
-
-    // Corner detection pattern helper
-    const drawCorner = (cx: number, cy: number) => {
-      fc(this.doc, C.dark); this.doc.rect(cx, cy, cp, cp, 'F')               // outer filled
-      fc(this.doc, C.white); this.doc.rect(cx + cs, cy + cs, 5 * cs, 5 * cs, 'F')  // hollow
-      fc(this.doc, C.dark); this.doc.rect(cx + 2 * cs, cy + 2 * cs, 3 * cs, 3 * cs, 'F')  // inner
-    }
-
-    drawCorner(qx + m,            qy + m)              // top-left
-    drawCorner(qx + qSz - m - cp, qy + m)              // top-right
-    drawCorner(qx + m,            qy + qSz - m - cp)   // bottom-left
-
-    // Timing strip (alternating modules between corner patterns)
-    for (let k = 2; k <= 4; k += 2) {
-      fc(this.doc, C.dark)
-      this.doc.rect(qx + m + (6 + k) * cs, qy + m + 6 * cs, cs * 0.85, cs * 0.85, 'F')
-      this.doc.rect(qx + m + 6 * cs, qy + m + (6 + k) * cs, cs * 0.85, cs * 0.85, 'F')
-    }
-
-    // Data modules (pseudo-random, consistent pattern)
-    fc(this.doc, C.dark)
-    const cells = [
-      [9,8],[11,8],[9,10],[11,10],[10,9],
-      [8,11],[10,11],[12,11],[9,12],[11,12],
-      [13,9],[13,11],[14,8],[14,10],[14,12],
-    ]
-    cells.forEach(([col, row]) => {
-      this.doc.rect(qx + m + col * cs, qy + m + row * cs, cs * 0.85, cs * 0.85, 'F')
-    })
-
-    // "Scan to Verify" label under QR
-    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(6)
-    tc(this.doc, C.muted)
-    this.doc.text('Scan to Verify', qx + qSz / 2, qy + qSz + 4, { align: 'center' })
-    this.doc.text('Authenticity', qx + qSz / 2, qy + qSz + 7.5, { align: 'center' })
-
-    this.y = y0 + cardH + 5
-  }
-
   // ── Electronic approval matrix ────────────────────────────────────────────
   private approvalMatrix() {
     this.sectionTitle('Electronic Approval Record')
@@ -761,9 +726,6 @@ class PDFDoc {
     this.statusRow('Data Integrity',         'VERIFIED — Hash-validated at time of generation',        'ok')
     this.statusRow('Distribution Control',   'CONTROLLED — Authorized recipients only',               'info')
     this.statusRow('Regulatory Framework',   'Saudi FDA GMP Guidelines v2024  |  ICH Q10',            'info')
-
-    this.spacer(7)
-    this.qrVerification()
 
     this.retentionNotice()
   }
