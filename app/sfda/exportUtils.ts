@@ -62,12 +62,13 @@ function cellStatusColor(val: string): readonly [number, number, number] {
 // ── Public utilities ──────────────────────────────────────────────────────────
 export function nowGregorian(): string {
   const d     = new Date()
-  const parts = new Intl.DateTimeFormat('en-US', {
+  const parts = new Intl.DateTimeFormat('en-CA', {
     timeZone: 'Asia/Riyadh', year: 'numeric', month: '2-digit',
-    day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: true,
+    day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
   }).formatToParts(d)
   const g = (t: string) => parts.find(p => p.type === t)?.value ?? ''
-  return `${g('year')}-${g('month')}-${g('day')} ${g('hour')}:${g('minute')} ${g('dayPeriod').toUpperCase()}`
+  const hh = g('hour') === '24' ? '00' : g('hour')
+  return `${g('year')}-${g('month')}-${g('day')} ${hh}:${g('minute')}`
 }
 
 export function todayStr(): string {
@@ -237,10 +238,10 @@ class PDFDoc {
     doc.text(`Page ${page} of ${total}`, PW - MR, FOOTY + 5, { align: 'right' })
 
     // Line 2: regulatory notices  |  CONFIDENTIAL
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(5.6)
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(5)
     tc(doc, C.subtle)
-    doc.text('Electronically Generated  ·  Controlled Document  ·  Audit Trail Verified  ·  Authorized Distribution Only', ML, FOOTY + 10)
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(5.6)
+    doc.text('Electronically Generated Document  ·  Tamper-Evident Record  ·  No Handwritten Signature Required  ·  Authorized Regulatory Use Only', ML, FOOTY + 10)
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(5)
     tc(doc, C.subtle)
     doc.text('CONFIDENTIAL', PW - MR, FOOTY + 10, { align: 'right' })
   }
@@ -483,57 +484,6 @@ class PDFDoc {
     this.y += 10
   }
 
-  // ── Compact lifecycle status bar — 5 columns, 20mm, no section heading ──────
-  private compactLifecycle() {
-    const cardH = 20
-    this.ensure(cardH + 2)
-    const y0    = this.y
-    const sW    = CW / 5                               // 34mm per step column
-    const d     = this.meta.generated.split(' ')[0] ?? ''
-    const steps = ['Initiated', 'Generated', 'Certified', 'Approved', 'Filed'] as const
-    const doneN = 4
-
-    fc(this.doc, C.certbg); this.doc.rect(ML, y0, CW, cardH, 'F')
-    dc(this.doc, C.border); this.doc.setLineWidth(0.12)
-    this.doc.rect(ML, y0, CW, cardH, 'S')
-
-    // Horizontal connector
-    const lx0 = ML + sW / 2, lx1 = ML + CW - sW / 2, lineY = y0 + 6.5
-    dc(this.doc, C.rule); this.doc.setLineWidth(0.5)
-    this.doc.line(lx0, lineY, lx1, lineY)
-    const doneEndX = lx0 + (doneN - 1) * sW
-    dc(this.doc, C.blue); this.doc.setLineWidth(1.2)
-    this.doc.line(lx0, lineY, doneEndX, lineY)
-
-    steps.forEach((step, i) => {
-      const cx   = ML + i * sW + sW / 2
-      const done = i < doneN
-
-      // Node marker
-      fc(this.doc, done ? C.blue : C.white)
-      dc(this.doc, done ? C.blue : C.border)
-      this.doc.setLineWidth(0.4)
-      this.doc.rect(cx - 2, lineY - 2, 4, 4, done ? 'FD' : 'D')
-      if (done) { fc(this.doc, C.white); this.doc.rect(cx - 0.8, lineY - 0.8, 1.6, 1.6, 'F') }
-
-      // Label + date
-      this.doc.setFont('helvetica', done ? 'bold' : 'normal'); this.doc.setFontSize(6)
-      tc(this.doc, done ? C.blue : C.subtle)
-      this.doc.text(step, cx, y0 + 12.5, { align: 'center' })
-      this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(5.5)
-      tc(this.doc, C.subtle)
-      this.doc.text(done ? d : '—', cx, y0 + 18, { align: 'center' })
-
-      // Column divider (below connector line only)
-      if (i > 0) {
-        dc(this.doc, C.border); this.doc.setLineWidth(0.1)
-        this.doc.line(ML + i * sW, y0 + 9, ML + i * sW, y0 + cardH)
-      }
-    })
-
-    this.y = y0 + cardH + 2
-  }
-
   // ── Electronic approval matrix ────────────────────────────────────────────
   private approvalMatrix() {
     this.sectionTitle('Electronic Approval Record', 44)
@@ -641,9 +591,6 @@ class PDFDoc {
 
     this.spacer(4)
     this.revisionTable()
-
-    this.spacer(4)
-    this.compactLifecycle()
 
     this.spacer(4)
     this.sectionTitle('Regulatory Review Confirmation', 33)
@@ -950,7 +897,7 @@ export function buildCAPAReportPDF(): Blob {
   p.field('Overall CAPA Risk Level',  'HIGH — 1 Overdue + 2 Open Critical Actions Pending Resolution', { color: C.red, bold: true })
   p.field('Compliance Impact',        'Equipment failure and cold chain breach present direct batch release risk')
   p.field('Regulatory Exposure',      '2 Critical NCRs require full closure before SFDA inspection clearance can be issued')
-  p.field('Recommended Escalation',   'Immediate Quality Director review of CAPA-2024-002; SFDA notification timeline under review')
+  p.field('Recommended Escalation',   'Quality Director review required for CAPA-2024-002; SFDA notification timeline under review')
   p.spacer(1)
   p.field('Risk Owner',               'Quality Assurance Department  |  TraceFlow QMS')
   p.field('Assessment Date',          ts)
@@ -958,8 +905,8 @@ export function buildCAPAReportPDF(): Blob {
   p.spacer(4)
   p.sectionTitle('Escalation Alerts', 44)
   p.statusRow('CAPA-2024-002 — Cold Chain Excursion',   'OVERDUE since 2026-05-28 — Quality Director escalation in effect',    'error')
-  p.statusRow('CAPA-2024-001 — Equipment Calibration',  'Due 2026-05-30 — 3 days remaining — immediate corrective action',     'warn')
-  p.statusRow('2 Critical Actions Open',                'Regulatory inspection risk ELEVATED — resolution required',            'error')
+  p.statusRow('CAPA-2024-001 — Equipment Calibration',  'Due 2026-05-30 — 3 days remaining — corrective action required',       'warn')
+  p.statusRow('2 Critical Actions Open',                'Regulatory inspection risk elevated — resolution required',             'error')
   p.statusRow('Recall Exposure (RCL-2024-001)',          'Linked to CAPA-2024-002 — escalated simultaneously',                  'warn')
 
   p.spacer(4)
