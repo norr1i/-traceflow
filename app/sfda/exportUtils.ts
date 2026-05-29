@@ -580,10 +580,19 @@ export function buildBatchReportPDF(): Blob {
 
   p.spacer(3)
   p.sectionTitle('Traceability Chain Verification', 30)
-  p.field('Forward Traceability',  'Raw Material Receipt → Production → QC Inspection → Storage → Dispatch')
-  p.field('Backward Traceability', 'Customer → Batch → Production Order → Raw Material Lot → Supplier')
-  p.field('Chain Coverage',        '100 % — complete forward and backward traceability confirmed', { color: C.green })
-  p.field('Evidence Reference',    'PROD-TRACE-LOGS  |  TraceFlow production database', { color: C.blue, mono: true })
+  p.table(
+    ['Forward Traceability Chain', 'Backward Traceability Chain'],
+    [
+      ['1.  Raw Material Receipt', '1.  Customer'],
+      ['2.  Production',           '2.  Batch'],
+      ['3.  QC Inspection',        '3.  Production Order'],
+      ['4.  Storage',              '4.  Raw Material Lot'],
+      ['5.  Dispatch',             '5.  Supplier'],
+    ],
+    [85, 85]
+  )
+  p.field('Chain Coverage',     '100 % — complete forward and backward traceability confirmed', { color: C.green })
+  p.field('Evidence Reference', 'PROD-TRACE-LOGS  |  TraceFlow production database', { color: C.blue, mono: true })
 
   p.spacer(3)
   p.sectionTitle('Traceability Exceptions', 36)
@@ -612,7 +621,7 @@ export function buildBatchReportPDF(): Blob {
       ['Full Traceability Coverage',     '100 %',  '99.1 %',  '100 %'],
       ['Batch Records Complete',         '229 / 231', '215 / 218', '100 %'],
       ['Exceptions Resolved < 30 Days',  '1 / 2',  '3 / 3',   '100 %'],
-      ['Avg. Exception Resolution Time', '14 days', '11 days', '≤ 15 days'],
+      ['Avg. Exception Resolution Time', '14 days', '11 days', 'max. 15 days'],
     ],
     [78, 30, 30, 32]
   )
