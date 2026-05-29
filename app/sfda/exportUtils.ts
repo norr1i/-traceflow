@@ -395,7 +395,7 @@ class PDFDoc {
 
     dc(this.doc, C.border); this.doc.setLineWidth(0.12)
     this.doc.line(ML + 4, this.y, ML + CW, this.y)
-    this.y += 5
+    this.y += 3
   }
 
   divider() {
@@ -673,7 +673,6 @@ export function buildBatchReportPDF(): Blob {
     'Corrective Action: 24/7 automated cold chain monitoring activated; manual escalation protocol enforced  |  Ref: CAPA-2024-002'
   )
 
-  p.spacer(3)
   p.sectionTitle('Coverage Metrics', 33)
   p.table(
     ['Metric', 'Current Period', 'Prior Period', 'Target'],
@@ -686,8 +685,7 @@ export function buildBatchReportPDF(): Blob {
     [78, 30, 30, 32]
   )
 
-  p.spacer(3)
-  p.sectionTitle('Compliance Verification Status', 33)
+  p.sectionTitle('Compliance Verification Status', 30)
   p.statusRow('Batch Traceability',     '100 % coverage confirmed — 2 exceptions logged',              'ok')
   p.statusRow('Non-Conformant Batches', '2 on hold — CAPA-2024-002 in progress',                       'error')
   p.statusRow('Remediation Progress',   'CAPA-2024-005 closed and verified; CAPA-2024-002 pending',    'partial')
