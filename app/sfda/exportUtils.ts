@@ -728,7 +728,6 @@ export function buildNCRReportPDF(): Blob {
     [28, 50, 22, 34, 36]
   )
 
-  p.spacer(3)
   p.sectionTitle('Root Cause Analysis & Remediation Status', 50)
   p.table(
     ['NCR ID', 'Root Cause Summary', 'Linked CAPA', 'Due', 'Status'],
