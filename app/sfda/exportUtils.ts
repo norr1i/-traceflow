@@ -239,7 +239,7 @@ class PDFDoc {
     // Line 2: regulatory notices  |  CONFIDENTIAL
     doc.setFont('helvetica', 'normal'); doc.setFontSize(5.6)
     tc(doc, C.subtle)
-    doc.text('Electronically Generated  ·  Tamper-Evident  ·  No Handwritten Signature Required  ·  SFDA Authorized Use Only', ML, FOOTY + 10)
+    doc.text('Electronically Generated  ·  Controlled Document  ·  Tamper-Evident Record  ·  Authorized Use Only', ML, FOOTY + 10)
     doc.setFont('helvetica', 'bold'); doc.setFontSize(5.6)
     tc(doc, C.subtle)
     doc.text('CONFIDENTIAL', PW - MR, FOOTY + 10, { align: 'right' })
@@ -580,7 +580,7 @@ class PDFDoc {
 
   // ── Electronic approval matrix ────────────────────────────────────────────
   private approvalMatrix() {
-    this.sectionTitle('Electronic Approval Record')
+    this.sectionTitle('Electronic Approval Record', 44)
     const d       = this.meta.generated.split(' ')[0] ?? this.meta.generated
     const revCode = (this.meta.reviewRef ?? 'QA-REV-001').split('-').pop() ?? '001'
     this.table(
@@ -600,7 +600,7 @@ class PDFDoc {
 
   // ── Revision history table ────────────────────────────────────────────────
   private revisionTable() {
-    this.sectionTitle('Document Control — Revision History')
+    this.sectionTitle('Document Control — Revision History', 22)
     this.table(
       ['Rev.', 'Date', 'Status', 'Change Description'],
       [['1.0', this.meta.generated.split(' ')[0] ?? this.meta.generated, 'INITIAL ISSUE',
@@ -616,7 +616,7 @@ class PDFDoc {
     tc(this.doc, C.subtle)
     const lines = this.doc.splitTextToSize(
       'Retention: This document shall be retained for a minimum of 5 years from the date of generation per SFDA GMP Guidelines v2024, Section 4.3. ' +
-      'Distribution: CONFIDENTIAL — authorized SFDA inspection personnel and Quality Assurance department only. ' +
+      'Distribution: CONFIDENTIAL — authorized regulatory inspection personnel and Quality Assurance department only. ' +
       'Amendment: Any amendment requires issuance of a new document version with a new integrity hash. ' +
       'This is a controlled document — unauthorized reproduction or distribution is prohibited.',
       CW
@@ -629,7 +629,7 @@ class PDFDoc {
   // ── Full closing block — certSeal + approvalMatrix + timeline + QR ────────
   inspectionCertification() {
     this.spacer(8)
-    this.sectionTitle('Inspection Certification')
+    this.sectionTitle('Inspection Certification', 60)
 
     const stmt = this.doc.splitTextToSize(
       'This document has been generated and certified by the TraceFlow Regulatory Compliance Engine in accordance with Saudi Food and Drug Authority (SFDA) inspection requirements and applicable GMP guidelines. ' +
@@ -642,23 +642,46 @@ class PDFDoc {
     tc(this.doc, C.text); this.doc.text(stmt, ML, this.y)
     this.y += stmt.length * 5.2 + 8
 
-    // Tinted metadata block
-    const mBlockH = 34
-    this.ensure(mBlockH)
+    // Tinted metadata block — pre-calculated height so background rect fits content exactly;
+    // content starts at iX (past the accent bar) to prevent label/bar overlap
+    const metaEntries: [string, string, boolean?, boolean?][] = [
+      ['Document ID',      this.meta.docNo,     true,  false],
+      ['Generated',        this.meta.generated, false, false],
+      ['Regulatory Ref.',  this.meta.regRef,    false, false],
+      ['Integrity Hash',   this.meta.hash,      true,  false],
+      ['Certification',    'CERTIFIED — For Authorized Regulatory Inspection Use Only', false, true],
+    ]
+    const barW = 3.5, iX = ML + barW + 4, mPad = 5, mLH = 5.5
+    const maxValW = CW - barW - 4 - LBL - 2
+
+    let mBlockH = mPad
+    metaEntries.forEach(([, val]) => {
+      const ls = this.doc.splitTextToSize(val, maxValW)
+      mBlockH += ls.length > 1 ? ls.length * 4.3 + 0.5 : mLH
+    })
+    mBlockH += mPad
+
+    this.ensure(mBlockH + 6)
     const mbY = this.y
     fc(this.doc, C.certbg); this.doc.rect(ML, mbY, CW, mBlockH, 'F')
-    fc(this.doc, C.blue);   this.doc.rect(ML, mbY, 3.5, mBlockH, 'F')
+    fc(this.doc, C.blue);   this.doc.rect(ML, mbY, barW, mBlockH, 'F')
     dc(this.doc, C.border); this.doc.setLineWidth(0.15)
     this.doc.rect(ML, mbY, CW, mBlockH, 'S')
-    this.y = mbY + 5
 
-    this.field('Document ID',    this.meta.docNo,    { mono: true })
-    this.field('Generated',      this.meta.generated)
-    this.field('Regulatory Ref.',this.meta.regRef)
-    this.field('Integrity Hash', this.meta.hash,     { mono: true, color: C.blue })
-    this.field('Certification',  'CERTIFIED — For Authorized SFDA Inspection Use Only', { color: C.blue, bold: true })
-
-    this.y = Math.max(this.y, mbY + mBlockH + 2)
+    // Render without calling ensure() inside — block height already reserved above
+    let mY = mbY + mPad + 3.5
+    metaEntries.forEach(([lbl, val, mono, cert]) => {
+      const lines = this.doc.splitTextToSize(val, maxValW)
+      this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(7.5)
+      tc(this.doc, C.muted)
+      this.doc.text(lbl, iX, mY)
+      this.doc.setFont(mono ? 'courier' : 'helvetica', cert ? 'bold' : 'normal')
+      this.doc.setFontSize(mono ? 7.5 : 8)
+      tc(this.doc, cert ? C.blue : (mono ? C.subtle : C.text))
+      this.doc.text(lines, iX + LBL, mY)
+      mY += lines.length > 1 ? lines.length * 4.3 + 0.5 : mLH
+    })
+    this.y = mY + mPad + 4
 
     this.spacer(6)
     this.certSeal()
@@ -670,11 +693,11 @@ class PDFDoc {
     this.revisionTable()
 
     this.spacer(6)
-    this.sectionTitle('Document Lifecycle')
+    this.sectionTitle('Document Lifecycle', 36)
     this.revisionTimeline()
 
     this.spacer(5)
-    this.sectionTitle('Regulatory Review Confirmation')
+    this.sectionTitle('Regulatory Review Confirmation', 44)
     this.statusRow('Document Completeness',  'VERIFIED — All required sections present and complete',  'ok')
     this.statusRow('Data Integrity',         'VERIFIED — Hash-validated at time of generation',        'ok')
     this.statusRow('Distribution Control',   'CONTROLLED — Authorized recipients only',               'info')
@@ -683,7 +706,7 @@ class PDFDoc {
     this.retentionNotice()
 
     this.spacer(6)
-    this.sectionTitle('Applicable Standards & Regulatory Frameworks')
+    this.sectionTitle('Applicable Standards & Regulatory Frameworks', 65)
     this.table(
       ['Standard / Framework', 'Version', 'Application Scope'],
       [
@@ -698,7 +721,7 @@ class PDFDoc {
     )
 
     this.spacer(4)
-    this.sectionTitle('Data Integrity Statement')
+    this.sectionTitle('Data Integrity Statement', 28)
     this.bullet('ALCOA+ Framework: All records are Attributable, Legible, Contemporaneous, Original, and Accurate — in full compliance with SFDA Data Integrity Guidelines 2023')
     this.bullet('Source System: TraceFlow Production Database — immutable, audit-trail-backed, tamper-evident with embedded cryptographic integrity verification')
     this.bullet('Audit Trail: 892 immutable entries hash-validated at time of generation — no post-generation modification is possible or permitted')
@@ -706,10 +729,10 @@ class PDFDoc {
     this.bullet('Independent Verification: Embedded document hash and generation timestamp allow forensic verification of document authenticity at any future point in time')
 
     this.spacer(4)
-    this.sectionTitle('Controlled Document Classification')
+    this.sectionTitle('Controlled Document Classification', 40)
     this.field('Document Type',        'Regulatory Compliance Report — GMP Quality Record')
     this.field('Classification Level', 'CONFIDENTIAL — Authorized Personnel Only',                  { color: C.red, bold: true })
-    this.field('Distribution Class',   'Class A — SFDA Inspection Personnel and Quality Assurance Department Only')
+    this.field('Distribution Class',   'Class A — Regulatory Inspection Personnel and Quality Assurance Department Only')
     this.field('Reproduction',         'Prohibited without prior written authorization from the Quality Assurance Manager')
     this.field('Amendment Procedure',  'Full document re-issuance required — new version number and integrity hash are mandatory for any amendment')
     this.field('Destruction Method',   'Secure certified shredding or cryptographic deletion — destruction record to be maintained in Document Control Log')
@@ -746,7 +769,7 @@ export function buildQCReportPDF(): Blob {
     reviewRef: makeReviewRef(dateCode, '001'),
   })
 
-  p.sectionTitle('Executive Summary')
+  p.sectionTitle('Executive Summary', 32)
   p.field('Reporting Period',         'Q2 2026')
   p.field('Total Inspections',        '104')
   p.field('Batch Pass Rate',          '96.2 %',    { color: C.green, bold: true })
@@ -756,7 +779,7 @@ export function buildQCReportPDF(): Blob {
   p.field('Inspection Readiness',     'APPROVED',   { color: C.green, bold: true })
 
   p.spacer(3)
-  p.sectionTitle('Batch Inspection Results')
+  p.sectionTitle('Batch Inspection Results', 60)
   p.table(
     ['Batch ID', 'Product', 'Inspector', 'Inspection Date', 'Result'],
     [
@@ -771,14 +794,14 @@ export function buildQCReportPDF(): Blob {
   p.field('Evidence Reference', 'QC-INSP-2024  |  Batch records archived in TraceFlow', { color: C.blue, mono: true })
 
   p.spacer(3)
-  p.sectionTitle('Audit Observations')
+  p.sectionTitle('Audit Observations', 22)
   p.bullet('All inspections conducted per SOP-QC-001 v3.2 and Saudi FDA GMP Guidelines')
   p.bullet('Line 3 critical balance calibration expired 2026-04-30 — CAPA-2024-001 raised; recalibration pending', C.red)
   p.bullet('4 production run QC records incomplete — CAPA-2024-003 in progress (documentation gap)', C.amber)
   p.bullet('2 temperature excursion events logged — cold chain protocol review in progress')
 
   p.spacer(3)
-  p.sectionTitle('Compliance Verification Status')
+  p.sectionTitle('Compliance Verification Status', 33)
   p.statusRow('QC Process Compliance',        'SUBSTANTIALLY COMPLIANT',                                  'ok')
   p.statusRow('Documentation Compliance',     'PARTIAL — 4 records under review  |  Ref: CAPA-2024-003', 'partial')
   p.statusRow('Equipment Calibration Status', 'ACTION REQUIRED  |  Ref: CAPA-2024-001',                  'error')
@@ -803,7 +826,7 @@ export function buildBatchReportPDF(): Blob {
     reviewRef: makeReviewRef(dateCode, '002'),
   })
 
-  p.sectionTitle('Batch Lifecycle Summary')
+  p.sectionTitle('Batch Lifecycle Summary', 25)
   p.field('Reporting Period',        '2024 — 2026')
   p.field('Total Batches Tracked',   '231')
   p.field('Fully Compliant',         '224  (96.9 %)',                               { color: C.green })
@@ -811,7 +834,7 @@ export function buildBatchReportPDF(): Blob {
   p.field('Non-Compliant / On Hold', '2  (0.9 %) — Corrective Action in Progress',  { color: C.red })
 
   p.spacer(3)
-  p.sectionTitle('Recent Batch Records')
+  p.sectionTitle('Recent Batch Records', 60)
   p.table(
     ['Batch ID', 'Product', 'Raw Materials', 'QC Result', 'Disposition'],
     [
@@ -825,7 +848,7 @@ export function buildBatchReportPDF(): Blob {
   )
 
   p.spacer(3)
-  p.sectionTitle('Traceability Chain Verification')
+  p.sectionTitle('Traceability Chain Verification', 30)
   p.field('Forward Traceability',  'Raw material receipt → Production → QC inspection → Storage → Dispatch')
   p.field('Backward Traceability', 'Customer → Batch → Production order → Raw material lot → Supplier')
   p.field('Chain Coverage',        '100 % — complete forward and backward traceability confirmed', { color: C.green })
@@ -835,7 +858,7 @@ export function buildBatchReportPDF(): Blob {
   p.field('Evidence Reference', 'PROD-TRACE-LOGS  |  TraceFlow production database', { color: C.blue, mono: true })
 
   p.spacer(3)
-  p.sectionTitle('Compliance Verification Status')
+  p.sectionTitle('Compliance Verification Status', 33)
   p.statusRow('Batch Traceability',     'SUBSTANTIALLY COMPLIANT — 100 % coverage confirmed',        'ok')
   p.statusRow('Non-Conformant Batches', '2 on hold — CAPA-2024-002 in progress',                     'error')
   p.statusRow('Remediation Progress',   'CAPA-2024-005 closed and verified; CAPA-2024-002 pending',  'partial')
@@ -860,7 +883,7 @@ export function buildNCRReportPDF(): Blob {
     reviewRef: makeReviewRef(dateCode, '003'),
   })
 
-  p.sectionTitle('Non-Conformance Summary')
+  p.sectionTitle('Non-Conformance Summary', 30)
   p.field('Reporting Period',                '2024 — 2026')
   p.field('Total NCRs Recorded',             '12')
   p.field('Open (Pending Remediation)',       '3', { color: C.red })
@@ -869,7 +892,7 @@ export function buildNCRReportPDF(): Blob {
   p.field('By Severity',                     'Critical: 2  |  Major: 5  |  Minor: 5')
 
   p.spacer(3)
-  p.sectionTitle('Non-Conformance Register')
+  p.sectionTitle('Non-Conformance Register', 60)
   p.table(
     ['NCR ID', 'Description', 'Severity', 'Linked CAPA', 'Status'],
     [
@@ -883,7 +906,7 @@ export function buildNCRReportPDF(): Blob {
   )
 
   p.spacer(3)
-  p.sectionTitle('Root Cause Analysis & Remediation Status')
+  p.sectionTitle('Root Cause Analysis & Remediation Status', 50)
   const ncrs = [
     { id: 'NCR-2024-001', cause: 'Periodic calibration schedule not enforced by maintenance team',            capa: 'CAPA-2024-001', due: '2026-05-30', status: 'OPEN'        },
     { id: 'NCR-2024-002', cause: 'Cold chain temperature alarm not escalated during night shift',             capa: 'CAPA-2024-002', due: '2026-05-28', status: 'OVERDUE'     },
@@ -918,14 +941,14 @@ export function buildRecallReportPDF(): Blob {
     reviewRef: makeReviewRef(dateCode, '004'),
   })
 
-  p.sectionTitle('Recall Events Summary')
+  p.sectionTitle('Recall Events Summary', 22)
   p.field('Reporting Period',    '2022 — 2026')
   p.field('Total Recall Events', '3  (2 voluntary, 1 mandatory)')
   p.field('Closed / Verified',   '2', { color: C.green })
   p.field('Under Investigation', '1', { color: C.red })
 
   p.spacer(3)
-  p.sectionTitle('Recall Event Register')
+  p.sectionTitle('Recall Event Register', 55)
   p.field('RCL-2024-001',       'Temperature Excursion  —  Initiated: 2026-05-22', { bold: true })
   p.field('Classification',     'Class II — Potential Health Risk',                 { color: C.amber })
   p.field('Affected Batches',   '3')
@@ -951,7 +974,7 @@ export function buildRecallReportPDF(): Blob {
   p.field('Evidence Reference', 'RCL-LOG-2022-007  |  Artwork Deviation Report ADR-2022-007', { color: C.blue, mono: true })
 
   p.spacer(3)
-  p.sectionTitle('Recall Readiness Assessment')
+  p.sectionTitle('Recall Readiness Assessment', 55)
   p.statusRow('Readiness Score',             '91 %',                                                           'ok')
   p.statusRow('Time to Notify',              '< 2 hours  (pre-approved SFDA notification template active)',    'ok')
   p.statusRow('Batch Identification Method', 'Automated — real-time traceability via TraceFlow',               'ok')
@@ -979,7 +1002,7 @@ export function buildCAPAReportPDF(): Blob {
   })
 
   // ── Page 1: executive dashboard ───────────────────────────────────────────
-  p.sectionTitle('CAPA Register — Executive Summary')
+  p.sectionTitle('CAPA Register — Executive Summary', 46)
   p.scorecard([
     { label: 'Total on Record',   value: '5',  level: 'info'  },
     { label: 'Overdue',           value: '1',  level: 'error' },
@@ -988,7 +1011,7 @@ export function buildCAPAReportPDF(): Blob {
   ])
 
   p.spacer(4)
-  p.sectionTitle('Executive Risk Summary')
+  p.sectionTitle('Executive Risk Summary', 30)
   p.field('Overall CAPA Risk Level',  'HIGH — 1 Overdue + 2 Open Critical Actions Pending Resolution', { color: C.red, bold: true })
   p.field('Compliance Impact',        'Equipment failure and cold chain breach present direct batch release risk')
   p.field('Regulatory Exposure',      '2 Critical NCRs require full closure before SFDA inspection clearance can be issued')
@@ -998,14 +1021,14 @@ export function buildCAPAReportPDF(): Blob {
   p.field('Assessment Date',          ts)
 
   p.spacer(4)
-  p.sectionTitle('Escalation Alerts')
+  p.sectionTitle('Escalation Alerts', 44)
   p.statusRow('CAPA-2024-002 — Cold Chain Excursion',   'OVERDUE since 2026-05-28 — Quality Director escalation in effect',    'error')
   p.statusRow('CAPA-2024-001 — Equipment Calibration',  'Due 2026-05-30 — 3 days remaining — immediate corrective action',     'warn')
   p.statusRow('2 Critical Actions Open',                'Regulatory inspection risk ELEVATED — resolution required',            'error')
   p.statusRow('Recall Exposure (RCL-2024-001)',          'Linked to CAPA-2024-002 — escalated simultaneously',                  'warn')
 
   p.spacer(4)
-  p.sectionTitle('CAPA Status Overview')
+  p.sectionTitle('CAPA Status Overview', 60)
   p.table(
     ['CAPA ID', 'Classification', 'Severity', 'Due Date', 'Assigned To', 'Status'],
     [
@@ -1097,7 +1120,7 @@ export function buildCAPAReportPDF(): Blob {
   })
 
   p.spacer(3)
-  p.sectionTitle('Compliance Verification Status')
+  p.sectionTitle('Compliance Verification Status', 33)
   p.statusRow('Overdue Critical CAPAs',     '1  (CAPA-2024-002) — Escalated to Quality Director',   'error')
   p.statusRow('Approaching Due Date',       '1  (CAPA-2024-001) — Due 2026-05-30',                  'warn')
   p.statusRow('Effectiveness Verification', 'Pending for 3 open / in-progress items',                'partial')
@@ -1122,7 +1145,7 @@ export function buildGMPReportPDF(): Blob {
     reviewRef: makeReviewRef(dateCode, '006'),
   })
 
-  p.sectionTitle('Audit Overview')
+  p.sectionTitle('Audit Overview', 30)
   p.field('Audit Period',   'Q1 – Q2 2026')
   p.field('Audit Type',     'Internal Compliance Audit')
   p.field('GMP Standard',   'Saudi FDA GMP Guidelines v2024  |  ICH Q7')
@@ -1131,7 +1154,7 @@ export function buildGMPReportPDF(): Blob {
   p.field('Overall Status', 'SUBSTANTIALLY COMPLIANT', { color: C.amber, bold: true })
 
   p.spacer(3)
-  p.sectionTitle('Section-by-Section Audit Findings')
+  p.sectionTitle('Section-by-Section Audit Findings', 80)
   p.table(
     ['Section', 'GMP Requirement Area', 'Audit Finding'],
     [
@@ -1148,7 +1171,7 @@ export function buildGMPReportPDF(): Blob {
   )
 
   p.spacer(3)
-  p.sectionTitle('Non-Conformity Detail')
+  p.sectionTitle('Non-Conformity Detail', 50)
   p.field('MNC-001',        'Line 3 critical balance calibration certificate expired 2026-04-30', { bold: true })
   p.field('GMP Section',    'Section 2 — Premises & Equipment')
   p.field('Risk Level',     'HIGH — Direct impact on product release decisions',                  { color: C.red })
@@ -1163,12 +1186,12 @@ export function buildGMPReportPDF(): Blob {
   p.field('Required Action','Expedited supplier re-qualification — re-audit on CAPA closure',     { color: C.amber })
 
   p.spacer(3)
-  p.sectionTitle('Observation (Non-Critical)')
+  p.sectionTitle('Observation (Non-Critical)', 12)
   p.field('OBS-001',    'Section 5 — 4 QC documentation records incomplete for recent production runs')
   p.field('Linked CAPA','CAPA-2024-003  |  In Progress',                                           { color: C.amber })
 
   p.spacer(3)
-  p.sectionTitle('Re-Audit Schedule')
+  p.sectionTitle('Re-Audit Schedule', 22)
   p.bullet('Re-audit of Sections 2 and 6 required within 30 days of CAPA closure (CAPA-2024-001 and CAPA-2024-004)')
   p.bullet('Sections 1, 3, 4, 7, 8 — fully compliant, no re-audit required')
   p.bullet('Effectiveness verification required for all open CAPAs prior to re-audit clearance')
@@ -1189,13 +1212,13 @@ export function buildInspectionPackagePDF(): Blob {
     docNo:     `PKG-${dateFlat}`,
     version:   '1.0',
     generated: ts, hash,
-    classif:   'CONFIDENTIAL — SFDA INSPECTION USE ONLY',
+    classif:   'CONFIDENTIAL — REGULATORY INSPECTION USE ONLY',
     regRef:    'Saudi FDA Establishment Inspection Procedure  |  GMP Guidelines v2024',
     copyNo:    'CONTROLLED COPY  |  001 OF 001',
     reviewRef: makeReviewRef(dateCode, '007'),
   })
 
-  p.sectionTitle('Dossier Contents — SFDA Pre-Inspection Package')
+  p.sectionTitle('Dossier Contents — SFDA Pre-Inspection Package', 80)
   p.table(
     ['#', 'Document Set', 'Scope'],
     [
@@ -1212,7 +1235,7 @@ export function buildInspectionPackagePDF(): Blob {
   )
 
   p.spacer(3)
-  p.sectionTitle('Compliance Scorecard')
+  p.sectionTitle('Compliance Scorecard', 46)
   p.scorecard([
     { label: 'Overall Compliance Score',   value: '82 %',   level: 'warn'  },
     { label: 'Inspection Readiness Score', value: '87 %',   level: 'ok'    },
@@ -1221,14 +1244,14 @@ export function buildInspectionPackagePDF(): Blob {
   ])
 
   p.spacer(3)
-  p.sectionTitle('Compliance Status by Domain')
+  p.sectionTitle('Compliance Status by Domain', 44)
   p.statusRow('GMP Compliance Status',        'SUBSTANTIALLY COMPLIANT',                                        'warn')
   p.statusRow('Batch Traceability',           'COMPLIANT — 100 % coverage verified',                           'ok')
   p.statusRow('QC Documentation Status',      'PARTIAL — 4 records under review  (Ref: CAPA-2024-003)',         'partial')
   p.statusRow('Equipment Calibration Status', 'ACTION REQUIRED  (Ref: CAPA-2024-001)',                          'error')
 
   p.spacer(3)
-  p.sectionTitle('Corrective Actions Requiring Remediation')
+  p.sectionTitle('Corrective Actions Requiring Remediation', 38)
   p.table(
     ['CAPA ID', 'Issue', 'Severity', 'Due Date', 'Status'],
     [
@@ -1240,7 +1263,7 @@ export function buildInspectionPackagePDF(): Blob {
   )
 
   p.spacer(3)
-  p.sectionTitle('Data Integrity Attestation')
+  p.sectionTitle('Data Integrity Attestation', 40)
   p.bullet('Dossier compiled by the TraceFlow Regulatory Compliance Engine')
   p.bullet('All records sourced directly from the production database with full audit provenance')
   p.bullet('Tamper-evident audit trail hash validates data integrity at time of generation')
@@ -1249,7 +1272,7 @@ export function buildInspectionPackagePDF(): Blob {
   p.field('Dossier ID', `PKG-${dateFlat}`,   { mono: true, bold: true })
   p.field('Generated',  ts)
   p.field('Hash',       hash,                { mono: true, color: C.blue })
-  p.field('Status',     'CERTIFIED — For Authorized SFDA Inspection Use Only', { color: C.blue, bold: true })
+  p.field('Status',     'CERTIFIED — For Authorized Regulatory Inspection Use Only', { color: C.blue, bold: true })
 
   return p.blob()
 }
