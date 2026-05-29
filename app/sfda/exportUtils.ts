@@ -287,7 +287,9 @@ class PDFDoc {
     this.doc.setFont(opts.mono ? 'courier' : 'helvetica', opts.bold ? 'bold' : 'normal')
     this.doc.setFontSize(opts.mono ? 7 : 8)
     tc(this.doc, opts.color ?? C.text)
-    this.doc.text(vlines, ML + LBL, this.y)
+    vlines.forEach((line: string, i: number) => {
+      this.doc.text(line, ML + LBL, this.y + i * 4.5)
+    })
     this.y += vlines.length * 4.5 + 1.5
   }
 
@@ -351,8 +353,49 @@ class PDFDoc {
     this.ensure(lines.length * 4.0 + 2)
     this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(7)
     tc(this.doc, C.subtle)
-    this.doc.text(lines, ML + 8, this.y)
+    lines.forEach((line: string, i: number) => {
+      this.doc.text(line, ML + 8, this.y + i * 4.0)
+    })
     this.y += lines.length * 4.0 + 1.5
+  }
+
+  // Structured finding/exception block: ID header band + description + muted note
+  findingBlock(id: string, description: string, noteText: string) {
+    const idH = 8
+    this.ensure(idH + 22)
+    const y0 = this.y
+    fc(this.doc, C.rowalt); this.doc.rect(ML, y0, CW, idH, 'F')
+    fc(this.doc, C.blue);   this.doc.rect(ML, y0, 3, idH, 'F')
+    dc(this.doc, C.border); this.doc.setLineWidth(0.1)
+    this.doc.line(ML, y0 + idH, ML + CW, y0 + idH)
+    this.doc.setFont('helvetica', 'bold'); this.doc.setFontSize(8)
+    tc(this.doc, C.dark)
+    this.doc.text(id, ML + 8, y0 + 5.5)
+    this.y = y0 + idH + 3.5
+
+    const descLines = this.doc.splitTextToSize(description, CW - 10)
+    this.ensure(descLines.length * 4.5 + 2)
+    this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(8)
+    tc(this.doc, C.text)
+    descLines.forEach((line: string, i: number) => {
+      this.doc.text(line, ML + 5, this.y + i * 4.5)
+    })
+    this.y += descLines.length * 4.5 + 2.5
+
+    if (noteText) {
+      const nLines = this.doc.splitTextToSize(noteText, CW - 10)
+      this.ensure(nLines.length * 4.0 + 4)
+      this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(7)
+      tc(this.doc, C.subtle)
+      nLines.forEach((line: string, i: number) => {
+        this.doc.text(line, ML + 5, this.y + i * 4.0)
+      })
+      this.y += nLines.length * 4.0 + 3
+    }
+
+    dc(this.doc, C.border); this.doc.setLineWidth(0.12)
+    this.doc.line(ML + 4, this.y, ML + CW, this.y)
+    this.y += 5
   }
 
   divider() {
@@ -408,9 +451,18 @@ class PDFDoc {
       this.y = rowY + drh
     })
 
+    // Column separators — thin vertical rules between columns
+    const tableH = hrh + rows.length * drh
+    dc(this.doc, C.border); this.doc.setLineWidth(0.08)
+    let sepX = ML
+    ws.slice(0, -1).forEach(w => {
+      sepX += w
+      this.doc.line(sepX, tsY, sepX, tsY + tableH)
+    })
+
     // Outer border
     dc(this.doc, C.border); this.doc.setLineWidth(0.2)
-    this.doc.rect(ML, tsY, CW, hrh + rows.length * drh, 'S')
+    this.doc.rect(ML, tsY, CW, tableH, 'S')
     this.y += 5
   }
 
@@ -460,7 +512,10 @@ class PDFDoc {
       tc(this.doc, C.muted); this.doc.text(lbl, ML + indent, this.y)
       this.doc.setFont(opts?.mono ? 'courier' : 'helvetica', opts?.bold ? 'bold' : 'normal')
       this.doc.setFontSize(opts?.mono ? 7 : 8)
-      tc(this.doc, opts?.color ?? C.text); this.doc.text(vl, ML + indent + LBL, this.y)
+      tc(this.doc, opts?.color ?? C.text)
+      vl.forEach((line: string, i: number) => {
+        this.doc.text(line, ML + indent + LBL, this.y + i * 4.5)
+      })
       this.y += vl.length * 4.5 + 1.5
     }
 
@@ -607,11 +662,16 @@ export function buildBatchReportPDF(): Blob {
 
   p.spacer(3)
   p.sectionTitle('Affected Batches & Corrective Actions', 30)
-  p.field('EXC-2024-001',  'Retroactive barcode documentation completed for 2 raw material batches — gap in SOP-REC-003 identified and resolved')
-  p.note('Corrective Action: SOP-REC-003 updated; barcode scan enforced as mandatory gate in TraceFlow receiving workflow  |  Ref: CAPA-2024-005')
-  p.spacer(2)
-  p.field('EXC-2024-002',  'Batch B-2024-089 quarantined — stability assessment in progress; temperature log gap under review')
-  p.note('Corrective Action: 24/7 automated cold chain monitoring activated; manual escalation protocol enforced  |  Ref: CAPA-2024-002')
+  p.findingBlock(
+    'EXC-2024-001',
+    'Retroactive barcode documentation completed for 2 raw material batches — gap in SOP-REC-003 identified and resolved',
+    'Corrective Action: SOP-REC-003 updated; barcode scan enforced as mandatory gate in TraceFlow receiving workflow  |  Ref: CAPA-2024-005'
+  )
+  p.findingBlock(
+    'EXC-2024-002',
+    'Batch B-2024-089 quarantined — stability assessment in progress; temperature log gap under review',
+    'Corrective Action: 24/7 automated cold chain monitoring activated; manual escalation protocol enforced  |  Ref: CAPA-2024-002'
+  )
 
   p.spacer(3)
   p.sectionTitle('Coverage Metrics', 33)
@@ -751,14 +811,21 @@ export function buildRecallReportPDF(): Blob {
   )
 
   p.spacer(2)
-  p.field('RCL-2024-001 Detail', 'Initiated 2026-05-22 — 8 customers notified within 90 min — stability assessment ongoing', { color: C.amber })
-  p.note('CAPA Linkage: CAPA-2024-002 (overdue, Quality Director escalation in effect)  |  Ref: RCL-LOG-2024-001')
-  p.spacer(1)
-  p.field('RCL-2023-003 Detail', 'Al-Rawdah Chemicals ingredient out-of-spec — supplier delisted; SOP-VQP-002 updated', { color: C.muted })
-  p.note('Ref: RCL-LOG-2023-003  |  SAF-2023-003')
-  p.spacer(1)
-  p.field('RCL-2022-007 Detail', 'Artwork version mismatch — SOP-ART-001 updated; electronic sign-off enforced', { color: C.muted })
-  p.note('Ref: RCL-LOG-2022-007  |  ADR-2022-007')
+  p.findingBlock(
+    'RCL-2024-001',
+    'Initiated 2026-05-22 — 8 customers notified within 90 min — stability assessment ongoing',
+    'CAPA Linkage: CAPA-2024-002 (overdue, Quality Director escalation in effect)  |  Ref: RCL-LOG-2024-001'
+  )
+  p.findingBlock(
+    'RCL-2023-003',
+    'Al-Rawdah Chemicals ingredient out-of-spec — supplier delisted; SOP-VQP-002 updated',
+    'Ref: RCL-LOG-2023-003  |  SAF-2023-003'
+  )
+  p.findingBlock(
+    'RCL-2022-007',
+    'Artwork version mismatch — SOP-ART-001 updated; electronic sign-off enforced',
+    'Ref: RCL-LOG-2022-007  |  ADR-2022-007'
+  )
 
   p.spacer(3)
   p.sectionTitle('Recall Readiness Assessment', 55)
