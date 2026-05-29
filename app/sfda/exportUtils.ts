@@ -795,7 +795,6 @@ export function buildRecallReportPDF(): Blob {
   p.field('Closed / Verified',   '2', { color: C.green })
   p.field('Under Investigation', '1', { color: C.red })
 
-  p.spacer(3)
   p.sectionTitle('Recall Event Register', 80)
   p.table(
     ['Event ID', 'Type', 'Class', 'Batches', 'Recovery', 'Status'],
@@ -807,25 +806,11 @@ export function buildRecallReportPDF(): Blob {
     [28, 42, 20, 20, 22, 38]
   )
 
-  p.spacer(2)
-  p.findingBlock(
-    'RCL-2024-001',
-    'Initiated 2026-05-22 — 8 customers notified within 90 min — stability assessment ongoing',
-    'CAPA Linkage: CAPA-2024-002 (overdue, Quality Director escalation in effect)  |  Ref: RCL-LOG-2024-001'
-  )
-  p.findingBlock(
-    'RCL-2023-003',
-    'Al-Rawdah Chemicals ingredient out-of-spec — supplier delisted; SOP-VQP-002 updated',
-    'Ref: RCL-LOG-2023-003  |  SAF-2023-003'
-  )
-  p.findingBlock(
-    'RCL-2022-007',
-    'Artwork version mismatch — SOP-ART-001 updated; electronic sign-off enforced',
-    'Ref: RCL-LOG-2022-007  |  ADR-2022-007'
-  )
+  p.field('RCL-2024-001', 'Initiated 2026-05-22 — 8 customers notified within 90 min — stability assessment ongoing  |  CAPA-2024-002 (overdue)  |  Ref: RCL-LOG-2024-001', { color: C.amber })
+  p.field('RCL-2023-003', 'Al-Rawdah Chemicals ingredient out-of-spec — supplier delisted; SOP-VQP-002 updated  |  Ref: RCL-LOG-2023-003  |  SAF-2023-003', { color: C.muted })
+  p.field('RCL-2022-007', 'Artwork version mismatch — SOP-ART-001 updated; electronic sign-off enforced  |  Ref: RCL-LOG-2022-007  |  ADR-2022-007', { color: C.muted })
 
-  p.spacer(3)
-  p.sectionTitle('Recall Readiness Assessment', 55)
+  p.sectionTitle('Recall Readiness Assessment', 40)
   p.statusRow('Readiness Score',             '91 % — active investigation affecting open event (RCL-2024-001)',    'ok')
   p.statusRow('Time to Notify',              '< 2 hours  (pre-approved SFDA notification template active)',        'ok')
   p.statusRow('Batch Identification Method', 'Automated — real-time traceability via TraceFlow',                   'ok')
