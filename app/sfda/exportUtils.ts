@@ -483,62 +483,55 @@ class PDFDoc {
     this.y += 10
   }
 
-  // ── Revision timeline — horizontal lifecycle card ─────────────────────────
-  private revisionTimeline() {
-    const cardH = 32
-    this.ensure(cardH + 4)
-    const y0 = this.y
+  // ── Compact lifecycle status bar — 5 columns, 20mm, no section heading ──────
+  private compactLifecycle() {
+    const cardH = 20
+    this.ensure(cardH + 2)
+    const y0    = this.y
+    const sW    = CW / 5                               // 34mm per step column
+    const d     = this.meta.generated.split(' ')[0] ?? ''
+    const steps = ['Initiated', 'Generated', 'Certified', 'Approved', 'Filed'] as const
+    const doneN = 4
 
-    // Card background
     fc(this.doc, C.certbg); this.doc.rect(ML, y0, CW, cardH, 'F')
-    dc(this.doc, C.border); this.doc.setLineWidth(0.15)
+    dc(this.doc, C.border); this.doc.setLineWidth(0.12)
     this.doc.rect(ML, y0, CW, cardH, 'S')
 
-    const steps  = ['Initiated', 'Generated', 'Certified', 'Approved', 'Filed']
-    const doneN  = 4   // first 4 steps complete; 5th (Filed) pending
-    const lineY  = y0 + 18
-    const x0     = ML + 14
-    const x1     = ML + CW - 14
-    const span   = x1 - x0
-
-    // Full baseline (light)
-    dc(this.doc, C.rule); this.doc.setLineWidth(0.7)
-    this.doc.line(x0, lineY, x1, lineY)
-
-    // Completed segment (blue)
-    const endX = x0 + span * (doneN - 1) / (steps.length - 1)
-    dc(this.doc, C.blue); this.doc.setLineWidth(1.4)
-    this.doc.line(x0, lineY, endX, lineY)
-
-    const dateStr = this.meta.generated.split(' ')[0] ?? ''
+    // Horizontal connector
+    const lx0 = ML + sW / 2, lx1 = ML + CW - sW / 2, lineY = y0 + 6.5
+    dc(this.doc, C.rule); this.doc.setLineWidth(0.5)
+    this.doc.line(lx0, lineY, lx1, lineY)
+    const doneEndX = lx0 + (doneN - 1) * sW
+    dc(this.doc, C.blue); this.doc.setLineWidth(1.2)
+    this.doc.line(lx0, lineY, doneEndX, lineY)
 
     steps.forEach((step, i) => {
-      const x    = x0 + (span * i) / (steps.length - 1)
+      const cx   = ML + i * sW + sW / 2
       const done = i < doneN
 
-      // Node square
+      // Node marker
       fc(this.doc, done ? C.blue : C.white)
       dc(this.doc, done ? C.blue : C.border)
       this.doc.setLineWidth(0.4)
-      this.doc.rect(x - 2.4, lineY - 2.4, 4.8, 4.8, done ? 'FD' : 'D')
-      // Inner white dot on completed nodes
-      if (done) {
-        fc(this.doc, C.white)
-        this.doc.rect(x - 0.9, lineY - 0.9, 1.8, 1.8, 'F')
-      }
+      this.doc.rect(cx - 2, lineY - 2, 4, 4, done ? 'FD' : 'D')
+      if (done) { fc(this.doc, C.white); this.doc.rect(cx - 0.8, lineY - 0.8, 1.6, 1.6, 'F') }
 
-      // Label above line
-      this.doc.setFont('helvetica', done ? 'bold' : 'normal'); this.doc.setFontSize(6.5)
+      // Label + date
+      this.doc.setFont('helvetica', done ? 'bold' : 'normal'); this.doc.setFontSize(6)
       tc(this.doc, done ? C.blue : C.subtle)
-      this.doc.text(step, x, lineY - 7, { align: 'center' })
-
-      // Date below node
+      this.doc.text(step, cx, y0 + 12.5, { align: 'center' })
       this.doc.setFont('helvetica', 'normal'); this.doc.setFontSize(5.5)
       tc(this.doc, C.subtle)
-      this.doc.text(done ? dateStr : '—', x, lineY + 9, { align: 'center' })
+      this.doc.text(done ? d : '—', cx, y0 + 18, { align: 'center' })
+
+      // Column divider (below connector line only)
+      if (i > 0) {
+        dc(this.doc, C.border); this.doc.setLineWidth(0.1)
+        this.doc.line(ML + i * sW, y0 + 9, ML + i * sW, y0 + cardH)
+      }
     })
 
-    this.y = y0 + cardH + 4
+    this.y = y0 + cardH + 2
   }
 
   // ── Electronic approval matrix ────────────────────────────────────────────
@@ -574,7 +567,7 @@ class PDFDoc {
 
   // ── Controlled distribution & retention notice ────────────────────────────
   private retentionNotice() {
-    this.spacer(5)
+    this.spacer(4)
     this.doc.setFont('helvetica', 'italic'); this.doc.setFontSize(7)
     tc(this.doc, C.subtle)
     const lines = this.doc.splitTextToSize(
@@ -589,7 +582,7 @@ class PDFDoc {
 
   // ── Full closing block — certbg metadata + approvalMatrix + timeline ────────
   inspectionCertification() {
-    this.spacer(8)
+    this.spacer(5)
     this.sectionTitle('Inspection Certification', 60)
 
     const stmt = this.doc.splitTextToSize(
@@ -643,25 +636,24 @@ class PDFDoc {
     })
     this.y = mY + mPad + 4
 
-    this.spacer(6)
+    this.spacer(5)
     this.approvalMatrix()
 
-    this.spacer(5)
+    this.spacer(4)
     this.revisionTable()
 
-    this.spacer(6)
-    this.sectionTitle('Document Lifecycle', 36)
-    this.revisionTimeline()
+    this.spacer(4)
+    this.compactLifecycle()
 
-    this.spacer(5)
-    this.sectionTitle('Regulatory Review Confirmation', 44)
+    this.spacer(4)
+    this.sectionTitle('Regulatory Review Confirmation', 33)
     this.statusRow('Document Completeness',  'VERIFIED — All required sections present and complete',  'ok')
     this.statusRow('Data Integrity',         'VERIFIED — Integrity hash confirmed at time of generation', 'ok')
     this.statusRow('Distribution Control',   'CONTROLLED — Authorized recipients only',                'info')
 
     this.retentionNotice()
 
-    this.spacer(6)
+    this.spacer(5)
     this.sectionTitle('Applicable Standards & Regulatory Frameworks', 50)
     this.table(
       ['Standard / Framework', 'Version', 'Application Scope'],
@@ -674,7 +666,7 @@ class PDFDoc {
       [68, 24, 78]
     )
 
-    this.spacer(4)
+    this.spacer(3)
     this.sectionTitle('Data Integrity', 18)
     this.bullet('ALCOA+ Compliance: All records are Attributable, Legible, Contemporaneous, Original, and Accurate — per SFDA Data Integrity Guidelines 2023')
     this.bullet('Source: TraceFlow Production Database — audit-trail backed with cryptographic integrity verification at time of generation')
