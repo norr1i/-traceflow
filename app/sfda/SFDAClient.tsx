@@ -327,7 +327,7 @@ export default function SFDAClient() {
   const [auditLog,      setAuditLog]      = useState<AuditEntry[]>([])
   const [auditLoading,  setAuditLoading]  = useState(false)
   const [auditError,    setAuditError]    = useState<string | null>(null)
-  const [recallStats,   setRecallStats]   = useState({ affected: 0, downstream: 0, customers: 0, score: 0 })
+  const [recallStats,   setRecallStats]   = useState({ affected: 0, downstream: 0, customers: 0, score: 0, coveragePct: 0 })
   const [recallLoading, setRecallLoading] = useState(false)
   const [simResult,     setSimResult]     = useState<{ notificationTime: string; coverage: number; riskLevel: string; riskCls: string } | null>(null)
   const [riskFactors,   setRiskFactors]   = useState<Array<{ label: string; dot: string; level: string }>>([])
@@ -356,38 +356,63 @@ export default function SFDAClient() {
       })
   }, [companyId])
 
-  // Fetch recall readiness metrics from real live tables:
-  //   recall_affected_batches → active recall count + customers affected
-  //   sales                   → downstream shipment count (distribution_records is empty)
-  //   quality_inspections     → risk signals (batch_events is empty)
+  // Fetch recall readiness metrics from real live tables.
+  // Score = weighted average of customer traceability (60%) and QC pass rate (40%),
+  //         capped at 100, minus 15 per active recall batch. Zero when no sales data.
+  // Coverage = % of sales that have an identified customer_name (real traceability).
   useEffect(() => {
     if (!companyId) return
     setRecallLoading(true)
     void Promise.all([
-      // Active (non-simulation) recall batches + customers impacted
+      // 1. Active recall batches + customers affected
       supabase
         .from('recall_affected_batches')
         .select('customers_affected')
         .eq('company_id', companyId)
         .eq('status', 'active'),
-      // Downstream distribution — sales are the outbound shipment record
+      // 2. Total non-cancelled sales (downstream shipment count)
       supabase
         .from('sales')
         .select('id', { count: 'exact', head: true })
         .eq('company_id', companyId)
         .neq('status', 'cancelled'),
-      // QC risk signals — failed or conditional inspections
+      // 3. Sales with an identified customer (traceability coverage numerator)
+      supabase
+        .from('sales')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+        .neq('status', 'cancelled')
+        .not('customer_name', 'is', null),
+      // 4. Passed QC inspections count
+      supabase
+        .from('quality_inspections')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', companyId)
+        .eq('status', 'passed'),
+      // 5. Total QC inspections count
+      supabase
+        .from('quality_inspections')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', companyId),
+      // 6. Failed/conditional inspections for risk factor panel
       supabase
         .from('quality_inspections')
         .select('status')
         .eq('company_id', companyId)
         .in('status', ['failed', 'conditional']),
-    ]).then(([{ data: rabData }, { count: salesCount }, { data: qiData }]) => {
+    ]).then(([{ data: rabData }, { count: totalSales }, { count: tracedSales }, { count: passedQI }, { count: totalQI }, { data: qiData }]) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const customers  = (rabData ?? []).reduce((s: number, r: any) => s + (Number(r.customers_affected) || 0), 0)
-      const affected   = (rabData ?? []).length
-      const downstream = salesCount ?? 0
-      const score      = downstream > 0 ? Math.max(0, 100 - affected * 15) : 0
+      const customers   = (rabData ?? []).reduce((s: number, r: any) => s + (Number(r.customers_affected) || 0), 0)
+      const affected    = (rabData ?? []).length
+      const downstream  = totalSales  ?? 0
+      const traced      = tracedSales ?? 0
+      const coveragePct = downstream > 0 ? Math.round((traced / downstream) * 100) : 0
+      const qiPass      = passedQI ?? 0
+      const qiTotal     = totalQI  ?? 0
+      const qiPassRate  = qiTotal > 0 ? Math.round((qiPass / qiTotal) * 100) : 100
+      // Weighted score: 60% customer traceability + 40% QC pass rate, minus recall penalty
+      const baseScore   = downstream > 0 ? Math.round(coveragePct * 0.6 + qiPassRate * 0.4) : 0
+      const score       = Math.max(0, Math.min(100, baseScore - affected * 15))
       const QI_RISK: Record<string, { label: string; dot: string; level: string }> = {
         failed:      { label: 'Failed QC inspections on record',          dot: 'bg-red-500',   level: 'High'   },
         conditional: { label: 'Conditional QC outcomes requiring review', dot: 'bg-amber-400', level: 'Medium' },
@@ -399,7 +424,7 @@ export default function SFDAClient() {
         if (QI_RISK[t] && !seen.has(t)) { seen.add(t); acc.push(QI_RISK[t]) }
         return acc
       }, [])
-      setRecallStats({ affected, downstream, customers, score })
+      setRecallStats({ affected, downstream, customers, score, coveragePct })
       setRiskFactors(factors)
       setRecallLoading(false)
     })
@@ -475,7 +500,7 @@ export default function SFDAClient() {
                     : s > 80  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
                     : s > 50  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
                     :            'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
-    setSimResult({ notificationTime: '< 2 hours', coverage: recallStats.downstream > 0 ? 100 : 0, riskLevel, riskCls })
+    setSimResult({ notificationTime: '< 2 hours', coverage: recallStats.coveragePct, riskLevel, riskCls })
     toast.success('Recall simulation completed successfully')
   }
 
