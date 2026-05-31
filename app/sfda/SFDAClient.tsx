@@ -316,8 +316,10 @@ export default function SFDAClient() {
 
   const [auditLog,      setAuditLog]      = useState<AuditEntry[]>([])
   const [auditLoading,  setAuditLoading]  = useState(false)
-  const [recallStats,   setRecallStats]   = useState({ affected: 0, downstream: 0, customers: 0 })
+  const [recallStats,   setRecallStats]   = useState({ affected: 0, downstream: 0, customers: 0, score: 0 })
   const [recallLoading, setRecallLoading] = useState(false)
+  const [simResult,     setSimResult]     = useState<{ notificationTime: string; coverage: number; riskLevel: string; riskCls: string } | null>(null)
+  const [riskFactors,   setRiskFactors]   = useState<Array<{ label: string; dot: string; level: string }>>([])
 
   // Fetch audit entries from public.audit_log (company-scoped, newest first)
   useEffect(() => {
@@ -336,30 +338,48 @@ export default function SFDAClient() {
       })
   }, [companyId])
 
-  // Fetch recall readiness metrics from recall_affected_batches + distribution_records
+  // Fetch recall readiness metrics from recall_affected_batches, distribution_records, batch_events
   useEffect(() => {
     if (!companyId) return
     setRecallLoading(true)
     void Promise.all([
-      // Active (non-simulation) affected batches + customer count
       supabase
         .from('recall_affected_batches')
         .select('customers_affected')
         .eq('company_id', companyId)
         .eq('status', 'active'),
-      // Downstream distribution records (unique shipments)
       supabase
         .from('distribution_records')
         .select('id', { count: 'exact', head: true })
         .eq('company_id', companyId),
-    ]).then(([{ data: rabData }, { count: distCount }]) => {
+      supabase
+        .from('batch_events')
+        .select('event_type')
+        .eq('company_id', companyId)
+        .not('event_type', 'like', 'simulation%'),
+    ]).then(([{ data: rabData }, { count: distCount }, { data: evData }]) => {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const customers = (rabData ?? []).reduce((s: number, r: any) => s + (Number(r.customers_affected) || 0), 0)
-      setRecallStats({
-        affected:   (rabData ?? []).length,
-        downstream: distCount ?? 0,
-        customers,
-      })
+      const customers  = (rabData ?? []).reduce((s: number, r: any) => s + (Number(r.customers_affected) || 0), 0)
+      const affected   = (rabData ?? []).length
+      const downstream = distCount ?? 0
+      const score      = downstream > 0 ? Math.max(0, 100 - affected * 15) : 0
+      const EVENT_RISK: Record<string, { label: string; dot: string; level: string }> = {
+        qc_failure:         { label: 'QC failure events recorded',     dot: 'bg-red-500',     level: 'High'   },
+        cold_chain_breach:  { label: 'Cold chain breach recorded',     dot: 'bg-red-500',     level: 'High'   },
+        recall_initiated:   { label: 'Active recall in progress',      dot: 'bg-red-500',     level: 'High'   },
+        shipment_delay:     { label: 'Shipment delay events detected',  dot: 'bg-amber-400',   level: 'Medium' },
+        supplier_deviation: { label: 'Supplier deviation reported',    dot: 'bg-amber-400',   level: 'Medium' },
+        intake_scan_miss:   { label: 'Barcode scan misses at intake',  dot: 'bg-amber-400',   level: 'Medium' },
+      }
+      const seen = new Set<string>()
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const factors: { label: string; dot: string; level: string }[] = (evData ?? []).reduce((acc: { label: string; dot: string; level: string }[], r: any) => {
+        const t = String(r.event_type)
+        if (EVENT_RISK[t] && !seen.has(t)) { seen.add(t); acc.push(EVENT_RISK[t]) }
+        return acc
+      }, [])
+      setRecallStats({ affected, downstream, customers, score })
+      setRiskFactors(factors)
       setRecallLoading(false)
     })
   }, [companyId])
@@ -428,6 +448,13 @@ export default function SFDAClient() {
 
     setSimulating(false); setSimDone(true)
     setSimLastRun(nowSA())
+    const s = recallStats.score
+    const riskLevel = s === 0 ? 'No Data' : s > 80 ? 'Low Risk' : s > 50 ? 'Medium Risk' : 'High Risk'
+    const riskCls   = s === 0 ? 'bg-gray-100 dark:bg-gray-900/30 text-gray-600 dark:text-gray-400'
+                    : s > 80  ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+                    : s > 50  ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+                    :            'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+    setSimResult({ notificationTime: '< 2 hours', coverage: recallStats.downstream > 0 ? 100 : 0, riskLevel, riskCls })
     toast.success('Recall simulation completed successfully')
   }
 
@@ -926,7 +953,7 @@ export default function SFDAClient() {
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 flex flex-col items-center justify-center gap-2">
-            <ScoreRing score={91} size={120} />
+            <ScoreRing score={recallStats.score} size={120} />
             <p className="text-xs font-medium text-[var(--muted)] text-center">{t('sfda.recall_score')}</p>
           </div>
           {[
@@ -960,21 +987,21 @@ export default function SFDAClient() {
             </button>
           </div>
 
-          {simDone && (
+          {simDone && simResult && (
             <div className="mt-5 pt-5 border-t border-[var(--border)] grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div>
                 <p className="text-xs text-[var(--muted)]">Estimated Notification Time</p>
-                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">&lt; 2 hours</p>
+                <p className="text-xl font-bold text-emerald-600 dark:text-emerald-400 mt-1">{simResult.notificationTime}</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Coverage</p>
-                <p className="text-xl font-bold text-[var(--text)] mt-1">100%</p>
+                <p className="text-xl font-bold text-[var(--text)] mt-1">{simResult.coverage}%</p>
                 <p className="text-xs text-[var(--muted)]">of affected batches identified</p>
               </div>
               <div>
                 <p className="text-xs text-[var(--muted)]">Recall Risk Score</p>
-                <span className="inline-flex items-center gap-1.5 mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                  <AlertTriangle size={11} />Medium Risk
+                <span className={`inline-flex items-center gap-1.5 mt-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${simResult.riskCls}`}>
+                  <AlertTriangle size={11} />{simResult.riskLevel}
                 </span>
               </div>
             </div>
@@ -984,17 +1011,16 @@ export default function SFDAClient() {
         <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6">
           <h3 className="text-sm font-semibold text-[var(--text)] mb-4">Recall Risk Factors</h3>
           <div className="space-y-3">
-            {[
-              { label: 'Cold chain monitoring gaps',       dot: 'bg-red-500',     level: 'High'   },
-              { label: 'Supplier qualification lapses',    dot: 'bg-amber-400',   level: 'Medium' },
-              { label: 'Barcode scan misses at intake',   dot: 'bg-emerald-500', level: 'Low'    },
-            ].map(item => (
-              <div key={item.label} className="flex items-center gap-3">
-                <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.dot}`} />
-                <span className="text-sm text-[var(--text)]">{item.label}</span>
-                <span className="ms-auto text-xs text-[var(--muted)]">{item.level}</span>
-              </div>
-            ))}
+            {riskFactors.length === 0
+              ? <p className="text-sm text-[var(--muted)]">No risk factors recorded.</p>
+              : riskFactors.map(item => (
+                  <div key={item.label} className="flex items-center gap-3">
+                    <div className={`w-2.5 h-2.5 rounded-full shrink-0 ${item.dot}`} />
+                    <span className="text-sm text-[var(--text)]">{item.label}</span>
+                    <span className="ms-auto text-xs text-[var(--muted)]">{item.level}</span>
+                  </div>
+                ))
+            }
           </div>
         </div>
       </div>
