@@ -38,7 +38,7 @@ interface AuditEntry {
   action: string
   entity: string
   time: string
-  type: 'edit' | 'qc' | 'delete' | 'recall'
+  type: 'edit' | 'qc' | 'delete' | 'recall' | 'create'
   badgeCls: string
 }
 
@@ -197,10 +197,10 @@ function mapAuditRow(r: any, i: number): AuditEntry {
                                              GREEN_BADGE
   return {
     id:      i + 1,
-    actor:   String(r.actor  ?? ''),
-    role:    String(r.role   ?? ''),
-    action:  String(r.action ?? ''),
-    entity:  String(r.entity ?? ''),
+    actor:   r.actor  ? String(r.actor)  : 'System / SQL Editor',
+    role:    r.role   ? String(r.role)   : '',
+    action:  r.action ? String(r.action) : '(no action)',
+    entity:  r.entity ? String(r.entity) : '',
     time:    String(r.created_at ?? '').replace('T', ' ').slice(0, 16),
     type,
     badgeCls,
@@ -316,6 +316,7 @@ export default function SFDAClient() {
 
   const [auditLog,      setAuditLog]      = useState<AuditEntry[]>([])
   const [auditLoading,  setAuditLoading]  = useState(false)
+  const [auditError,    setAuditError]    = useState<string | null>(null)
   const [recallStats,   setRecallStats]   = useState({ affected: 0, downstream: 0, customers: 0, score: 0 })
   const [recallLoading, setRecallLoading] = useState(false)
   const [simResult,     setSimResult]     = useState<{ notificationTime: string; coverage: number; riskLevel: string; riskCls: string } | null>(null)
@@ -325,6 +326,7 @@ export default function SFDAClient() {
   useEffect(() => {
     if (!companyId) return
     setAuditLoading(true)
+    setAuditError(null)
     supabase
       .from('audit_log')
       .select('id, actor, role, action, entity, type, created_at')
@@ -332,8 +334,14 @@ export default function SFDAClient() {
       .order('created_at', { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
-        if (error) console.error('[audit_log]', error.message)
-        if (data)  setAuditLog(data.map(mapAuditRow))
+        if (error) {
+          console.error('[audit_log] error:', error.code, error.message)
+          setAuditError(`${error.code}: ${error.message}`)
+        }
+        if (data) {
+          console.log('[audit_log] fetched', data.length, 'rows for company_id', companyId)
+          setAuditLog(data.map(mapAuditRow))
+        }
         setAuditLoading(false)
       })
   }, [companyId])
@@ -765,6 +773,7 @@ export default function SFDAClient() {
     const FILTERS = [
       { id: 'all',    label: 'All Events' },
       { id: 'edit',   label: 'Edits'      },
+      { id: 'create', label: 'Creates'    },
       { id: 'delete', label: 'Deletions'  },
       { id: 'qc',     label: 'QC Changes' },
       { id: 'recall', label: 'Recalls'    },
@@ -847,7 +856,13 @@ export default function SFDAClient() {
               {filtered.length === 0 && (
                 <tr>
                   <td colSpan={5} className="px-4 py-10 text-center text-sm text-[var(--muted)]">
-                    {auditLoading ? 'Loading audit entries…' : 'No audit entries recorded yet.'}
+                    {auditLoading
+                      ? 'Loading audit entries…'
+                      : auditError
+                        ? <span className="text-red-500 dark:text-red-400">RLS / permission error — {auditError}</span>
+                        : !companyId
+                          ? 'Company profile not loaded — please refresh the page'
+                          : 'No audit entries recorded yet.'}
                   </td>
                 </tr>
               )}
