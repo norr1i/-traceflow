@@ -187,20 +187,30 @@ const BLUE_BADGE   = 'bg-blue-50 dark:bg-blue-900/20 text-blue-700 dark:text-blu
 const AMBER_BADGE  = 'bg-amber-50 dark:bg-amber-900/20 text-amber-700 dark:text-amber-400'
 const RED_BADGE    = 'bg-red-50 dark:bg-red-900/20 text-red-700 dark:text-red-400'
 
-// Map a raw audit_log row from Supabase into the AuditEntry shape the UI expects.
+// Map a raw activity_logs row into the AuditEntry shape the UI expects.
+// activity_logs columns: actor_email, action_type, entity_type, entity_id, message, created_at
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 function mapAuditRow(r: any, i: number): AuditEntry {
-  const type = (r.type ?? 'edit') as AuditEntry['type']
+  const actionType = String(r.action_type ?? '')
+  let type: AuditEntry['type'] = 'edit'
+  if      (actionType.includes('qc') || actionType.includes('inspection')) type = 'qc'
+  else if (actionType.includes('recall'))                                   type = 'recall'
+  else if (actionType.includes('delete') || actionType.includes('removed')) type = 'delete'
+  else if (actionType.includes('created') || actionType.includes('imported')) type = 'create'
+
   const badgeCls =
     type === 'delete' || type === 'recall' ? RED_BADGE  :
     type === 'qc'                          ? BLUE_BADGE :
                                              GREEN_BADGE
+
+  const entityParts = [r.entity_type, r.entity_id].filter(Boolean).join(' #')
+
   return {
     id:      i + 1,
-    actor:   r.actor  ? String(r.actor)  : 'System / SQL Editor',
-    role:    r.role   ? String(r.role)   : '',
-    action:  r.action ? String(r.action) : '(no action)',
-    entity:  r.entity ? String(r.entity) : '',
+    actor:   r.actor_email ? String(r.actor_email) : 'System / SQL Editor',
+    role:    '',
+    action:  actionType.replace(/_/g, ' ').replace(/\./g, ' — ').replace(/\b\w/g, c => c.toUpperCase()) || '(no action)',
+    entity:  entityParts || String(r.message ?? ''),
     time:    String(r.created_at ?? '').replace('T', ' ').slice(0, 16),
     type,
     badgeCls,
@@ -322,24 +332,24 @@ export default function SFDAClient() {
   const [simResult,     setSimResult]     = useState<{ notificationTime: string; coverage: number; riskLevel: string; riskCls: string } | null>(null)
   const [riskFactors,   setRiskFactors]   = useState<Array<{ label: string; dot: string; level: string }>>([])
 
-  // Fetch audit entries from public.audit_log (company-scoped, newest first)
+  // Fetch audit entries from public.activity_logs (company-scoped, newest first)
   useEffect(() => {
     if (!companyId) return
     setAuditLoading(true)
     setAuditError(null)
     supabase
-      .from('audit_log')
-      .select('id, actor, role, action, entity, type, created_at')
+      .from('activity_logs')
+      .select('id, actor_email, actor_user_id, action_type, entity_type, entity_id, message, created_at')
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })
       .limit(100)
       .then(({ data, error }) => {
         if (error) {
-          console.error('[audit_log] error:', error.code, error.message)
+          console.error('[activity_logs] error:', error.code, error.message)
           setAuditError(`${error.code}: ${error.message}`)
         }
         if (data) {
-          console.log('[audit_log] fetched', data.length, 'rows for company_id', companyId)
+          console.log('[activity_logs] fetched', data.length, 'rows for company_id', companyId)
           setAuditLog(data.map(mapAuditRow))
         }
         setAuditLoading(false)
