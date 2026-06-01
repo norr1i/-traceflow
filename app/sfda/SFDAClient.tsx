@@ -6,9 +6,9 @@ import { useAuth, useRole } from '../lib/auth-context'
 import { useToast } from '../components/Toast'
 import {
   ShieldCheck, ShieldAlert, AlertTriangle, CheckCircle2, XCircle, Clock,
-  FileText, Download, Archive, BarChart3, Activity, ClipboardList,
+  FileText, Download, Archive, Activity, ClipboardList,
   Filter, Plus, RefreshCw, Package, Users, Calendar, ChevronRight,
-  FileWarning, CheckSquare, Lock, TrendingUp, Zap,
+  FileWarning, CheckSquare, Lock, TrendingUp,
   X, ChevronDown, ChevronUp,
 } from 'lucide-react'
 import {
@@ -16,6 +16,7 @@ import {
   buildRecallReportPDF, buildCAPAReportPDF, buildGMPReportPDF,
   buildInspectionPackagePDF, buildInspectionPackageZIP,
   nowGregorian, todayStr, downloadBlob,
+  type ReportContext,
 } from './exportUtils'
 import { supabase } from '../lib/supabase'
 
@@ -42,6 +43,11 @@ interface AuditEntry {
   badgeCls: string
 }
 
+interface RequirementRow {
+  id: string; key: string; evidence: string; records: number
+  status: ComplianceStatus; updated: string | null
+}
+
 // ── Utilities ─────────────────────────────────────────────────────────────────
 
 function todayISO(): string { return todayStr() }
@@ -60,7 +66,7 @@ function fmtAuditTime(raw: string): string {
 
 // ── PDF report maps ───────────────────────────────────────────────────────────
 
-const PDF_BUILDERS: Record<string, () => Blob> = {
+const PDF_BUILDERS: Record<string, (ctx: ReportContext) => Blob> = {
   rpt_qc:     buildQCReportPDF,
   rpt_batch:  buildBatchReportPDF,
   rpt_ncr:    buildNCRReportPDF,
@@ -87,99 +93,18 @@ const REPORT_ICON_CLS: Record<string, string> = {
   slate:   'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400',
 }
 
-// ── Requirement detail data ───────────────────────────────────────────────────
+// ── Requirement descriptions (regulatory text only — no audit observations) ──
 
-const REQ_DETAILS: Record<string, { en: string; notesEn: string; lastAudit: string }> = {
-  gmp: {
-    en:      'Manufacturing processes comply with Saudi FDA GMP guidelines. SOPs are documented, version-controlled, and reviewed annually per SOP-GMP-2024-01.',
-    notesEn: 'Annual GMP audit completed April 2026. All 24 production lines verified. No major findings except calibration gap on Line 3.',
-    lastAudit: '2026-04-15',
-  },
-  batch: {
-    en:      'Full batch traceability from raw material receipt through finished product release. Lot numbers tracked via integrated barcode scanning system.',
-    notesEn: '231 batches fully traced. System coverage: 100%. Minor gap in 2 receiving records — CAPA-2024-005 now closed and verified.',
-    lastAudit: '2026-05-24',
-  },
-  ncr: {
-    en:      'Non-conformances are identified, documented, investigated, and resolved per SOP-NCR-001. All major NCRs trigger mandatory CAPA creation.',
-    notesEn: '12 NCRs on record. 3 open, 5 closed. Gap: some NCRs lack complete root-cause documentation — under remediation.',
-    lastAudit: '2026-05-18',
-  },
-  capa: {
-    en:      'Corrective and preventive actions are formally tracked to closure and verified for effectiveness per CAPA Management Procedure CAPA-REG-2024.',
-    notesEn: '5 CAPAs on record. 2 critical CAPAs approaching due dates. Effectiveness verification pending for 3 items.',
-    lastAudit: '2026-05-15',
-  },
-  qc: {
-    en:      'QC inspections are conducted for every production batch by certified inspectors. Results are documented and linked to the batch record in the system.',
-    notesEn: '104 inspections completed, 96.2% pass rate. 4 failed batches on hold pending CAPA resolution.',
-    lastAudit: '2026-05-23',
-  },
-  equip: {
-    en:      'All production and testing equipment is maintained and calibrated per an approved schedule. Calibration certificates are controlled documents with defined expiry.',
-    notesEn: 'MAJOR NON-CONFORMITY: 1 critical balance on Line 3 has expired calibration (expired 2026-04-30). CAPA-2024-001 open — due 2026-05-30. Corrective Action Required.',
-    lastAudit: '2026-04-30',
-  },
-  audit: {
-    en:      'All system activities are logged with timestamp, actor, and entity. Logs are immutable and retained for a minimum of 5 years per SFDA data integrity requirements.',
-    notesEn: '892 audit entries on record. Chain integrity verified. No tampering detected. Hash validation active.',
-    lastAudit: '2026-05-24',
-  },
-  sop: {
-    en:      'Standard Operating Procedures are documented, version-controlled, and accessible to all relevant personnel. Training records are maintained for each active SOP.',
-    notesEn: '33 active SOPs. Gap: 4 SOPs not yet acknowledged by all relevant staff — training completion pending.',
-    lastAudit: '2026-05-10',
-  },
+const REQ_DESCRIPTIONS: Record<string, string> = {
+  gmp:   'Manufacturing processes comply with Saudi FDA GMP guidelines. SOPs are documented, version-controlled, and reviewed annually.',
+  batch: 'Full batch traceability from raw material receipt through finished product release. Lot numbers tracked via integrated barcode scanning system.',
+  ncr:   'Non-conformances are identified, documented, investigated, and resolved. All major NCRs trigger mandatory CAPA creation.',
+  capa:  'Corrective and preventive actions are formally tracked to closure and verified for effectiveness.',
+  qc:    'QC inspections are conducted for every production batch by certified inspectors. Results are documented and linked to the batch record.',
+  equip: 'All production and testing equipment is maintained and calibrated per an approved schedule. Calibration certificates are controlled documents.',
+  audit: 'All system activities are logged with timestamp, actor, and entity. Logs are immutable and retained per SFDA data integrity requirements.',
+  sop:   'Standard Operating Procedures are documented, version-controlled, and accessible to all relevant personnel. Training records are maintained.',
 }
-
-// ── Static mock data ──────────────────────────────────────────────────────────
-
-const COMPLIANCE_SCORE = 82
-const READINESS_PCT    = 87
-
-const REQUIREMENTS = [
-  { id: 'gmp',   key: 'req_gmp',   evidence: 'SOP-GMP-2024-01',   records: 48,  status: 'compliant'     as ComplianceStatus, updated: '2026-05-20' },
-  { id: 'batch', key: 'req_batch', evidence: 'PROD-TRACE-LOGS',   records: 231, status: 'compliant'     as ComplianceStatus, updated: '2026-05-24' },
-  { id: 'ncr',   key: 'req_ncr',   evidence: 'NCR-LOG-2024',      records: 12,  status: 'partial'       as ComplianceStatus, updated: '2026-05-18' },
-  { id: 'capa',  key: 'req_capa',  evidence: 'CAPA-REG-2024',     records: 9,   status: 'pending'       as ComplianceStatus, updated: '2026-05-15' },
-  { id: 'qc',    key: 'req_qc',    evidence: 'QC-INSP-2024',      records: 104, status: 'compliant'     as ComplianceStatus, updated: '2026-05-23' },
-  { id: 'equip', key: 'req_equip', evidence: 'CALIB-SCHED-2024',  records: 17,  status: 'non_compliant' as ComplianceStatus, updated: '2026-04-30' },
-  { id: 'audit', key: 'req_audit', evidence: 'SYS-AUDIT-LOG',     records: 892, status: 'compliant'     as ComplianceStatus, updated: '2026-05-24' },
-  { id: 'sop',   key: 'req_sop',   evidence: 'SOP-MASTER-2024',   records: 33,  status: 'partial'       as ComplianceStatus, updated: '2026-05-10' },
-]
-
-const CAPAS_INIT: CAPAItem[] = [
-  {
-    id: 'CAPA-2024-001', severity: 'critical', status: 'open',
-    title:    'Equipment calibration certificate expired — Line 3 critical balance',
-    assigned: 'Eng. Khalid Al-Otaibi', due: '2026-05-30',
-    root:     'Periodic calibration schedule not enforced by maintenance team',
-  },
-  {
-    id: 'CAPA-2024-002', severity: 'critical', status: 'overdue',
-    title:    'Batch B-2024-089 — temperature excursion during overnight storage',
-    assigned: 'Eng. Sara Al-Zahrani',  due: '2026-05-28',
-    root:     'Cold chain monitoring gap during night shift operations',
-  },
-  {
-    id: 'CAPA-2024-003', severity: 'major', status: 'in_progress',
-    title:    'Incomplete QC documentation for 4 consecutive production runs',
-    assigned: 'Eng. Nora Al-Harbi',   due: '2026-06-10',
-    root:     'SOP-QC-001 checklist not consistently followed — inspector training gap',
-  },
-  {
-    id: 'CAPA-2024-004', severity: 'major', status: 'in_progress',
-    title:    'Supplier qualification renewal overdue — Al-Rawdah Chemicals',
-    assigned: 'Eng. Abdullah Al-Qahtani', due: '2026-06-20',
-    root:     'Supplier qualification renewal not scheduled in vendor management system',
-  },
-  {
-    id: 'CAPA-2024-005', severity: 'minor', status: 'closed',
-    title:    'Missing lot traceability for 2 raw material batches at receiving',
-    assigned: 'Eng. Fahad Al-Dosari', due: '2026-06-05',
-    root:     'Receiving team skipped mandatory barcode scan step',
-  },
-]
 
 // Action badge classes — green = created/completed, blue = updates, amber = overrides, red = recalls/deletions
 const GREEN_BADGE  = 'bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400'
@@ -299,21 +224,13 @@ export default function SFDAClient() {
 
   const [auditFilter,      setAuditFilter]      = useState('all')
 
-  const [generating,       setGenerating]       = useState(false)
-  const [packageGenerated, setPackageGenerated] = useState(false)
-  const [packageLastGen,   setPackageLastGen]   = useState('2026-05-20')
+  const [generating,   setGenerating]   = useState(false)
 
   const [simulating,  setSimulating]  = useState(false)
   const [simDone,     setSimDone]     = useState(false)
-  const [simLastRun,  setSimLastRun]  = useState('2026-05-10')
+  const [simLastRun,  setSimLastRun]  = useState('')
 
-  const [reportLastGen,    setReportLastGen]    = useState<Record<string, string>>({
-    rpt_qc: '2026-05-20', rpt_batch: '2026-05-18', rpt_ncr: '2026-05-15',
-    rpt_recall: '2026-05-22', rpt_capa: '2026-05-10', rpt_gmp: '2026-05-01',
-  })
-  const [reportGenerating, setReportGenerating] = useState<string | null>(null)
-
-  const [capaList,      setCapaList]      = useState<CAPAItem[]>(CAPAS_INIT)
+  const [capaList,      setCapaList]      = useState<CAPAItem[]>([])
   const [showCAPAModal, setShowCAPAModal] = useState(false)
   const [capaForm,      setCapaForm]      = useState({
     title: '', severity: 'major' as Severity,
@@ -331,6 +248,9 @@ export default function SFDAClient() {
   const [recallLoading, setRecallLoading] = useState(false)
   const [simResult,     setSimResult]     = useState<{ notificationTime: string; coverage: number; riskLevel: string; riskCls: string } | null>(null)
   const [riskFactors,   setRiskFactors]   = useState<Array<{ label: string; dot: string; level: string }>>([])
+
+  const [complianceData,    setComplianceData]    = useState({ qcTotal: 0, qcPassed: 0, qcLastDate: null as string | null, batchCount: 0, auditCount: 0 })
+  const [complianceLoading, setComplianceLoading] = useState(false)
 
   // Fetch audit entries from public.activity_logs (company-scoped, newest first)
   useEffect(() => {
@@ -430,48 +350,82 @@ export default function SFDAClient() {
     })
   }, [companyId])
 
+  // Fetch compliance metrics: QC pass rate, batch count, audit entry count.
+  useEffect(() => {
+    if (!companyId) return
+    setComplianceLoading(true)
+    void Promise.all([
+      supabase.from('quality_inspections').select('id', { count: 'exact', head: true }).eq('company_id', companyId),
+      supabase.from('quality_inspections').select('id', { count: 'exact', head: true }).eq('company_id', companyId).eq('status', 'passed'),
+      supabase.from('quality_inspections').select('created_at').eq('company_id', companyId).order('created_at', { ascending: false }).limit(1),
+      supabase.from('production_orders').select('id',  { count: 'exact', head: true }).eq('company_id', companyId),
+      supabase.from('activity_logs').select('id',      { count: 'exact', head: true }).eq('company_id', companyId),
+    ]).then(([{ count: qcTotal }, { count: qcPassed }, { data: qcLatest }, { count: batchCount }, { count: auditCount }]) => {
+      setComplianceData({
+        qcTotal:    qcTotal    ?? 0,
+        qcPassed:   qcPassed   ?? 0,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        qcLastDate: (qcLatest as any)?.[0]?.created_at?.split('T')[0] ?? null,
+        batchCount: batchCount ?? 0,
+        auditCount: auditCount ?? 0,
+      })
+      setComplianceLoading(false)
+    })
+  }, [companyId])
+
+  // ── Derived compliance metrics ──────────────────────────────────────────────
+
+  const qcPassRate     = complianceData.qcTotal > 0 ? Math.round((complianceData.qcPassed / complianceData.qcTotal) * 100) : 0
+  const qcFailed       = complianceData.qcTotal - complianceData.qcPassed
+  const complianceScore = complianceData.qcTotal > 0 ? Math.max(0, Math.min(100, qcPassRate)) : 0
+
+  const liveRequirements: RequirementRow[] = [
+    { id: 'gmp',   key: 'req_gmp',   evidence: '—',                                              records: 0,                         status: 'pending',                                                                                                updated: null },
+    { id: 'batch', key: 'req_batch', evidence: complianceData.batchCount > 0 ? 'PROD-TRACE-LOGS' : '—', records: complianceData.batchCount, status: complianceData.batchCount > 0 ? 'compliant' : 'pending',                                          updated: null },
+    { id: 'ncr',   key: 'req_ncr',   evidence: '—',                                              records: 0,                         status: 'pending',                                                                                                updated: null },
+    { id: 'capa',  key: 'req_capa',  evidence: '—',                                              records: capaList.length,           status: capaList.length > 0 ? 'partial' : 'pending',                                                              updated: null },
+    { id: 'qc',    key: 'req_qc',    evidence: complianceData.qcTotal > 0 ? 'QC-INSP-DATA' : '—', records: complianceData.qcTotal,   status: complianceData.qcTotal === 0 ? 'pending' : qcPassRate >= 95 ? 'compliant' : qcPassRate >= 80 ? 'partial' : 'non_compliant', updated: complianceData.qcLastDate },
+    { id: 'equip', key: 'req_equip', evidence: '—',                                              records: 0,                         status: 'pending',                                                                                                updated: null },
+    { id: 'audit', key: 'req_audit', evidence: complianceData.auditCount > 0 ? 'SYS-AUDIT-LOG' : '—', records: complianceData.auditCount, status: complianceData.auditCount > 0 ? 'compliant' : 'pending',                                           updated: null },
+    { id: 'sop',   key: 'req_sop',   evidence: '—',                                              records: 0,                         status: 'pending',                                                                                                updated: null },
+  ]
+
   // ── Handlers ────────────────────────────────────────────────────────────────
 
-  function handleGeneratePackage() {
-    setGenerating(true)
-    setTimeout(() => {
-      setGenerating(false)
-      setPackageGenerated(true)
-      setPackageLastGen(todayISO())
-      toast.success('Inspection Dossier compiled — 14.2 MB')
-    }, 2200)
+  async function fetchCompanyName(): Promise<string> {
+    if (!companyId) return ''
+    const { data } = await supabase.from('companies').select('name').eq('id', companyId).single()
+    return (data as { name?: string } | null)?.name ?? ''
   }
 
-  function handleExport(type: 'pdf' | 'zip' | 'audit') {
-    if (type === 'zip') {
-      buildInspectionPackageZIP().then(blob => {
+  async function handleExport(type: 'pdf' | 'zip' | 'audit') {
+    setGenerating(true)
+    try {
+      const companyName = await fetchCompanyName()
+      const ctx: ReportContext = { companyName }
+      if (type === 'zip') {
+        const blob = await buildInspectionPackageZIP(ctx)
         downloadBlob(blob, `SFDA-Inspection-Package-${todayISO()}.zip`)
         toast.success('ZIP archive downloaded')
-      })
-      return
+      } else {
+        const blob = type === 'audit' ? buildGMPReportPDF(ctx) : buildInspectionPackagePDF(ctx)
+        const name = type === 'audit'
+          ? `GMP-Audit-Report-${todayISO()}.pdf`
+          : `SFDA-Inspection-Dossier-${todayISO()}.pdf`
+        downloadBlob(blob, name)
+        toast.success('PDF downloading…')
+      }
+    } finally {
+      setGenerating(false)
     }
-    const blob = type === 'audit' ? buildGMPReportPDF() : buildInspectionPackagePDF()
-    const name = type === 'audit'
-      ? `GMP-Audit-Report-${todayISO()}.pdf`
-      : `SFDA-Inspection-Dossier-${todayISO()}.pdf`
-    downloadBlob(blob, name)
-    toast.success('PDF downloading…')
   }
 
-  function handleGenerateReport(key: string) {
-    setReportGenerating(key)
-    setTimeout(() => {
-      setReportGenerating(null)
-      setReportLastGen(prev => ({ ...prev, [key]: todayISO() }))
-      toast.success('Report generated')
-    }, 2500)
-  }
-
-  function handleDownloadReport(key: string) {
+  async function handleDownloadReport(key: string) {
     const builder  = PDF_BUILDERS[key]
     const filename = PDF_FILENAMES[key]
     if (!builder || !filename) return
-    downloadBlob(builder(), `${filename}-${todayISO()}.pdf`)
+    const companyName = await fetchCompanyName()
+    downloadBlob(builder({ companyName }), `${filename}-${todayISO()}.pdf`)
     toast.success('PDF downloading…')
   }
 
@@ -538,12 +492,31 @@ export default function SFDAClient() {
   // ── Tab: Overview ────────────────────────────────────────────────────────────
 
   function TabOverview() {
-    const attention = REQUIREMENTS.filter(r => r.status !== 'compliant')
+    const attention = liveRequirements.filter(r => r.status !== 'compliant' && r.status !== 'pending')
+    const reqCounts = {
+      compliant:     liveRequirements.filter(r => r.status === 'compliant').length,
+      non_compliant: liveRequirements.filter(r => r.status === 'non_compliant').length,
+      partial:       liveRequirements.filter(r => r.status === 'partial').length,
+      pending:       liveRequirements.filter(r => r.status === 'pending').length,
+    }
+    const readinessPct = recallStats.score
+    const riskKey = complianceScore === 0 ? 'sfda.risk_medium'
+      : complianceScore >= 80 ? 'sfda.risk_low'
+      : complianceScore >= 60 ? 'sfda.risk_medium'
+      : 'sfda.risk_high'
+    const riskCls = complianceScore === 0 ? 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400'
+      : complianceScore >= 80 ? 'bg-emerald-100 dark:bg-emerald-900/30 text-emerald-700 dark:text-emerald-400'
+      : complianceScore >= 60 ? 'bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400'
+      : 'bg-red-100 dark:bg-red-900/30 text-red-700 dark:text-red-400'
+    const lastInspectionLabel = complianceData.qcLastDate ? fmtDate(complianceData.qcLastDate, lang) : '—'
+
     return (
       <div className="space-y-6">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-6 flex flex-col items-center justify-center gap-2">
-            <ScoreRing score={COMPLIANCE_SCORE} size={140} />
+            {complianceLoading
+              ? <div className="w-[140px] h-[140px] flex items-center justify-center text-sm text-[var(--muted)]">Loading…</div>
+              : <ScoreRing score={complianceScore} size={140} />}
             <p className="text-sm font-medium text-[var(--muted)]">{t('sfda.score_label')}</p>
           </div>
 
@@ -551,26 +524,28 @@ export default function SFDAClient() {
             <div>
               <div className="flex items-center justify-between mb-2">
                 <span className="text-sm font-medium text-[var(--text)]">{t('sfda.readiness_label')}</span>
-                <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{READINESS_PCT}%</span>
+                <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                  {recallLoading ? '…' : `${readinessPct}%`}
+                </span>
               </div>
               <div className="w-full bg-gray-200 dark:bg-gray-700 rounded-full h-2.5">
-                <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: `${READINESS_PCT}%` }} />
+                <div className="bg-emerald-500 h-2.5 rounded-full" style={{ width: `${readinessPct}%` }} />
               </div>
             </div>
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-[var(--muted)]">{t('sfda.risk_label')}</span>
-              <span className="inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold bg-amber-100 dark:bg-amber-900/30 text-amber-700 dark:text-amber-400">
-                <AlertTriangle size={14} />{t('sfda.risk_medium')}
+              <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-sm font-semibold ${riskCls}`}>
+                <AlertTriangle size={14} />{t(riskKey)}
               </span>
             </div>
 
             <div className="grid grid-cols-2 gap-3 pt-3 border-t border-[var(--border)]">
               {[
-                { icon: CheckCircle2, cls: 'text-emerald-500', count: 5, key: 'sfda.status_compliant'     },
-                { icon: XCircle,      cls: 'text-red-500',     count: 1, key: 'sfda.status_non_compliant' },
-                { icon: AlertTriangle,cls: 'text-amber-500',   count: 2, key: 'sfda.status_partial'       },
-                { icon: Clock,        cls: 'text-gray-400',    count: 1, key: 'sfda.status_pending'       },
+                { icon: CheckCircle2, cls: 'text-emerald-500', count: reqCounts.compliant,     key: 'sfda.status_compliant'     },
+                { icon: XCircle,      cls: 'text-red-500',     count: reqCounts.non_compliant, key: 'sfda.status_non_compliant' },
+                { icon: AlertTriangle,cls: 'text-amber-500',   count: reqCounts.partial,       key: 'sfda.status_partial'       },
+                { icon: Clock,        cls: 'text-gray-400',    count: reqCounts.pending,       key: 'sfda.status_pending'       },
               ].map(({ icon: Icon, cls, count, key }) => (
                 <div key={key} className="flex items-center gap-2 text-sm">
                   <Icon size={14} className={`${cls} shrink-0`} />
@@ -585,17 +560,15 @@ export default function SFDAClient() {
           {[
             { icon: ShieldAlert,  label: 'sfda.open_capas',       value: String(capaList.filter(c => c.status === 'open' || c.status === 'overdue').length), cls: 'text-blue-600 dark:text-blue-400',   bg: 'bg-blue-50 dark:bg-blue-900/20'   },
             { icon: AlertTriangle,label: 'sfda.critical_findings', value: String(capaList.filter(c => c.severity === 'critical').length),                     cls: 'text-red-600 dark:text-red-400',     bg: 'bg-red-50 dark:bg-red-900/20'     },
-            { icon: XCircle,      label: 'sfda.failed_qc',         value: '4',          cls: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
-            { icon: Calendar,     label: 'sfda.last_inspection',   value: '2026-04-15', cls: 'text-[var(--muted)]',               bg: 'bg-[var(--bg)]'                   },
+            { icon: XCircle,      label: 'sfda.failed_qc',         value: complianceLoading ? '…' : String(qcFailed),   cls: 'text-amber-600 dark:text-amber-400', bg: 'bg-amber-50 dark:bg-amber-900/20' },
+            { icon: Calendar,     label: 'sfda.last_inspection',   value: complianceLoading ? '…' : lastInspectionLabel, cls: 'text-[var(--muted)]',               bg: 'bg-[var(--bg)]'                   },
           ].map(({ icon: Icon, label, value, cls, bg }) => (
             <div key={label} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 flex flex-col gap-3">
               <div className={`w-9 h-9 rounded-lg ${bg} flex items-center justify-center`}>
                 <Icon size={16} className={cls} />
               </div>
               <div>
-                <p className={`text-xl font-bold ${cls}`}>
-                  {label === 'sfda.last_inspection' ? fmtDate(value, lang) : value}
-                </p>
+                <p className={`text-xl font-bold ${cls}`}>{value}</p>
                 <p className="text-xs text-[var(--muted)] mt-0.5">{t(label)}</p>
               </div>
             </div>
@@ -644,9 +617,9 @@ export default function SFDAClient() {
               </tr>
             </thead>
             <tbody>
-              {REQUIREMENTS.map((req, i) => {
-                const detail    = REQ_DETAILS[req.id]
-                const isExpanded = expandedReq === req.id
+              {liveRequirements.map((req, i) => {
+                const description = REQ_DESCRIPTIONS[req.id]
+                const isExpanded  = expandedReq === req.id
                 return (
                   <>
                     <tr
@@ -660,29 +633,27 @@ export default function SFDAClient() {
                       <td className="px-4 py-3 font-mono text-xs text-[var(--muted)]">{req.evidence}</td>
                       <td className="px-4 py-3 text-[var(--text)]">{req.records.toLocaleString()}</td>
                       <td className="px-4 py-3"><StatusBadge status={req.status} /></td>
-                      <td className="px-4 py-3 text-[var(--muted)]">{fmtDate(req.updated, lang)}</td>
+                      <td className="px-4 py-3 text-[var(--muted)]">{req.updated ? fmtDate(req.updated, lang) : '—'}</td>
                       <td className="px-4 py-3 text-[var(--subtle)]">
                         {isExpanded ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
                       </td>
                     </tr>
-                    {isExpanded && detail && (
+                    {isExpanded && (
                       <tr key={`${req.id}-detail`} className="border-b border-[var(--border)] bg-[var(--s3)]">
                         <td colSpan={6} className="px-6 py-4">
                           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                             <div>
                               <p className="text-xs font-semibold uppercase tracking-wider text-[var(--subtle)] mb-1">Description</p>
-                              <p className="text-[var(--text)] leading-relaxed">{detail.en}</p>
+                              <p className="text-[var(--text)] leading-relaxed">{description}</p>
                             </div>
                             <div className="space-y-3">
                               <div>
                                 <p className="text-xs font-semibold uppercase tracking-wider text-[var(--subtle)] mb-1">Audit Notes</p>
-                                <p className={`leading-relaxed ${req.status === 'non_compliant' ? 'text-red-600 dark:text-red-400' : req.status === 'partial' ? 'text-amber-600 dark:text-amber-400' : 'text-[var(--text)]'}`}>
-                                  {detail.notesEn}
-                                </p>
+                                <p className="text-[var(--muted)] leading-relaxed italic">No audit notes recorded yet.</p>
                               </div>
                               <div className="flex items-center gap-2 text-xs text-[var(--muted)]">
                                 <Calendar size={11} />
-                                Last audit: {fmtDate(detail.lastAudit, lang)}
+                                Last record: {req.updated ? fmtDate(req.updated, lang) : '—'}
                               </div>
                             </div>
                           </div>
@@ -703,14 +674,14 @@ export default function SFDAClient() {
 
   function TabInspection() {
     const contents = [
-      { label: 'Batch History Records',          detail: '156 records'               },
-      { label: 'QC Inspection Reports',          detail: '104 reports'               },
-      { label: 'Full Traceability Chain',        detail: '100% coverage'             },
-      { label: 'Recall Event Records',           detail: '3 events on record'        },
-      { label: 'CAPA Action Register',           detail: `${capaList.length} actions`},
-      { label: 'Tamper-Evident Audit Trail',     detail: '892 immutable entries'     },
-      { label: 'Regulatory Inspection History',  detail: 'All prior visits'          },
-      { label: 'Operator Activity Log',          detail: 'Full timestamped timeline' },
+      { label: 'Batch History Records',         detail: complianceData.batchCount > 0 ? `${complianceData.batchCount} records` : 'No records on file' },
+      { label: 'QC Inspection Reports',         detail: complianceData.qcTotal > 0 ? `${complianceData.qcTotal} reports` : 'No records on file'       },
+      { label: 'Full Traceability Chain',       detail: recallStats.downstream > 0 ? `${recallStats.coveragePct}% coverage` : 'No data'               },
+      { label: 'Recall Event Records',          detail: recallStats.affected > 0 ? `${recallStats.affected} events on record` : 'No active recalls'   },
+      { label: 'CAPA Action Register',          detail: `${capaList.length} actions`                                                                   },
+      { label: 'Tamper-Evident Audit Trail',    detail: auditLog.length > 0 ? `${auditLog.length}+ entries` : 'No entries recorded'                   },
+      { label: 'Regulatory Inspection History', detail: 'All prior visits'                                                                             },
+      { label: 'Operator Activity Log',         detail: 'Full timestamped timeline'                                                                    },
     ]
     return (
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -744,23 +715,16 @@ export default function SFDAClient() {
             </div>
 
             <div className="border-t border-[var(--border)] pt-4 mt-4 flex items-center gap-3 flex-wrap">
-              {canEditSFDA && (
-                <button
-                  onClick={handleGeneratePackage}
-                  disabled={generating}
-                  title="Generate the full inspection dossier"
-                  className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] hover:bg-[#2e5a75] text-white px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60"
-                >
-                  {generating
-                    ? <><RefreshCw size={14} className="animate-spin" />Compiling…</>
-                    : <><Zap size={14} />Generate Dossier</>}
-                </button>
-              )}
-              {!generating && packageGenerated && (
-                <span className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium bg-emerald-50 dark:bg-emerald-900/20 text-emerald-700 dark:text-emerald-400">
-                  <CheckCircle2 size={11} />Dossier Ready
-                </span>
-              )}
+              <button
+                onClick={() => { void handleExport('pdf') }}
+                disabled={generating}
+                title="Download the full inspection dossier as PDF"
+                className="flex items-center gap-2 rounded-lg bg-[#3a6f8f] hover:bg-[#2e5a75] text-white px-4 py-2 text-sm font-medium transition-colors disabled:opacity-60"
+              >
+                {generating
+                  ? <><RefreshCw size={14} className="animate-spin" />Generating…</>
+                  : <><Download size={14} />Download Dossier</>}
+              </button>
             </div>
           </div>
         </div>
@@ -770,19 +734,15 @@ export default function SFDAClient() {
             <p className="text-xs font-semibold uppercase tracking-wider text-[var(--subtle)] mb-4">Export Formats</p>
             <div className="space-y-2">
               {([
-                { type: 'pdf'   as const, icon: FileText,      label: 'Dossier PDF',       ext: '.pdf', enabled: packageGenerated },
-                { type: 'zip'   as const, icon: Archive,       label: 'ZIP Archive',        ext: '.zip', enabled: packageGenerated },
-                { type: 'audit' as const, icon: ClipboardList, label: 'GMP Audit Report',  ext: '.pdf', enabled: true            },
-              ]).map(({ type, icon: Icon, label, ext, enabled }) => (
+                { type: 'pdf'   as const, icon: FileText,      label: 'Dossier PDF',      ext: '.pdf' },
+                { type: 'zip'   as const, icon: Archive,       label: 'ZIP Archive',       ext: '.zip' },
+                { type: 'audit' as const, icon: ClipboardList, label: 'GMP Audit Report', ext: '.pdf' },
+              ]).map(({ type, icon: Icon, label, ext }) => (
                 <button
                   key={type}
-                  onClick={() => enabled && handleExport(type)}
-                  disabled={!enabled}
-                  title={enabled ? undefined : 'Generate the dossier first'}
-                  className={`w-full flex items-center gap-3 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition-colors
-                    ${enabled
-                      ? 'text-[var(--text)] hover:bg-[var(--bg)] cursor-pointer'
-                      : 'text-[var(--subtle)] opacity-50 cursor-not-allowed'}`}
+                  onClick={() => { void handleExport(type) }}
+                  disabled={generating}
+                  className="w-full flex items-center gap-3 rounded-lg border border-[var(--border)] px-4 py-2.5 text-sm transition-colors text-[var(--text)] hover:bg-[var(--bg)] cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Icon size={15} className="text-[var(--muted)] shrink-0" />
                   <span className="flex-1 text-start">{label}</span>
@@ -790,14 +750,6 @@ export default function SFDAClient() {
                   <Download size={13} className="text-[var(--muted)]" />
                 </button>
               ))}
-            </div>
-          </div>
-
-          <div className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-[var(--subtle)] mb-3">Last Compiled</p>
-            <div className="flex items-center gap-2 text-sm text-[var(--text)]">
-              <Calendar size={13} className="text-[var(--muted)] shrink-0" />
-              {fmtDate(packageLastGen, lang)} — 14.2 MB
             </div>
           </div>
         </div>
@@ -1088,8 +1040,6 @@ export default function SFDAClient() {
         {REPORTS.map(rpt => {
           const Icon    = rpt.icon
           const iconCls = REPORT_ICON_CLS[rpt.color] ?? REPORT_ICON_CLS.slate
-          const isGen   = reportGenerating === rpt.key
-          const lastDate = reportLastGen[rpt.key]
           return (
             <div key={rpt.key} className="bg-[var(--surface)] border border-[var(--border)] rounded-xl p-5 flex flex-col gap-4">
               <div className="flex items-start gap-3">
@@ -1102,32 +1052,13 @@ export default function SFDAClient() {
                 </div>
               </div>
 
-              {lastDate && (
-                <div className="text-xs text-[var(--muted)] flex items-center gap-1.5 mt-auto">
-                  <Calendar size={11} />
-                  Last generated: {fmtDate(lastDate, lang)}
-                </div>
-              )}
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => handleGenerateReport(rpt.key)}
-                  disabled={isGen}
-                  title="Generate an updated report"
-                  className="flex-1 flex items-center justify-center gap-1.5 rounded-lg bg-[#3a6f8f] hover:bg-[#2e5a75] text-white px-3 py-1.5 text-xs font-medium transition-colors disabled:opacity-60"
-                >
-                  {isGen
-                    ? <><RefreshCw size={11} className="animate-spin" />Generating…</>
-                    : <><BarChart3 size={11} />{t('sfda.reports_generate')}</>}
-                </button>
-                <button
-                  onClick={() => handleDownloadReport(rpt.key)}
-                  title="Download the latest version as PDF"
-                  className="flex items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-medium text-[var(--text)] hover:bg-[var(--bg)] transition-colors"
-                >
-                  <Download size={11} />{t('sfda.reports_download')}
-                </button>
-              </div>
+              <button
+                onClick={() => { void handleDownloadReport(rpt.key) }}
+                title="Download as PDF"
+                className="mt-auto flex items-center justify-center gap-1.5 rounded-lg bg-[#3a6f8f] hover:bg-[#2e5a75] text-white px-3 py-1.5 text-xs font-medium transition-colors"
+              >
+                <Download size={11} />{t('sfda.reports_download')}
+              </button>
             </div>
           )
         })}

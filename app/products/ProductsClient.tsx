@@ -7,6 +7,9 @@ import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
 import CsvImportModal, { type CsvFieldDef, type ImportResult } from '../components/CsvImportModal'
 import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Package, Upload } from 'lucide-react'
+import PaginationBar from '../components/PaginationBar'
+
+const PAGE_SIZE = 50
 import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
@@ -33,8 +36,11 @@ export default function ProductsClient() {
   const canWrite  = canEdit(role, 'products')
   const { t, lang } = useT()
 
-  const [products, setProducts]     = useState<Product[]>([])
-  const [loading, setLoading]       = useState(true)
+  const [products,   setProducts]   = useState<Product[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [page,       setPage]       = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const [showForm, setShowForm]     = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [editing, setEditing]       = useState<Product | null>(null)
@@ -42,13 +48,24 @@ export default function ProductsClient() {
   const [saving, setSaving]         = useState(false)
   const [formError, setFormError]   = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadPage = (pageNum: number) => {
+    if (!companyId) return
+    setLoading(true)
+    const offset = (pageNum - 1) * PAGE_SIZE
     supabase
       .from('products')
-      .select('*')
+      .select('*', { count: 'exact' })
+      .eq('company_id', companyId)
       .order('created_at', { ascending: false })
-      .then(({ data }) => { setProducts(data ?? []); setLoading(false) })
-  }, [])
+      .range(offset, offset + PAGE_SIZE - 1)
+      .then(({ data, count }) => {
+        setProducts(data ?? [])
+        setTotalCount(count ?? 0)
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => { loadPage(1) }, [companyId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -89,6 +106,7 @@ export default function ProductsClient() {
         .from('products')
         .update({ name: form.name, sku: form.sku, description: form.description })
         .eq('id', editing.id)
+        .eq('company_id', companyId ?? '')
         .select()
         .single()
 
@@ -103,7 +121,7 @@ export default function ProductsClient() {
     } else {
       const { data, error: err } = await supabase
         .from('products')
-        .insert([{ name: form.name, sku: form.sku, description: form.description }])
+        .insert([{ name: form.name, sku: form.sku, description: form.description, company_id: companyId }])
         .select()
         .single()
 
@@ -136,7 +154,7 @@ export default function ProductsClient() {
     })
     if (!ok) return
 
-    const { error: err } = await supabase.from('products').delete().eq('id', id)
+    const { error: err } = await supabase.from('products').delete().eq('id', id).eq('company_id', companyId ?? '')
     if (err) {
       toast.error(err.message)
       return
@@ -146,7 +164,7 @@ export default function ProductsClient() {
   }
 
   async function handleProductImport(rows: Record<string, string>[]): Promise<ImportResult> {
-    const { data: existing } = await supabase.from('products').select('sku')
+    const { data: existing } = await supabase.from('products').select('sku').eq('company_id', companyId ?? '')
     const existingSkus = new Set((existing ?? []).map((r) => r.sku.toLowerCase()))
 
     const toInsert = rows.filter((r) => !existingSkus.has(r.sku.toLowerCase()))
@@ -158,6 +176,7 @@ export default function ProductsClient() {
       name:        r.name,
       sku:         r.sku,
       description: r.description || null,
+      company_id:  companyId,
     }))
 
     const { data, error: err } = await supabase.from('products').insert(payload).select()
@@ -197,7 +216,7 @@ export default function ProductsClient() {
       {/* Toolbar */}
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t(products.length !== 1 ? 'products.count_plural' : 'products.count', { n: fmtNum(products.length, lang) })}
+          {t(totalCount !== 1 ? 'products.count_plural' : 'products.count', { n: fmtNum(totalCount, lang) })}
         </p>
         {canWrite && (
           <div className="flex gap-2">
@@ -351,6 +370,13 @@ export default function ProductsClient() {
             </tbody>
           </table>
         )}
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          onPage={(p) => { setPage(p); loadPage(p) }}
+        />
       </div>
     </>
   )

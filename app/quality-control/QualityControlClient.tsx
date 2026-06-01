@@ -14,6 +14,8 @@ import {
   CheckCircle2, XCircle, ChevronDown, Search, Plus,
   RefreshCw, TrendingUp, Trash2, X, Lock, Unlock,
 } from 'lucide-react'
+import PaginationBar from '../components/PaginationBar'
+import { QC_PAGE_SIZE } from '../hooks/useQualityInspections'
 
 function StatCard({
   label, value, icon: Icon, color, sub,
@@ -83,7 +85,9 @@ export default function QualityControlClient() {
   const [qcEditEnabled, setQcEditEnabled] = useState(false)
   const effectiveCanEdit = canEditQc || (hasOverride && qcEditEnabled)
   const {
-    inspections, defects, metrics, loading, error, refresh, createInspection, deleteInspection,
+    inspections, defects, metrics, loading, error, refresh,
+    createInspection, deleteInspection,
+    page, totalCount, totalPages, goToPage,
   } = useQualityInspections()
 
   const [search, setSearch]             = useState('')
@@ -141,10 +145,11 @@ export default function QualityControlClient() {
     }
   }
 
-  const total    = inspections.length
-  const passed   = inspections.filter((i) => i.status === 'passed').length
+  // Use RPC-backed aggregate metrics so stat cards reflect ALL inspections, not just the loaded page
+  const total    = metrics?.total_inspections ?? 0
+  const passed   = metrics?.passed_count      ?? 0
   const failed   = total - passed
-  const passRate = total > 0 ? Math.round((passed / total) * 100) : 0
+  const passRate = Math.round(metrics?.pass_rate ?? 0)
 
   const filtered = inspections.filter((i) => {
     const matchSearch =
@@ -476,6 +481,17 @@ export default function QualityControlClient() {
               </div>
             )}
           </>
+        )}
+
+        {/* Pagination — inspections tab only */}
+        {!loading && activeTab === 'inspections' && (
+          <PaginationBar
+            page={page}
+            totalPages={totalPages}
+            totalCount={totalCount}
+            pageSize={QC_PAGE_SIZE}
+            onPage={goToPage}
+          />
         )}
 
         {/* Footer */}

@@ -8,7 +8,7 @@ import ProductionChart from './components/charts/ProductionChart'
 import QcTrendChart from './components/charts/QcTrendChart'
 import ScanActivityChart from './components/charts/ScanActivityChart'
 import SalesChart from './components/charts/SalesChart'
-import { useRole } from './lib/auth-context'
+import { useRole, useAuth } from './lib/auth-context'
 import { canView } from './lib/permissions'
 import { ACTION_TYPES_BY_SECTION } from './lib/activity'
 import { useT, fmtNum, type Lang } from './lib/i18n'
@@ -243,6 +243,7 @@ function RankBar({
 
 export default function DashboardPage() {
   const role = useRole()
+  const { companyId } = useAuth()
   const { t, lang } = useT()
 
   const showProduction = canView(role, 'dashboard.production')
@@ -280,9 +281,10 @@ export default function DashboardPage() {
   }
 
   const load = useCallback(async (silent = false) => {
+    if (!companyId) return
     if (silent) setRefreshing(true)
     try {
-      const data = await getDashboardStats()
+      const data = await getDashboardStats(companyId)
       setStats(data)
       setLastUpdated(new Date())
     } catch (err) {
@@ -291,7 +293,7 @@ export default function DashboardPage() {
       setLoading(false)
       setRefreshing(false)
     }
-  }, [])
+  }, [companyId])
 
   useEffect(() => {
     load()

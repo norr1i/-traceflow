@@ -27,6 +27,7 @@ export interface QualityDefect {
 
 export interface QualityMetrics {
   total_inspections: number;
+  passed_count:      number;
   pass_rate: number;
   defects_this_month: number;
   average_score: number;

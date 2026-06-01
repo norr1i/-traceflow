@@ -7,6 +7,7 @@ import {
   ShoppingCart, X, CornerDownLeft,
 } from 'lucide-react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth-context'
 import { useT } from '../lib/i18n'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -59,7 +60,7 @@ function score(title: string, subtitle: string, q: string): number {
 // ── DB search ─────────────────────────────────────────────────────────────
 // Fetch more than we need so client-side ranking can promote the best matches.
 
-async function runSearch(q: string): Promise<SearchResult[]> {
+async function runSearch(q: string, companyId: string): Promise<SearchResult[]> {
   const [
     { data: products },
     { data: materials },
@@ -69,21 +70,25 @@ async function runSearch(q: string): Promise<SearchResult[]> {
     supabase
       .from('products')
       .select('id, name, sku')
+      .eq('company_id', companyId)
       .or(`name.ilike.%${q}%,sku.ilike.%${q}%`)
       .limit(12),
     supabase
       .from('raw_materials')
       .select('id, name, unit')
+      .eq('company_id', companyId)
       .ilike('name', `%${q}%`)
       .limit(12),
     supabase
       .from('production_orders')
       .select('id, status, products(name, sku)')
+      .eq('company_id', companyId)
       .ilike('id', `%${q}%`)
       .limit(8),
     supabase
       .from('sales')
       .select('id, customer_name, product_name, status')
+      .eq('company_id', companyId)
       .or(`customer_name.ilike.%${q}%,product_name.ilike.%${q}%`)
       .limit(12),
   ])
@@ -163,6 +168,7 @@ type Props = { open: boolean; onClose: () => void }
 export default function GlobalSearch({ open, onClose }: Props) {
   const router = useRouter()
   const { t }  = useT()
+  const { companyId } = useAuth()
 
   const inputRef    = useRef<HTMLInputElement>(null)
   const selectedRef = useRef<HTMLDivElement>(null)
@@ -189,14 +195,14 @@ export default function GlobalSearch({ open, onClose }: Props) {
 
   const search = useCallback((q: string) => {
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (q.length < MIN_QUERY_LENGTH) {
+    if (q.length < MIN_QUERY_LENGTH || !companyId) {
       setGroups(new Map()); setAllFlat([]); setLoading(false)
       return
     }
     setLoading(true)
     debounceRef.current = setTimeout(async () => {
       try {
-        const raw    = await runSearch(q.toLowerCase().trim())
+        const raw    = await runSearch(q.toLowerCase().trim(), companyId)
         const grps   = buildGroups(raw)
         const flat: SearchResult[] = []
         for (const cat of CATEGORY_ORDER) {
@@ -210,7 +216,7 @@ export default function GlobalSearch({ open, onClose }: Props) {
         setLoading(false)
       }
     }, DEBOUNCE_MS)
-  }, [])
+  }, [companyId])
 
   function handleChange(val: string) {
     setQuery(val)

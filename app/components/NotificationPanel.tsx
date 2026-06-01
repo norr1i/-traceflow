@@ -126,11 +126,13 @@ export default function NotificationPanel() {
   // ── Initial fetch ──────────────────────────────────────────────────────────
 
   const fetchNotifications = useCallback(async () => {
+    if (!companyId) return
     setLoading(true)
     try {
       const { data, error } = await supabase
         .from('activity_logs')
         .select('id, action_type, message, actor_email, created_at, entity_type, entity_id')
+        .eq('company_id', companyId)
         .in('action_type', NOTIFICATION_ACTION_TYPES)
         .order('created_at', { ascending: false })
         .limit(40)
@@ -146,7 +148,7 @@ export default function NotificationPanel() {
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [companyId])
 
   useEffect(() => { fetchNotifications() }, [fetchNotifications])
   useEffect(() => { if (open) fetchNotifications() }, [open, fetchNotifications])

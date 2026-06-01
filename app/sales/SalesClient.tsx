@@ -11,6 +11,8 @@ import {
   Trash2, X, Banknote, Upload,
 } from 'lucide-react'
 import CsvImportModal, { type CsvFieldDef, type ImportResult } from '../components/CsvImportModal'
+import PaginationBar from '../components/PaginationBar'
+import { SALES_PAGE_SIZE } from '../hooks/useSales'
 import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
@@ -100,7 +102,10 @@ export default function SalesClient() {
   const role     = useRole()
   const { user, companyId } = useAuth()
   const canWrite = canEdit(role, 'sales')
-  const { sales, metrics, loading, error, refetch, createSale, deleteSale } = useSales()
+  const {
+    sales, metrics, loading, error, refetch, createSale, deleteSale,
+    page, totalCount, totalPages, goToPage,
+  } = useSales()
   const { t, lang } = useT()
 
   const [search, setSearch]             = useState('')
@@ -180,7 +185,8 @@ export default function SalesClient() {
       sold_at:       r.sold_at || new Date().toISOString(),
     }))
 
-    const { data, error: err } = await supabase.from('sales').insert(payload).select()
+    const scopedPayload = payload.map(r => ({ ...r, company_id: companyId }))
+    const { data, error: err } = await supabase.from('sales').insert(scopedPayload).select()
     if (err) return { inserted: 0, skipped: 0, errors: [err.message] }
 
     const inserted = data?.length ?? 0
@@ -451,9 +457,17 @@ export default function SalesClient() {
           </div>
         )}
 
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={SALES_PAGE_SIZE}
+          onPage={goToPage}
+        />
+
         {!loading && (
           <div className="border-t border-gray-100 dark:border-[#B3B7BA]/[0.07] px-5 py-3 text-xs text-gray-400 dark:text-gray-500">
-            {fmtNum(filtered.length, lang)} / {fmtNum(sales.length, lang)}
+            {fmtNum(filtered.length, lang)} / {fmtNum(totalCount, lang)}
             {metrics && (
               <span className="ms-3 font-medium text-gray-600 dark:text-gray-300">
                 {t('sales.showing', { revenue: fmt(filtered.reduce((s, r) => s + (r.total_price ?? 0), 0)) })}

@@ -7,6 +7,9 @@ import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
 import CsvImportModal, { type CsvFieldDef, type ImportResult } from '../components/CsvImportModal'
 import { Plus, Pencil, Trash2, X, Check, AlertTriangle, FlaskConical, Upload } from 'lucide-react'
+import PaginationBar from '../components/PaginationBar'
+
+const PAGE_SIZE = 50
 import { useAuth, useRole } from '../lib/auth-context'
 import { canEdit } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
@@ -34,8 +37,11 @@ export default function RawMaterialsClient() {
   const canWrite  = canEdit(role, 'raw-materials')
   const { t, lang } = useT()
 
-  const [materials, setMaterials]   = useState<RawMaterial[]>([])
-  const [loading, setLoading]       = useState(true)
+  const [materials,  setMaterials]  = useState<RawMaterial[]>([])
+  const [loading,    setLoading]    = useState(true)
+  const [page,       setPage]       = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const [showForm, setShowForm]     = useState(false)
   const [showImport, setShowImport] = useState(false)
   const [editing, setEditing]       = useState<RawMaterial | null>(null)
@@ -43,13 +49,24 @@ export default function RawMaterialsClient() {
   const [saving, setSaving]         = useState(false)
   const [formError, setFormError]   = useState<string | null>(null)
 
-  useEffect(() => {
+  const loadPage = (pageNum: number) => {
+    if (!companyId) return
+    setLoading(true)
+    const offset = (pageNum - 1) * PAGE_SIZE
     supabase
       .from('raw_materials')
-      .select('*')
+      .select('*', { count: 'exact' })
+      .eq('company_id', companyId)
       .order('created_at', { ascending: false })
-      .then(({ data }) => { setMaterials(data ?? []); setLoading(false) })
-  }, [])
+      .range(offset, offset + PAGE_SIZE - 1)
+      .then(({ data, count }) => {
+        setMaterials(data ?? [])
+        setTotalCount(count ?? 0)
+        setLoading(false)
+      })
+  }
+
+  useEffect(() => { loadPage(1) }, [companyId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -91,7 +108,7 @@ export default function RawMaterialsClient() {
 
     if (editing) {
       const { data, error: err } = await supabase
-        .from('raw_materials').update(payload).eq('id', editing.id).select().single()
+        .from('raw_materials').update(payload).eq('id', editing.id).eq('company_id', companyId ?? '').select().single()
       if (err) {
         setFormError(err.message)
         toast.error(t('materials.error_update'))
@@ -102,7 +119,7 @@ export default function RawMaterialsClient() {
       toast.success(t('materials.updated_toast'))
     } else {
       const { data, error: err } = await supabase
-        .from('raw_materials').insert([payload]).select().single()
+        .from('raw_materials').insert([{ ...payload, company_id: companyId }]).select().single()
       if (err) {
         setFormError(err.message)
         toast.error(t('materials.error_create'))
@@ -130,7 +147,7 @@ export default function RawMaterialsClient() {
     })
     if (!ok) return
 
-    const { error: err } = await supabase.from('raw_materials').delete().eq('id', id)
+    const { error: err } = await supabase.from('raw_materials').delete().eq('id', id).eq('company_id', companyId ?? '')
     if (err) {
       const msg = err.message.includes('foreign key')
         ? t('materials.error_fk')
@@ -154,7 +171,7 @@ export default function RawMaterialsClient() {
     const inserted_rows: RawMaterial[] = []
 
     for (const [i, row] of payload.entries()) {
-      const { data, error: err } = await supabase.from('raw_materials').insert([row]).select().single()
+      const { data, error: err } = await supabase.from('raw_materials').insert([{ ...row, company_id: companyId }]).select().single()
       if (err) {
         errors.push(`Row ${i + 2}: ${err.message}`)
       } else if (data) {
@@ -213,7 +230,7 @@ export default function RawMaterialsClient() {
 
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t(materials.length !== 1 ? 'materials.count_plural' : 'materials.count', { n: fmtNum(materials.length, lang) })}
+          {t(totalCount !== 1 ? 'materials.count_plural' : 'materials.count', { n: fmtNum(totalCount, lang) })}
         </p>
         {canWrite && (
           <div className="flex gap-2">
@@ -352,6 +369,13 @@ export default function RawMaterialsClient() {
             </tbody>
           </table>
         )}
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          onPage={(p) => { setPage(p); loadPage(p) }}
+        />
       </div>
     </>
   )

@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth-context'
 import { useT, fmtNum } from '../lib/i18n'
 import {
   AlertTriangle, Search, Download, ChevronDown, ChevronRight,
@@ -345,6 +346,7 @@ function exportToCSV(batches: RecallBatch[]) {
 
 export default function RecallClient() {
   const { t, lang } = useT()
+  const { companyId } = useAuth()
   const locale = lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US'
 
   const [searchType, setSearchType] = useState<SearchType>('lot')
@@ -379,17 +381,21 @@ export default function RecallClient() {
     setSearched(false)
     setExpandedId(null)
 
+    if (!companyId) return
+
     try {
-      // ── Step 1: resolve batch IDs ───────────────────────────────────────
+      // ── Step 1: resolve batch IDs (all paths scoped by company) ────────
 
       let batchIds: string[] = []
 
       if (searchType === 'lot') {
+        // RPC handles company scoping inside SQL — no unbounded ID scrape
         const { data } = await supabase
-          .from('bill_of_materials')
-          .select('production_order_id')
-          .ilike('lot_number', `%${q}%`)
-        batchIds = [...new Set((data ?? []).map(r => r.production_order_id as string))]
+          .rpc('search_recall_by_lot', { p_company_id: companyId, p_lot_number: q })
+        batchIds = [...new Set(
+          ((data ?? []) as Array<{ production_order_id: string }>)
+            .map(r => r.production_order_id)
+        )]
 
       } else if (searchType === 'batch_id') {
         batchIds = [q]
@@ -398,12 +404,14 @@ export default function RecallClient() {
         const { data: prods } = await supabase
           .from('products')
           .select('id')
+          .eq('company_id', companyId)
           .ilike('sku', `%${q}%`)
         const productIds = (prods ?? []).map(p => p.id as string)
         if (productIds.length > 0) {
           const { data: ords } = await supabase
             .from('production_orders')
             .select('id')
+            .eq('company_id', companyId)
             .in('product_id', productIds)
           batchIds = (ords ?? []).map(o => o.id as string)
         }
@@ -415,11 +423,12 @@ export default function RecallClient() {
         return
       }
 
-      // ── Step 2: fetch order details ─────────────────────────────────────
+      // ── Step 2: fetch order details (company_id guard + batch ID list) ──
 
       const { data: orders } = await supabase
         .from('production_orders')
         .select('*, products(name, sku)')
+        .eq('company_id', companyId)
         .in('id', batchIds)
 
       if (!orders || orders.length === 0) {
@@ -455,7 +464,8 @@ export default function RecallClient() {
           .from('sales')
           .select('customer_name, quantity, total_price, sold_at, product_id')
           .in('product_id', productIds)
-          .order('sold_at', { ascending: false }),
+          .order('sold_at', { ascending: false })
+          .limit(500),
       ])
 
       // ── Step 4: lineage edges (table may not exist yet) ─────────────────
@@ -517,7 +527,7 @@ export default function RecallClient() {
       setSearching(false)
       setSearched(true)
     }
-  }, [query, searchType])
+  }, [query, searchType, companyId])
 
   return (
     <div className="space-y-5">

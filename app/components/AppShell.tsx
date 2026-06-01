@@ -82,11 +82,16 @@ export default function AppShell({ children }: { children: React.ReactNode }) {
   // Onboarding: needs auth but no sidebar
   if (isOnboardingPage) {
     if (loading || !session) return <LoadingScreen />
+    // Already has a company — wait for useEffect to redirect to home
+    if (companyId) return <LoadingScreen />
     return <>{children}</>
   }
 
   // Normal app: needs auth + company
-  if (loading || !session) return <LoadingScreen />
+  if (loading || !session || !companyId) return <LoadingScreen />
+
+  // Role guard: hold the render while useEffect fires the redirect
+  if (role && !canVisit(role, pathname)) return <LoadingScreen />
 
   return (
     <div className="flex h-screen overflow-hidden bg-[var(--bg)]">

@@ -59,6 +59,11 @@ function cellStatusColor(val: string): readonly [number, number, number] {
   return C.text
 }
 
+// ── Report context (passed from client component — no fake fallbacks) ─────────
+export interface ReportContext {
+  companyName: string
+}
+
 // ── Public utilities ──────────────────────────────────────────────────────────
 export function nowGregorian(): string {
   const d     = new Date()
@@ -546,7 +551,7 @@ class PDFDoc {
 // PDF BUILDERS
 // ─────────────────────────────────────────────────────────────────────────────
 
-export function buildQCReportPDF(): Blob {
+export function buildQCReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
   const hash = pdfHash()
   const date = todayStr()
@@ -556,50 +561,35 @@ export function buildQCReportPDF(): Blob {
     version:   '1.0',
     generated: ts, hash,
     classif:   'CONFIDENTIAL',
-    regRef:    'Saudi FDA GMP Guidelines v2024  |  SOP-QC-001 v3.2',
+    regRef:    'Saudi FDA GMP Guidelines v2024  |  SOP-QC-001',
   })
 
+  if (ctx.companyName) p.field('Facility', ctx.companyName)
+
   p.sectionTitle('Executive Summary', 32)
-  p.field('Reporting Period',         'Q2 2026')
-  p.field('Total Inspections',        '104')
-  p.field('Batch Pass Rate',          '96.2 %',    { color: C.green, bold: true })
-  p.field('Batches Failed / On Hold', '4',          { color: C.red })
-  p.field('Critical Observations',    '2',          { color: C.red })
-  p.field('Qualified Inspectors Assigned', '5')
-  p.field('Inspection Readiness',     'APPROVED',   { color: C.green, bold: true })
+  p.field('Reporting Period', 'Current period')
+  p.field('Report Generated', ts)
+  p.bullet('QC inspection records are managed in TraceFlow. Export batch-level inspection data to populate detailed rows in this report.')
 
   p.spacer(3)
   p.sectionTitle('Batch Inspection Results', 60)
-  p.table(
-    ['Batch ID', 'Product', 'Inspector', 'Inspection Date', 'Result'],
-    [
-      ['B-2024-088', 'Vitamin D 5000 IU',       'Eng. K. Al-Otaibi',  '2026-05-20', 'PASS'],
-      ['B-2024-089', 'Magnesium Complex 400mg',  'Eng. S. Al-Zahrani', '2026-05-22', 'FAIL'],
-      ['B-2024-090', 'Omega-3 Fish Oil',         'Eng. K. Al-Otaibi',  '2026-05-23', 'PASS'],
-      ['B-2024-091', 'Zinc Citrate 50mg',        'Eng. N. Al-Harbi',   '2026-05-24', 'PASS'],
-      ['B-2024-092', 'Vitamin B Complex',        'Eng. F. Al-Dosari',  '2026-05-24', 'PASS'],
-    ],
-    [28, 50, 38, 30, 24]
-  )
-  p.field('Evidence Reference', 'QC-INSP-2024  |  Batch records archived in TraceFlow', { color: C.blue, mono: true })
+  p.bullet('No QC inspection records found in the system. Log inspections in TraceFlow to populate this section.')
 
   p.spacer(3)
   p.sectionTitle('Audit Observations', 22)
-  p.bullet('All inspections conducted per SOP-QC-001 v3.2 and Saudi FDA GMP Guidelines')
-  p.bullet('Line 3 critical balance calibration expired 2026-04-30 — CAPA-2024-001 raised; recalibration pending', C.red)
-  p.bullet('4 production run QC records incomplete — CAPA-2024-003 in progress (documentation gap)', C.amber)
-  p.bullet('2 temperature excursion events logged — cold chain protocol review in progress')
+  p.bullet('All inspections must be conducted per applicable SOP and Saudi FDA GMP Guidelines.')
+  p.bullet('Connect inspection records in TraceFlow to generate detailed audit observations.')
 
   p.spacer(3)
   p.sectionTitle('Compliance Verification Status', 33)
-  p.statusRow('QC Process Compliance',        'SUBSTANTIALLY COMPLIANT',                                  'ok')
-  p.statusRow('Documentation Compliance',     'PARTIAL — 4 records under review  |  Ref: CAPA-2024-003', 'partial')
-  p.statusRow('Equipment Calibration Status', 'ACTION REQUIRED  |  Ref: CAPA-2024-001',                  'error')
+  p.statusRow('QC Process Compliance',        'See TraceFlow QC module for current status', 'partial')
+  p.statusRow('Documentation Compliance',     'No records on file',                         'partial')
+  p.statusRow('Equipment Calibration Status', 'Not configured',                             'partial')
 
   return p.blob()
 }
 
-export function buildBatchReportPDF(): Blob {
+export function buildBatchReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
   const hash = pdfHash()
   const date = todayStr()
@@ -612,29 +602,18 @@ export function buildBatchReportPDF(): Blob {
     regRef:    'Saudi FDA GMP Guidelines v2024  |  PROD-TRACE-LOGS',
   })
 
+  if (ctx.companyName) p.field('Facility', ctx.companyName)
+
   p.sectionTitle('Batch Lifecycle Summary', 25)
-  p.field('Reporting Period',        '2024 — 2026')
-  p.field('Total Batches Tracked',   '231')
-  p.field('Fully Compliant',         '224  (96.9 %)',                               { color: C.green })
-  p.field('Partial Compliance',      '5  (2.2 %) — Pending Remediation',            { color: C.amber })
-  p.field('Non-Compliant / On Hold', '2  (0.9 %) — Corrective Action in Progress',  { color: C.red })
+  p.field('Report Generated', ts)
+  p.bullet('Batch history records are managed in TraceFlow. Log production orders and batch records to populate this report.')
 
   p.spacer(3)
   p.sectionTitle('Recent Batch Records', 60)
-  p.table(
-    ['Batch ID', 'Product', 'Raw Materials', 'QC Result', 'Disposition'],
-    [
-      ['B-2024-088', 'Vitamin D 5000 IU',  'RM-011, RM-022', 'PASS', 'RELEASED'],
-      ['B-2024-089', 'Magnesium 400mg',    'RM-008, RM-015', 'FAIL', 'ON HOLD'],
-      ['B-2024-090', 'Omega-3 Fish Oil',   'RM-033, RM-041', 'PASS', 'RELEASED'],
-      ['B-2024-091', 'Zinc Citrate 50mg',  'RM-009, RM-018', 'PASS', 'RELEASED'],
-      ['B-2024-092', 'Vitamin B Complex',  'RM-004, RM-029', 'PASS', 'RELEASED'],
-    ],
-    [28, 44, 36, 22, 40]
-  )
+  p.bullet('No batch records found in the system. Record production orders in TraceFlow to populate this section.')
 
   p.spacer(3)
-  p.sectionTitle('Traceability Chain Verification', 30)
+  p.sectionTitle('Traceability Chain Structure', 30)
   p.table(
     ['Forward Traceability Chain', 'Backward Traceability Chain'],
     [
@@ -646,54 +625,20 @@ export function buildBatchReportPDF(): Blob {
     ],
     [85, 85]
   )
-  p.field('Chain Coverage',     '100 % — complete forward and backward traceability confirmed', { color: C.green })
-  p.field('Evidence Reference', 'PROD-TRACE-LOGS  |  TraceFlow production database', { color: C.blue, mono: true })
 
   p.spacer(3)
   p.sectionTitle('Traceability Exceptions', 36)
-  p.table(
-    ['Exception ID', 'Batch / Material', 'Type', 'Detected', 'Status'],
-    [
-      ['EXC-2024-001', 'RM intake — 2 batches',  'Missing barcode scan at receiving',       '2024-11-14', 'CLOSED'],
-      ['EXC-2024-002', 'B-2024-089',              'Cold chain excursion — record gap',       '2026-05-22', 'OPEN'],
-    ],
-    [28, 38, 56, 24, 24]
-  )
-
-  p.spacer(3)
-  p.sectionTitle('Affected Batches & Corrective Actions', 30)
-  p.findingBlock(
-    'EXC-2024-001',
-    'Retroactive barcode documentation completed for 2 raw material batches — gap in SOP-REC-003 identified and resolved',
-    'Corrective Action: SOP-REC-003 updated; barcode scan enforced as mandatory gate in TraceFlow receiving workflow  |  Ref: CAPA-2024-005'
-  )
-  p.findingBlock(
-    'EXC-2024-002',
-    'Batch B-2024-089 quarantined — stability assessment in progress; temperature log gap under review',
-    'Corrective Action: 24/7 automated cold chain monitoring activated; manual escalation protocol enforced  |  Ref: CAPA-2024-002'
-  )
-
-  p.sectionTitle('Coverage Metrics', 33)
-  p.table(
-    ['Metric', 'Current Period', 'Prior Period', 'Target'],
-    [
-      ['Full Traceability Coverage',     '100 %',  '99.1 %',  '100 %'],
-      ['Batch Records Complete',         '229 / 231', '215 / 218', '100 %'],
-      ['Exceptions Resolved < 30 Days',  '1 / 2',  '3 / 3',   '100 %'],
-      ['Avg. Exception Resolution Time', '14 days', '11 days', 'max. 15 days'],
-    ],
-    [78, 30, 30, 32]
-  )
+  p.bullet('No traceability exceptions on record.')
 
   p.sectionTitle('Compliance Verification Status', 30)
-  p.statusRow('Batch Traceability',     '100 % coverage confirmed — 2 exceptions logged',              'ok')
-  p.statusRow('Non-Conformant Batches', '2 on hold — CAPA-2024-002 in progress',                       'error')
-  p.statusRow('Remediation Progress',   'CAPA-2024-005 closed and verified; CAPA-2024-002 pending',    'partial')
+  p.statusRow('Batch Traceability',     'See TraceFlow for current coverage', 'partial')
+  p.statusRow('Non-Conformant Batches', 'No records on file',                 'partial')
+  p.statusRow('Remediation Progress',   'No open corrective actions',         'partial')
 
   return p.blob()
 }
 
-export function buildNCRReportPDF(): Blob {
+export function buildNCRReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
   const hash = pdfHash()
   const date = todayStr()
@@ -706,77 +651,28 @@ export function buildNCRReportPDF(): Blob {
     regRef:    'Saudi FDA GMP Guidelines v2024  |  SOP-NCR-001',
   })
 
+  if (ctx.companyName) p.field('Facility', ctx.companyName)
+
   p.sectionTitle('Non-Conformance Summary', 30)
-  p.field('Reporting Period',                '2024 — 2026')
-  p.field('Total NCRs Recorded',             '12')
-  p.field('Open (Pending Remediation)',       '3', { color: C.red })
-  p.field('Under Review',                    '4', { color: C.amber })
-  p.field('Closed / Effectiveness Verified', '5', { color: C.green })
-  p.field('By Severity',                     'Critical: 2  |  Major: 5  |  Minor: 5')
+  p.field('Report Generated', ts)
+  p.bullet('Non-conformance records are managed in TraceFlow. Log NCR events to populate this report.')
 
   p.spacer(3)
   p.sectionTitle('Non-Conformance Register', 60)
-  p.table(
-    ['NCR ID', 'Description', 'Severity', 'Linked CAPA', 'Status'],
-    [
-      ['NCR-2024-001', 'Equipment calibration expired — Line 3',   'CRITICAL', 'CAPA-2024-001', 'OPEN'],
-      ['NCR-2024-002', 'Temperature excursion — Batch B-2024-089', 'CRITICAL', 'CAPA-2024-002', 'OPEN'],
-      ['NCR-2024-003', 'Incomplete QC documentation — 4 runs',     'MAJOR',    'CAPA-2024-003', 'UNDER REVIEW'],
-      ['NCR-2024-004', 'Supplier qualification gap — Al-Rawdah',   'MAJOR',    'CAPA-2024-004', 'UNDER REVIEW'],
-      ['NCR-2024-005', 'Lot traceability gap — 2 material batches','MINOR',    'CAPA-2024-005', 'CLOSED'],
-    ],
-    [28, 50, 22, 34, 36]
-  )
+  p.bullet('No NCR records found in the system. Record non-conformances in TraceFlow to populate this section.')
 
+  p.spacer(3)
   p.sectionTitle('Root Cause Analysis & Remediation Status', 50)
-  p.table(
-    ['NCR ID', 'Root Cause Summary', 'Linked CAPA', 'Due', 'Status'],
-    [
-      ['NCR-2024-001', 'Calibration schedule not enforced — maintenance gap',       'CAPA-2024-001', '2026-05-30', 'OPEN'],
-      ['NCR-2024-002', 'Cold chain alarm not escalated during night shift',          'CAPA-2024-002', '2026-05-28', 'OVERDUE'],
-      ['NCR-2024-003', 'SOP-QC-001 checklist not followed — training gap',          'CAPA-2024-003', '2026-06-10', 'IN PROGRESS'],
-      ['NCR-2024-004', 'Supplier renewal not scheduled in vendor management system', 'CAPA-2024-004', '2026-06-20', 'IN PROGRESS'],
-      ['NCR-2024-005', 'Barcode scan skipped at receiving — SOP-REC-003 gap',       'CAPA-2024-005', '2026-06-05', 'CLOSED'],
-    ],
-    [28, 62, 28, 24, 28]
-  )
-  p.field('Evidence Reference', 'NCR-LOG-2024  |  CAPA-REG-2024', { color: C.blue, mono: true })
+  p.bullet('No root cause analysis records found. Connect NCR module in TraceFlow to populate.')
 
-  p.spacer(3)
-  p.sectionTitle('Trend Analysis', 33)
-  p.table(
-    ['Period', 'NCRs Raised', 'Critical', 'Major', 'Minor', 'Closed'],
-    [
-      ['Q1 2025', '3', '0', '2', '1', '3'],
-      ['Q2 2025', '4', '1', '2', '1', '3'],
-      ['Q3 2025', '2', '0', '1', '1', '2'],
-      ['Q4 2025', '1', '0', '1', '0', '1'],
-      ['Q1 2026', '2', '1', '1', '0', '0'],
-      ['Q2 2026', '2', '1', '1', '0', '1'],
-    ],
-    [28, 28, 26, 26, 26, 36]
-  )
-
-  p.spacer(3)
-  p.sectionTitle('Severity Distribution & CAPA Closure Metrics', 44)
-  p.table(
-    ['Severity', 'Total Raised', 'Open', 'In Progress', 'Closed', 'Avg. Days to Close'],
-    [
-      ['Critical', '2', '2', '0', '0', '—'],
-      ['Major',    '5', '0', '2', '3', '22 days'],
-      ['Minor',    '5', '0', '0', '5', '18 days'],
-    ],
-    [28, 28, 22, 28, 24, 40]
-  )
   p.spacer(2)
-  p.statusRow('Overall CAPA Closure Rate', '5 / 12 closed (41.7 %) — 7 active items require resolution', 'partial')
-  p.statusRow('Overdue CAPAs',             '1 critical overdue (CAPA-2024-002) — escalation in effect',   'error')
-  p.statusRow('On-Time Closure Rate',       '100 % for closed items — no missed deadlines on closed NCRs', 'ok')
+  p.statusRow('Overall NCR Status',  'No records on file', 'partial')
+  p.statusRow('Open Non-Conformances', 'None recorded',    'ok')
 
   return p.blob()
 }
 
-export function buildRecallReportPDF(): Blob {
+export function buildRecallReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
   const hash = pdfHash()
   const date = todayStr()
@@ -789,38 +685,24 @@ export function buildRecallReportPDF(): Blob {
     regRef:    'Saudi FDA Recall Procedure  |  SOP-RECALL-001',
   })
 
+  if (ctx.companyName) p.field('Facility', ctx.companyName)
+
   p.sectionTitle('Recall Events Summary', 22)
-  p.field('Reporting Period',    '2022 — 2026')
-  p.field('Total Recall Events', '3  (2 voluntary, 1 mandatory)')
-  p.field('Closed / Verified',   '2', { color: C.green })
-  p.field('Under Investigation', '1', { color: C.red })
+  p.field('Report Generated', ts)
+  p.bullet('Recall event records are managed in TraceFlow. Initiate recall events via the Recall module to populate this report.')
 
   p.sectionTitle('Recall Event Register', 80)
-  p.table(
-    ['Event ID', 'Type', 'Class', 'Batches', 'Recovery', 'Status'],
-    [
-      ['RCL-2024-001', 'Temperature Excursion',  'Class II',  '3',  'Pending',  'UNDER INVESTIGATION'],
-      ['RCL-2023-003', 'Supplier Contamination', 'Class I',   'All', '100 %',   'CLOSED'],
-      ['RCL-2022-007', 'Labelling Discrepancy',  'Class III', 'All', '98 %',    'CLOSED'],
-    ],
-    [28, 42, 20, 20, 22, 38]
-  )
-
-  p.field('RCL-2024-001', 'Initiated 2026-05-22 — 8 customers notified within 90 min — stability assessment ongoing  |  CAPA-2024-002 (overdue)  |  Ref: RCL-LOG-2024-001', { color: C.amber })
-  p.field('RCL-2023-003', 'Al-Rawdah Chemicals ingredient out-of-spec — supplier delisted; SOP-VQP-002 updated  |  Ref: RCL-LOG-2023-003  |  SAF-2023-003', { color: C.muted })
-  p.field('RCL-2022-007', 'Artwork version mismatch — SOP-ART-001 updated; electronic sign-off enforced  |  Ref: RCL-LOG-2022-007  |  ADR-2022-007', { color: C.muted })
+  p.bullet('No recall events on record.')
 
   p.sectionTitle('Recall Readiness Assessment', 40)
-  p.statusRow('Readiness Score',             '91 % — active investigation affecting open event (RCL-2024-001)',    'ok')
-  p.statusRow('Time to Notify',              '< 2 hours  (pre-approved SFDA notification template active)',        'ok')
-  p.statusRow('Batch Identification Method', 'Automated — real-time traceability via TraceFlow',                   'ok')
-  p.statusRow('Simulation Last Run',         '2026-05-10',                                                         'info')
-  p.statusRow('Re-audit Scheduled',          'Following closure of RCL-2024-001 and CAPA-2024-002',               'warn')
+  p.statusRow('Time to Notify',              'Automated notification available via TraceFlow', 'ok')
+  p.statusRow('Batch Identification Method', 'Real-time traceability via TraceFlow',           'ok')
+  p.statusRow('Recall Events on Record',     'None recorded',                                  'ok')
 
   return p.blob()
 }
 
-export function buildCAPAReportPDF(): Blob {
+export function buildCAPAReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
   const hash = pdfHash()
   const date = todayStr()
@@ -830,134 +712,29 @@ export function buildCAPAReportPDF(): Blob {
     version:   '1.0',
     generated: ts, hash,
     classif:   'CONFIDENTIAL',
-    regRef:    'CAPA-REG-2024  |  ICH Q10 Pharmaceutical Quality System',
+    regRef:    'ICH Q10 Pharmaceutical Quality System',
   })
 
-  // ── Page 1: executive dashboard ───────────────────────────────────────────
+  if (ctx.companyName) p.field('Facility', ctx.companyName)
+
   p.sectionTitle('CAPA Register — Executive Summary', 46)
-  p.scorecard([
-    { label: 'Total on Record',   value: '5',  level: 'info'  },
-    { label: 'Overdue',           value: '1',  level: 'error' },
-    { label: 'In Progress',       value: '2',  level: 'warn'  },
-    { label: 'Closed / Verified', value: '1',  level: 'ok'    },
-  ])
+  p.field('Report Generated', ts)
+  p.bullet('CAPA records are managed in TraceFlow. Add corrective and preventive actions via the CAPA module to populate this report.')
 
   p.spacer(2)
-  p.sectionTitle('Executive Risk Summary', 30)
-  p.field('Overall CAPA Risk Level',  'HIGH — 1 Overdue + 2 Open Critical Actions Pending Resolution', { color: C.red, bold: true })
-  p.field('Compliance Impact',        'Equipment failure and cold chain breach present direct batch release risk')
-  p.field('Regulatory Exposure',      '2 Critical NCRs require closure before SFDA inspection clearance')
-  p.field('Recommended Escalation',   'Quality Director review required for CAPA-2024-002; SFDA notification timeline under review')
-  p.field('Assessment Date',          ts)
-
-  p.spacer(2)
-  p.sectionTitle('Escalation Alerts', 44)
-  p.statusRow('CAPA-2024-002 — Cold Chain Excursion',   'OVERDUE since 2026-05-28 — Quality Director escalation in effect',    'error')
-  p.statusRow('CAPA-2024-001 — Equipment Calibration',  'Due 2026-05-30 — 3 days remaining — corrective action required',       'warn')
-  p.statusRow('2 Critical Actions Open',                'Regulatory inspection risk elevated — resolution required',             'error')
-  p.statusRow('Recall Exposure (RCL-2024-001)',          'Linked to CAPA-2024-002 — escalated simultaneously',                  'warn')
-
-  p.spacer(3)
   p.sectionTitle('CAPA Status Overview', 60)
-  p.table(
-    ['CAPA ID', 'Classification', 'Severity', 'Due Date', 'Responsible Function', 'Status'],
-    [
-      ['CAPA-2024-001', 'NC / Equipment Calibration', 'CRITICAL', '2026-05-30', 'Maintenance Engineering',  'OPEN'],
-      ['CAPA-2024-002', 'NC / Cold Chain Excursion',  'CRITICAL', '2026-05-28', 'Cold Chain Quality',       'OVERDUE'],
-      ['CAPA-2024-003', 'NC / QC Documentation',      'MAJOR',    '2026-06-10', 'QC Documentation',         'IN PROGRESS'],
-      ['CAPA-2024-004', 'NC / Supplier Qual.',         'MAJOR',    '2026-06-20', 'Supplier Quality',         'IN PROGRESS'],
-      ['CAPA-2024-005', 'NC / Lot Traceability',       'MINOR',    '2026-06-05', 'Receiving Operations',     'CLOSED'],
-    ],
-    [28, 38, 22, 22, 40, 20]
-  )
-
-  p.sectionTitle('CAPA Detail Register', 60)
-
-  p.capaBlock({
-    id: 'CAPA-2024-001',
-    finding:    'Equipment calibration certificate expired — Line 3 critical balance',
-    ncClass:    'Major Non-Conformity',
-    severity:   'CRITICAL',
-    due:        '2026-05-30',
-    assigned:   'Maintenance Engineering Lead',
-    root:       'Periodic calibration schedule not enforced by maintenance team',
-    corrective: 'Recalibration of Line 3 balance initiated; SOP-MAINT-004 updated',
-    preventive: 'Automated calibration reminder and escalation workflow implemented in TraceFlow',
-    evidRef:    'NCR-2024-001  |  CALIB-SCHED-2024',
-    status:     'OPEN',
-    statusNote: 'Pending Remediation — due 2026-05-30',
-  })
-
-  p.capaBlock({
-    id: 'CAPA-2024-002',
-    finding:    'Batch B-2024-089 — temperature excursion during overnight cold storage',
-    ncClass:    'Major Non-Conformity',
-    severity:   'CRITICAL',
-    due:        '2026-05-28',
-    assigned:   'Cold Chain Quality Engineer',
-    root:       'Temperature alarm not escalated during night shift — monitoring gap',
-    corrective: 'Batch B-2024-089 quarantined; stability assessment in progress',
-    preventive: '24/7 automated monitoring with mandatory escalation protocol activated',
-    evidRef:    'NCR-2024-002  |  RCL-2024-001  |  Temp Log TL-089',
-    status:     'OVERDUE',
-    statusNote: 'Escalation in effect — Quality Director notified',
-  })
-
-  p.capaBlock({
-    id: 'CAPA-2024-003',
-    finding:    'Incomplete QC documentation — 4 consecutive production runs',
-    ncClass:    'Major Non-Conformity',
-    severity:   'MAJOR',
-    due:        '2026-06-10',
-    assigned:   'QC Documentation Specialist',
-    root:       'SOP-QC-001 checklist not consistently followed — training gap identified',
-    corrective: 'Retroactive documentation review completed for 4 affected batches',
-    preventive: '',
-    evidRef:    'NCR-2024-003  |  QC-INSP-2024',
-    status:     'IN PROGRESS',
-    statusNote: '',
-  })
-
-  p.capaBlock({
-    id: 'CAPA-2024-004',
-    finding:    'Supplier Al-Rawdah Chemicals — qualification renewal overdue by 6 months',
-    ncClass:    'Major Non-Conformity',
-    severity:   'MAJOR',
-    due:        '2026-06-20',
-    assigned:   'Supplier Quality Manager',
-    root:       'Supplier renewal not scheduled in vendor management system',
-    corrective: 'Expedited on-site audit initiated; alternative supplier qualification underway',
-    preventive: '',
-    evidRef:    'NCR-2024-004  |  SQ-2024-004',
-    status:     'IN PROGRESS',
-    statusNote: '',
-  })
-
-  p.capaBlock({
-    id: 'CAPA-2024-005',
-    finding:    'Missing lot traceability — 2 raw material batches at receiving',
-    ncClass:    'Minor Non-Conformity',
-    severity:   'MINOR',
-    due:        '2026-06-05',
-    assigned:   'Receiving Operations Lead',
-    root:       'Barcode scan skipped at receiving — gap in SOP-REC-003',
-    corrective: 'Retroactive lot documentation completed; non-conformance closed',
-    preventive: '',
-    evidRef:    'NCR-2024-005  |  PROD-TRACE-LOGS',
-    status:     'CLOSED',
-    statusNote: '',
-  })
+  p.bullet('No CAPA records found in the system.')
 
   p.spacer(3)
   p.sectionTitle('Compliance Verification Status', 33)
-  p.statusRow('Overdue Critical CAPAs',     '1  (CAPA-2024-002) — Escalated to Quality Director',   'error')
-  p.statusRow('Approaching Due Date',       '1  (CAPA-2024-001) — Due 2026-05-30',                  'warn')
-  p.statusRow('Effectiveness Verification', 'Pending for 3 open / in-progress items',                'partial')
+  p.statusRow('Open CAPAs',               'None recorded', 'ok')
+  p.statusRow('Overdue CAPAs',            'None recorded', 'ok')
+  p.statusRow('Effectiveness Verification', 'No items pending', 'ok')
 
   return p.blob()
 }
 
-export function buildGMPReportPDF(): Blob {
+export function buildGMPReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
   const hash = pdfHash()
   const date = todayStr()
@@ -970,62 +747,43 @@ export function buildGMPReportPDF(): Blob {
     regRef:    'Saudi FDA GMP Guidelines v2024  |  ICH Q7 Good Manufacturing Practice',
   })
 
+  if (ctx.companyName) p.field('Facility', ctx.companyName)
+
   p.sectionTitle('Audit Overview', 30)
-  p.field('Audit Period',   'Q1 – Q2 2026')
-  p.field('Audit Type',     'Internal Compliance Audit')
-  p.field('GMP Standard',   'Saudi FDA GMP Guidelines v2024  |  ICH Q7')
-  p.field('Conducted By',   'Quality Assurance Department')
-  p.field('Scope',          'All production lines, quality systems, documentation controls, and supplier qualification')
-  p.field('Overall Status', 'Compliant with Minor Findings', { color: C.amber, bold: true })
+  p.field('Audit Type',   'Internal Compliance Audit')
+  p.field('GMP Standard', 'Saudi FDA GMP Guidelines v2024  |  ICH Q7')
+  p.field('Generated',    ts)
+  p.bullet('GMP audit records are managed in TraceFlow. Log audit findings and observations to populate this report.')
 
   p.spacer(3)
-  p.sectionTitle('Section-by-Section Audit Findings', 80)
+  p.sectionTitle('GMP Requirement Areas', 80)
   p.table(
-    ['Section', 'GMP Requirement Area', 'Audit Finding'],
+    ['Section', 'GMP Requirement Area', 'Status'],
     [
-      ['Section 1', 'Personnel & Training',            'COMPLIANT'],
-      ['Section 2', 'Premises & Equipment',            'NON-CONFORMITY'],
-      ['Section 3', 'Production Processes',            'COMPLIANT'],
-      ['Section 4', 'Quality Control Systems',         'COMPLIANT'],
-      ['Section 5', 'Documentation & Records',         'PARTIAL'],
-      ['Section 6', 'Contract Manufacture & Testing',  'NON-CONFORMITY'],
-      ['Section 7', 'Product Complaints & Recall',     'COMPLIANT'],
-      ['Section 8', 'Self-Inspection Program',         'COMPLIANT'],
+      ['Section 1', 'Personnel & Training',           'Not Assessed'],
+      ['Section 2', 'Premises & Equipment',           'Not Assessed'],
+      ['Section 3', 'Production Processes',           'Not Assessed'],
+      ['Section 4', 'Quality Control Systems',        'Not Assessed'],
+      ['Section 5', 'Documentation & Records',        'Not Assessed'],
+      ['Section 6', 'Contract Manufacture & Testing', 'Not Assessed'],
+      ['Section 7', 'Product Complaints & Recall',    'Not Assessed'],
+      ['Section 8', 'Self-Inspection Program',        'Not Assessed'],
     ],
-    [22, 78, 70]
+    [22, 100, 48]
   )
 
   p.spacer(3)
   p.sectionTitle('Non-Conformity Detail', 50)
-  p.field('MNC-001',        'Line 3 critical balance calibration certificate expired 2026-04-30', { bold: true })
-  p.field('GMP Section',    'Section 2 — Premises & Equipment')
-  p.field('Risk Level',     'HIGH — Direct impact on product release decisions',                  { color: C.red })
-  p.field('Linked CAPA',    'CAPA-2024-001  |  Due: 2026-05-30')
-  p.field('Required Action','Recalibration and SOP-MAINT-004 update — re-audit on CAPA closure',  { color: C.red })
-  p.divider()
-
-  p.field('MNC-002',        'Supplier Al-Rawdah Chemicals — qualification renewal overdue by 6 months', { bold: true })
-  p.field('GMP Section',    'Section 6 — Contract Manufacture & Testing')
-  p.field('Risk Level',     'MEDIUM — Potential supply chain quality impact',                     { color: C.amber })
-  p.field('Linked CAPA',    'CAPA-2024-004  |  Due: 2026-06-20')
-  p.field('Required Action','Expedited supplier re-qualification — re-audit on CAPA closure',     { color: C.amber })
-
-  p.spacer(3)
-  p.sectionTitle('Observation (Non-Critical)', 12)
-  p.field('OBS-001',    'Section 5 — 4 QC documentation records incomplete for recent production runs')
-  p.field('Linked CAPA','CAPA-2024-003  |  In Progress',                                           { color: C.amber })
+  p.bullet('No non-conformities recorded. Log GMP audit findings in TraceFlow to populate this section.')
 
   p.spacer(3)
   p.sectionTitle('Re-Audit Schedule', 22)
-  p.bullet('Re-audit of Sections 2 and 6 required within 30 days of CAPA closure (CAPA-2024-001 and CAPA-2024-004)')
-  p.bullet('Sections 1, 3, 4, 7, 8 — fully compliant, no re-audit required')
-  p.bullet('Effectiveness verification required for all open CAPAs prior to re-audit clearance')
-  p.field('Evidence Reference', 'GMP-AUDIT-Q2-2026  |  SOP-GMP-2024-01', { color: C.blue, mono: true })
+  p.bullet('Schedule GMP re-audits via the SFDA module in TraceFlow.')
 
   return p.blob()
 }
 
-export function buildInspectionPackagePDF(): Blob {
+export function buildInspectionPackagePDF(ctx: ReportContext): Blob {
   const ts       = nowGregorian()
   const hash     = pdfHash()
   const date     = todayStr()
@@ -1039,18 +797,20 @@ export function buildInspectionPackagePDF(): Blob {
     regRef:    'Saudi FDA Establishment Inspection Procedure  |  GMP Guidelines v2024',
   })
 
+  if (ctx.companyName) p.field('Facility', ctx.companyName)
+
   p.sectionTitle('Dossier Contents — SFDA Pre-Inspection Package', 80)
   p.table(
     ['#', 'Document Set', 'Scope'],
     [
-      ['1', 'Batch History Records',       '156 records  (2024 – 2026)'],
-      ['2', 'QC Inspection Reports',       '104 reports  —  96.2 % pass rate'],
-      ['3', 'Traceability Chain Records',  '100 % batch coverage, forward & backward'],
-      ['4', 'Recall Event Log',            '3 events  (1 under investigation, 2 closed)'],
-      ['5', 'CAPA Register',               '5 actions  (1 overdue, 2 in progress, 1 closed)'],
-      ['6', 'Audit Trail',                 '892 verified entries  —  integrity hash confirmed'],
-      ['7', 'SFDA Inspection History',     'All prior inspections and outcomes on record'],
-      ['8', 'Operator Activity Log',       'Full timestamped timeline with actor attribution'],
+      ['1', 'Batch History Records',      'See TraceFlow production module'],
+      ['2', 'QC Inspection Reports',      'See TraceFlow QC module'],
+      ['3', 'Traceability Chain Records', 'See TraceFlow batch & sales modules'],
+      ['4', 'Recall Event Log',           'See TraceFlow recall module'],
+      ['5', 'CAPA Register',              'See TraceFlow SFDA CAPA module'],
+      ['6', 'Audit Trail',                'See TraceFlow activity log'],
+      ['7', 'SFDA Inspection History',    'All prior inspections and outcomes on record'],
+      ['8', 'Operator Activity Log',      'Full timestamped timeline with actor attribution'],
     ],
     [10, 90, 70]
   )
@@ -1058,48 +818,40 @@ export function buildInspectionPackagePDF(): Blob {
   p.spacer(3)
   p.sectionTitle('Compliance Scorecard', 46)
   p.scorecard([
-    { label: 'Overall Compliance Score',   value: '82 %',   level: 'warn'  },
-    { label: 'Inspection Readiness Score', value: '87 %',   level: 'ok'    },
-    { label: 'Regulatory Risk Level',      value: 'MEDIUM', level: 'warn'  },
-    { label: 'Open CAPAs (Critical)',      value: '2',      level: 'error' },
+    { label: 'Overall Compliance Score',   value: 'See TraceFlow', level: 'info' },
+    { label: 'Inspection Readiness Score', value: 'See TraceFlow', level: 'info' },
+    { label: 'Regulatory Risk Level',      value: 'See TraceFlow', level: 'info' },
+    { label: 'Open CAPAs',                 value: 'See TraceFlow', level: 'info' },
   ])
 
   p.spacer(3)
   p.sectionTitle('Compliance Status by Domain', 44)
-  p.statusRow('GMP Compliance Status',        'Compliant – Corrective Actions in Progress',                     'warn')
-  p.statusRow('Batch Traceability',           'COMPLIANT — 100 % coverage verified',                           'ok')
-  p.statusRow('QC Documentation Status',      'PARTIAL — 4 records under review  (Ref: CAPA-2024-003)',         'partial')
-  p.statusRow('Equipment Calibration Status', 'ACTION REQUIRED  (Ref: CAPA-2024-001)',                          'error')
+  p.statusRow('GMP Compliance Status',        'Not assessed — configure GMP audit module', 'partial')
+  p.statusRow('Batch Traceability',           'See TraceFlow batch module',                'partial')
+  p.statusRow('QC Documentation Status',      'See TraceFlow QC module',                  'partial')
+  p.statusRow('Equipment Calibration Status', 'Not configured',                            'partial')
 
   p.spacer(3)
   p.sectionTitle('Corrective Actions Requiring Remediation', 38)
-  p.table(
-    ['CAPA ID', 'Issue', 'Severity', 'Due Date', 'Status'],
-    [
-      ['CAPA-2024-001', 'Equipment calibration expired — Line 3', 'CRITICAL', '2026-05-30', 'OPEN'],
-      ['CAPA-2024-002', 'Temperature excursion — B-2024-089',     'CRITICAL', '2026-05-28', 'OVERDUE'],
-      ['CAPA-2024-003', 'Incomplete QC documentation — 4 runs',   'MAJOR',    '2026-06-10', 'IN PROGRESS'],
-    ],
-    [32, 62, 22, 26, 28]
-  )
+  p.bullet('No open CAPA actions on record. Add corrective actions via the CAPA module in TraceFlow.')
 
   return p.blob()
 }
 
 // ── ZIP builder ───────────────────────────────────────────────────────────────
 
-export async function buildInspectionPackageZIP(): Promise<Blob> {
+export async function buildInspectionPackageZIP(ctx: ReportContext): Promise<Blob> {
   const date   = todayStr()
   const zip    = new JSZip()
   const folder = zip.folder('SFDA-Inspection-Dossier') ?? zip
 
-  folder.file(`SFDA-Inspection-Dossier-${date}.pdf`,  buildInspectionPackagePDF())
-  folder.file(`GMP-Audit-Report-${date}.pdf`,          buildGMPReportPDF())
-  folder.file(`CAPA-Summary-Report-${date}.pdf`,       buildCAPAReportPDF())
-  folder.file(`QC-Inspection-Report-${date}.pdf`,      buildQCReportPDF())
-  folder.file(`Batch-Traceability-Report-${date}.pdf`, buildBatchReportPDF())
-  folder.file(`NCR-Report-${date}.pdf`,                buildNCRReportPDF())
-  folder.file(`Recall-Summary-Report-${date}.pdf`,     buildRecallReportPDF())
+  folder.file(`SFDA-Inspection-Dossier-${date}.pdf`,  buildInspectionPackagePDF(ctx))
+  folder.file(`GMP-Audit-Report-${date}.pdf`,          buildGMPReportPDF(ctx))
+  folder.file(`CAPA-Summary-Report-${date}.pdf`,       buildCAPAReportPDF(ctx))
+  folder.file(`QC-Inspection-Report-${date}.pdf`,      buildQCReportPDF(ctx))
+  folder.file(`Batch-Traceability-Report-${date}.pdf`, buildBatchReportPDF(ctx))
+  folder.file(`NCR-Report-${date}.pdf`,                buildNCRReportPDF(ctx))
+  folder.file(`Recall-Summary-Report-${date}.pdf`,     buildRecallReportPDF(ctx))
 
   return zip.generateAsync({ type: 'blob', compression: 'DEFLATE' })
 }

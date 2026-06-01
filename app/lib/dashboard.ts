@@ -1,32 +1,13 @@
 import { supabase } from './supabase'
 
-// ── Date helpers ────────────────────────────────────────────────────────────
-
-function toDay(iso: string | null | undefined): string {
-  if (!iso) return ''
-  const d = new Date(iso)
-  if (isNaN(d.getTime())) return ''
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-}
-
-function lastNDays(n: number): string[] {
-  const out: string[] = []
-  const now = new Date()
-  for (let i = n - 1; i >= 0; i--) {
-    const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - i)
-    out.push(
-      `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
-    )
-  }
-  return out
-}
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function shortDayLabel(dateStr: string): string {
   const [y, m, d] = dateStr.split('-').map(Number)
   return new Date(y, m - 1, d).toLocaleDateString('en-US', { weekday: 'short', day: 'numeric' })
 }
 
-// ── Row types ────────────────────────────────────────────────────────────────
+// ── Row types (kept for downstream consumers) ────────────────────────────────
 
 export type BatchRow = {
   id: string
@@ -70,260 +51,167 @@ export type ActivityLogRow = {
 }
 
 export type TopProduct = {
-  product_id: string
+  product_id:   string
   product_name: string
-  units_sold: number
-  revenue: number
+  units_sold:   number
+  revenue:      number
+}
+
+// ── RPC return types ─────────────────────────────────────────────────────────
+
+type DashboardRpc = {
+  total_batches:       number
+  orders_this_week:    number
+  orders_by_status:    { pending: number; in_progress: number; completed: number; cancelled: number }
+  qc_counts:           { pass: number; fail: number; hold: number }
+  weekly_inspections:  number
+  qc_trend:            Array<{ date: string; pass: number; fail: number; hold: number }>
+  scan_trend:          Array<{ date: string; scans: number; unique_batches: number }>
+  total_scans:         number
+  recall_risk:         { failed_qc_count: number; failed_with_sales: number; missing_qc_count: number }
+  failed_batches:      Array<{
+    id: string; batch_status: string; product_id: string; product_name: string; sku: string
+    created_at: string; has_sales: boolean
+    latest_qc: { batch_id: string; status: string; inspector_name: string; notes: string | null; inspected_at: string } | null
+  }>
+  recent_qc:           Array<{
+    batch_id: string; status: 'pass' | 'fail' | 'hold'; inspector_name: string; notes: string | null
+    inspected_at: string; product_name: string; sku: string
+  }>
+  recent_orders:       Array<BatchRow>
+  in_progress_orders:  Array<BatchRow>
+  most_scanned:        Array<{ batch_id: string; scan_count: number; product_name: string; sku: string; batch_status: string }>
+  recent_scans:        Array<{ batch_id: string; scanned_at: string; device_type: string | null; browser: string | null; product_name: string }>
+  low_stock_count:     number
+}
+
+type SalesRpc = {
+  total_revenue:   number
+  total_orders:    number
+  avg_order_value: number
+  top_product:     string | null
+  top_products:    Array<{ product_id: string; product_name: string; units_sold: number; revenue: number }>
 }
 
 // ── Main fetch ───────────────────────────────────────────────────────────────
 
-export async function getDashboardStats() {
-  const sevenDaysAgo = new Date()
-  sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7)
-  const sevenDaysAgoIso = sevenDaysAgo.toISOString()
-
+export async function getDashboardStats(companyId: string) {
+  // ── Phase 1: RPC aggregates (no full-table scans) + parallel direct queries ──
   const [
-    { data: batches },
-    { data: qcResults },
-    { data: topScans },
-    { count: totalScans },
-    { data: salesProducts },
-    { data: recentScanList },
-    { data: trend7DayScans },
-    { data: inventoryData },
-    { data: allSalesData },
-    { data: activityData },
+    { data: rpcRaw },
+    { data: salesRpcRaw },
+    { data: recentSalesRaw },
+    { data: inventoryRaw },
+    { data: activityRaw },
   ] = await Promise.all([
-    supabase
-      .from('production_orders')
-      .select('id, status, product_id, quantity, created_at, products(name, sku)')
-      .order('created_at', { ascending: false }),
-    supabase
-      .from('batch_qc_results')
-      .select('batch_id, status, inspector_name, notes, inspected_at')
-      .order('inspected_at', { ascending: false }),
-    supabase
-      .from('scan_events')
-      .select('batch_id')
-      .order('scanned_at', { ascending: false })
-      .limit(500),
-    supabase.from('scan_events').select('*', { count: 'exact', head: true }),
-    supabase.from('sales').select('product_id'),
-    supabase
-      .from('scan_events')
-      .select('batch_id, scanned_at, device_type, browser')
-      .order('scanned_at', { ascending: false })
-      .limit(12),
-    supabase
-      .from('scan_events')
-      .select('batch_id, scanned_at')
-      .gte('scanned_at', sevenDaysAgoIso),
-    supabase
-      .from('raw_materials')
-      .select('id, name, unit, quantity_in_stock, reorder_level')
-      .order('quantity_in_stock', { ascending: true }),
+    supabase.rpc('get_dashboard_stats',         { p_company_id: companyId }),
+    supabase.rpc('get_company_sales_stats',      { p_company_id: companyId }),
     supabase
       .from('sales')
       .select('id, product_id, product_name, quantity, unit_price, total_price, customer_name, status, sold_at, created_at')
-      .order('sold_at', { ascending: false }),
+      .eq('company_id', companyId)
+      .order('sold_at', { ascending: false })
+      .limit(15),
+    supabase
+      .from('raw_materials')
+      .select('id, name, unit, quantity_in_stock, reorder_level')
+      .eq('company_id', companyId)
+      .order('quantity_in_stock', { ascending: true })
+      .limit(100),
     supabase
       .from('activity_logs')
       .select('id, action_type, entity_type, entity_id, message, actor_email, metadata, created_at')
+      .eq('company_id', companyId)
       .order('created_at', { ascending: false })
       .limit(30),
   ])
 
-  const batchList   = (batches    ?? []) as unknown as BatchRow[]
-  const qcList      = qcResults  ?? []
-  const scanTop     = topScans       ?? []
-  const scanRecent  = recentScanList ?? []
-  const scanTrend7  = trend7DayScans ?? []
-  // numeric columns (quantity_in_stock, reorder_level) come from Postgres as strings via Supabase
-  const rawMaterials = ((inventoryData ?? []) as unknown as RawMaterialRow[]).map(m => ({
+  const rpc       = (rpcRaw     ?? {}) as DashboardRpc
+  const salesRpc  = (salesRpcRaw ?? {}) as SalesRpc
+
+  const qcCounts = rpc.qc_counts ?? { pass: 0, fail: 0, hold: 0 }
+  const totalQc  = qcCounts.pass + qcCounts.fail + qcCounts.hold
+  const passRate = totalQc > 0 ? Math.round((qcCounts.pass / totalQc) * 100) : null
+
+  // Add human-readable day labels to trend arrays
+  const qcTrend = (rpc.qc_trend ?? []).map(r => ({
+    ...r,
+    label: shortDayLabel(r.date),
+  }))
+
+  const scanTrend = (rpc.scan_trend ?? []).map(r => ({
+    date:          r.date,
+    label:         shortDayLabel(r.date),
+    scans:         r.scans,
+    uniqueBatches: r.unique_batches,
+  }))
+
+  // numeric columns arrive as strings from PostgREST; normalise here
+  const rawMaterials = ((inventoryRaw ?? []) as unknown as RawMaterialRow[]).map(m => ({
     ...m,
     quantity_in_stock: Number(m.quantity_in_stock),
     reorder_level:     Number(m.reorder_level),
   }))
-  const salesList    = (allSalesData  ?? []) as unknown as SaleRow[]
-  const activityFeed = (activityData  ?? []) as unknown as ActivityLogRow[]
 
-  // ── QC counts ───────────────────────────────────────────────────────────
-  const qcCounts = {
-    pass: qcList.filter(q => q.status === 'pass').length,
-    fail: qcList.filter(q => q.status === 'fail').length,
-    hold: qcList.filter(q => q.status === 'hold').length,
-  }
-  const totalQc  = qcCounts.pass + qcCounts.fail + qcCounts.hold
-  const passRate = totalQc > 0 ? Math.round((qcCounts.pass / totalQc) * 100) : null
+  const salesList    = (recentSalesRaw ?? []) as unknown as SaleRow[]
+  const activityFeed = (activityRaw   ?? []) as unknown as ActivityLogRow[]
 
-  // ── Batch / QC maps ──────────────────────────────────────────────────────
-  const batchMap     = new Map<string, BatchRow>(batchList.map(b => [b.id, b]))
-  const latestQcMap  = new Map<string, typeof qcList[0]>()
-  for (const q of qcList) {
-    if (!latestQcMap.has(q.batch_id)) latestQcMap.set(q.batch_id, q)
-  }
+  const lowStockCount = Number(rpc.low_stock_count ?? rawMaterials.filter(
+    m => isFinite(m.quantity_in_stock) && isFinite(m.reorder_level) && m.quantity_in_stock <= m.reorder_level
+  ).length)
 
-  // ── Recall risk ──────────────────────────────────────────────────────────
-  const batchesWithQc       = new Set(qcList.map(q => q.batch_id))
-  const productIdsWithSales = new Set((salesProducts ?? []).map(s => s.product_id as string))
-  const failedBatchIds      = batchList.filter(b => latestQcMap.get(b.id)?.status === 'fail').map(b => b.id)
-  const failedBatchSet      = new Set(failedBatchIds)
-  const failedWithSalesCount = batchList.filter(
-    b => failedBatchSet.has(b.id) && productIdsWithSales.has(b.product_id)
-  ).length
-  const missingQcCount = batchList.filter(b => !batchesWithQc.has(b.id)).length
-
-  // ── Failed QC batches (for table) ────────────────────────────────────────
-  const failedBatches = batchList
-    .filter(b => failedBatchSet.has(b.id))
-    .slice(0, 10)
-    .map(b => ({
-      id:           b.id,
-      batch_status: b.status,
-      product_id:   b.product_id,
-      product_name: b.products?.name ?? 'Unknown',
-      sku:          b.products?.sku  ?? '',
-      created_at:   b.created_at,
-      has_sales:    productIdsWithSales.has(b.product_id),
-      latest_qc:    latestQcMap.get(b.id)!,
-    }))
-
-  // ── Recent QC inspections ────────────────────────────────────────────────
-  const recentQc = qcList.slice(0, 10).map(q => {
-    const b = batchMap.get(q.batch_id)
-    return {
-      batch_id:       q.batch_id,
-      status:         q.status as 'pass' | 'fail' | 'hold',
-      inspector_name: q.inspector_name,
-      notes:          q.notes as string | null,
-      inspected_at:   q.inspected_at,
-      product_name:   b?.products?.name ?? 'Unknown',
-      sku:            b?.products?.sku  ?? '',
-    }
-  })
-
-  // ── Most scanned batches ─────────────────────────────────────────────────
-  const scanCountMap = new Map<string, number>()
-  for (const s of scanTop) {
-    scanCountMap.set(s.batch_id, (scanCountMap.get(s.batch_id) ?? 0) + 1)
-  }
-  const mostScanned = [...scanCountMap.entries()]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 8)
-    .map(([batchId, count]) => {
-      const b = batchMap.get(batchId)
-      return {
-        batch_id:     batchId,
-        scan_count:   count,
-        product_name: b?.products?.name ?? 'Unknown batch',
-        sku:          b?.products?.sku  ?? '',
-        batch_status: b?.status ?? '',
-      }
-    })
-
-  // ── Recent scan events ───────────────────────────────────────────────────
-  const recentScans = scanRecent.map(s => {
-    const b = batchMap.get(s.batch_id)
-    return {
-      batch_id:     s.batch_id,
-      scanned_at:   s.scanned_at,
-      device_type:  s.device_type as string | null,
-      browser:      s.browser     as string | null,
-      product_name: b?.products?.name ?? 'Unknown batch',
-    }
-  })
-
-  // ── Production orders by status ──────────────────────────────────────────
-  const ordersByStatus = {
-    pending:     batchList.filter(b => b.status === 'pending').length,
-    in_progress: batchList.filter(b => b.status === 'in_progress').length,
-    completed:   batchList.filter(b => b.status === 'completed').length,
-    cancelled:   batchList.filter(b => b.status === 'cancelled').length,
-  }
-
-  // ── Trend data ───────────────────────────────────────────────────────────
-  const days7 = lastNDays(7)
-
-  const qcTrend = days7.map(dateStr => ({
-    date:  dateStr,
-    label: shortDayLabel(dateStr),
-    pass:  qcList.filter(q => toDay(q.inspected_at) === dateStr && q.status === 'pass').length,
-    fail:  qcList.filter(q => toDay(q.inspected_at) === dateStr && q.status === 'fail').length,
-    hold:  qcList.filter(q => toDay(q.inspected_at) === dateStr && q.status === 'hold').length,
+  const topProducts: TopProduct[] = ((salesRpc.top_products ?? []) as unknown as TopProduct[]).map(p => ({
+    product_id:   p.product_id,
+    product_name: p.product_name,
+    units_sold:   Number(p.units_sold),
+    revenue:      Number(p.revenue),
   }))
 
-  const scanTrend = days7.map(dateStr => {
-    const dayScans = scanTrend7.filter(s => toDay(s.scanned_at) === dateStr)
-    return {
-      date:          dateStr,
-      label:         shortDayLabel(dateStr),
-      scans:         dayScans.length,
-      uniqueBatches: new Set(dayScans.map(s => s.batch_id)).size,
-    }
-  })
-
-  const weeklyInspections = qcList.filter(q => toDay(q.inspected_at) >= days7[0]).length
-  const ordersThisWeek    = batchList.filter(b => toDay(b.created_at) >= days7[0]).length
-
-  // ── Inventory ────────────────────────────────────────────────────────────
-  const lowStockCount = rawMaterials.filter(
-    m => isFinite(m.quantity_in_stock) && isFinite(m.reorder_level) && m.quantity_in_stock <= m.reorder_level
-  ).length
-
-  const inProgressOrders = batchList.filter(b => b.status === 'in_progress').slice(0, 8)
-
-  // ── Sales aggregates ─────────────────────────────────────────────────────
-  const completedSales     = salesList.filter(s => s.status === 'completed')
-  const totalSalesRevenue  = Math.round(completedSales.reduce((sum, s) => sum + (Number(s.total_price) || 0), 0))
-  const totalSalesCount    = salesList.length
-
-  const productRevenueMap  = new Map<string, { product_name: string; units_sold: number; revenue: number }>()
-  for (const s of completedSales) {
-    const entry = productRevenueMap.get(s.product_id) ?? { product_name: s.product_name ?? s.product_id, units_sold: 0, revenue: 0 }
-    entry.units_sold += Number(s.quantity) || 0
-    entry.revenue    += Number(s.total_price) || 0
-    productRevenueMap.set(s.product_id, entry)
-  }
-  const topProducts: TopProduct[] = [...productRevenueMap.entries()]
-    .sort((a, b) => b[1].revenue - a[1].revenue)
-    .slice(0, 6)
-    .map(([product_id, d]) => ({ product_id, ...d }))
-
   return {
-    // Core production
-    totalBatches: batchList.length,
-    totalScans:   totalScans ?? 0,
+    // Core production (from RPC — full-company counts)
+    totalBatches:     Number(rpc.total_batches      ?? 0),
+    totalScans:       Number(rpc.total_scans         ?? 0),
     passRate,
-    weeklyInspections,
+    weeklyInspections:Number(rpc.weekly_inspections  ?? 0),
     qcCounts,
-    ordersByStatus,
-    ordersThisWeek,
-    // Trend
+    ordersByStatus:   rpc.orders_by_status ?? { pending: 0, in_progress: 0, completed: 0, cancelled: 0 },
+    ordersThisWeek:   Number(rpc.orders_this_week    ?? 0),
+    // Trend (from RPC — full 7-day window, no row cap)
     qcTrend,
     scanTrend,
-    // Lists
-    recentQc,
-    failedBatches,
-    mostScanned,
-    recentScans,
+    // Lists (from RPC — pre-limited server-side)
+    recentQc:     rpc.recent_qc ?? [],
+    failedBatches: (rpc.failed_batches ?? []).map(b => ({
+      id:           b.id,
+      batch_status: b.batch_status,
+      product_id:   b.product_id,
+      product_name: b.product_name,
+      sku:          b.sku,
+      created_at:   b.created_at,
+      has_sales:    b.has_sales,
+      latest_qc:    b.latest_qc as {
+        batch_id: string; status: 'pass' | 'fail' | 'hold'
+        inspector_name: string; notes: string | null; inspected_at: string
+      },
+    })),
+    mostScanned:      rpc.most_scanned       ?? [],
+    recentScans:      rpc.recent_scans       ?? [],
     recallRisk: {
-      failedQcCount:   failedBatchIds.length,
-      failedWithSales: failedWithSalesCount,
-      missingQcCount,
+      failedQcCount:   Number(rpc.recall_risk?.failed_qc_count  ?? 0),
+      failedWithSales: Number(rpc.recall_risk?.failed_with_sales ?? 0),
+      missingQcCount:  Number(rpc.recall_risk?.missing_qc_count  ?? 0),
     },
-    // Operations
-    recentOrders: batchList.slice(0, 10),
-    // Inventory (warehouse)
+    recentOrders:     rpc.recent_orders      ?? [],
+    inProgressOrders: rpc.in_progress_orders ?? [],
+    // Inventory (direct query, capped at 100 — sufficient for the widget)
     rawMaterials,
     lowStockCount,
-    inProgressOrders,
-    // Sales
-    recentSales:       salesList.slice(0, 15),
-    totalSalesRevenue,
-    totalSalesCount,
+    // Sales (revenue from RPC — full-company totals; recent list from direct query)
+    recentSales:       salesList,
+    totalSalesRevenue: Number(salesRpc.total_revenue   ?? 0),
+    totalSalesCount:   Number(salesRpc.total_orders    ?? 0),
     topProducts,
-    // Activity feed
+    // Activity feed (direct query, already capped at 30)
     activityFeed,
   }
 }

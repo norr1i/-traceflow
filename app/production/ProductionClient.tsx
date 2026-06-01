@@ -15,6 +15,9 @@ import {
   Plus, Pencil, Trash2, X, Check, AlertTriangle, ClipboardList,
   QrCode, Copy, Download, ExternalLink, Layers, FlaskConical,
 } from 'lucide-react'
+import PaginationBar from '../components/PaginationBar'
+
+const PAGE_SIZE = 50
 
 type OrderWithProduct = ProductionOrder & { products?: { name: string } | null }
 type SimpleProduct    = { id: string; name: string }
@@ -47,9 +50,12 @@ export default function ProductionClient() {
   const canWriteQc = canEdit(role, 'quality-control')
   const { t, lang } = useT()
 
-  const [orders, setOrders]       = useState<OrderWithProduct[]>([])
-  const [products, setProducts]   = useState<SimpleProduct[]>([])
-  const [loading, setLoading]     = useState(true)
+  const [orders,      setOrders]      = useState<OrderWithProduct[]>([])
+  const [products,    setProducts]    = useState<SimpleProduct[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [page,        setPage]        = useState(1)
+  const [totalCount,  setTotalCount]  = useState(0)
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const [showForm, setShowForm]   = useState(false)
   const [editing, setEditing]     = useState<OrderWithProduct | null>(null)
   const [form, setForm]           = useState(emptyOrder)
@@ -73,16 +79,31 @@ export default function ProductionClient() {
     status: 'pass', inspector_name: '', notes: '', inspected_at: '',
   })
 
-  useEffect(() => {
+  const loadPage = (pageNum: number) => {
+    if (!companyId) return
+    setLoading(true)
+    const offset = (pageNum - 1) * PAGE_SIZE
     Promise.all([
-      supabase.from('production_orders').select('*, products(name)').order('created_at', { ascending: false }),
-      supabase.from('products').select('id, name'),
-    ]).then(([{ data: orderData }, { data: productData }]) => {
+      supabase
+        .from('production_orders')
+        .select('*, products(name)', { count: 'exact' })
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .range(offset, offset + PAGE_SIZE - 1),
+      supabase
+        .from('products')
+        .select('id, name')
+        .eq('company_id', companyId)
+        .limit(200),
+    ]).then(([{ data: orderData, count }, { data: productData }]) => {
       setOrders(orderData ?? [])
+      setTotalCount(count ?? 0)
       setProducts(productData ?? [])
       setLoading(false)
     })
-  }, [])
+  }
+
+  useEffect(() => { loadPage(1) }, [companyId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!materialsOrder) return
@@ -135,7 +156,7 @@ export default function ProductionClient() {
     const payload = { product_id: form.product_id, quantity: Number(form.quantity), status: form.status }
     if (editing) {
       const { data, error: err } = await supabase
-        .from('production_orders').update(payload).eq('id', editing.id)
+        .from('production_orders').update(payload).eq('id', editing.id).eq('company_id', companyId ?? '')
         .select('*, products(name)').single()
       if (err) { setFormError(err.message); toast.error(t('production.error_update')); setSaving(false); return }
       setOrders((prev) => prev.map((o) => (o.id === editing.id ? data : o)))
@@ -148,7 +169,7 @@ export default function ProductionClient() {
       else console.warn('[logActivity] skipped production_order.updated — companyId is null')
     } else {
       const { data, error: err } = await supabase
-        .from('production_orders').insert([payload])
+        .from('production_orders').insert([{ ...payload, company_id: companyId }])
         .select('*, products(name)').single()
       if (err) { setFormError(err.message); toast.error(t('production.error_create')); setSaving(false); return }
       setOrders((prev) => [data, ...prev])
@@ -166,7 +187,7 @@ export default function ProductionClient() {
   async function handleDelete(id: string) {
     const ok = await confirm({ title: t('production.delete_title'), message: t('production.delete_message'), confirmLabel: t('common.delete') })
     if (!ok) return
-    const { error: err } = await supabase.from('production_orders').delete().eq('id', id)
+    const { error: err } = await supabase.from('production_orders').delete().eq('id', id).eq('company_id', companyId ?? '')
     if (err) { toast.error(err.message); return }
     setOrders((prev) => prev.filter((o) => o.id !== id))
     toast.success(t('production.deleted_toast'))
@@ -258,7 +279,7 @@ export default function ProductionClient() {
     <>
       <div className="mb-4 flex items-center justify-between">
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          {t(orders.length !== 1 ? 'production.count_plural' : 'production.count', { n: fmtNum(orders.length, lang) })}
+          {t(totalCount !== 1 ? 'production.count_plural' : 'production.count', { n: fmtNum(totalCount, lang) })}
         </p>
         {canWrite && (
           <button onClick={openCreate}
@@ -600,6 +621,13 @@ export default function ProductionClient() {
             </tbody>
           </table>
         )}
+        <PaginationBar
+          page={page}
+          totalPages={totalPages}
+          totalCount={totalCount}
+          pageSize={PAGE_SIZE}
+          onPage={(p) => { setPage(p); loadPage(p) }}
+        />
       </div>
     </>
   )

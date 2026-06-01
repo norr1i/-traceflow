@@ -1,6 +1,8 @@
-// src/hooks/useSales.ts
 import { useState, useEffect, useCallback } from 'react'
 import { supabase } from '../lib/supabase'
+import { useAuth } from '../lib/auth-context'
+
+export const SALES_PAGE_SIZE = 50
 
 export interface SaleRecord {
   id: string
@@ -30,18 +32,12 @@ export interface SalesMetrics {
   top_product?: string
 }
 
-function deriveMetrics(rows: SaleRecord[]): SalesMetrics {
-  if (rows.length === 0) return { total_revenue: 0, total_orders: 0, avg_order_value: 0 }
-  const total_revenue = rows.reduce((sum, r) => sum + (r.total_price ?? 0), 0)
-  const total_orders = rows.length
-  const avg_order_value = total_revenue / total_orders
-  const byProduct: Record<string, number> = {}
-  rows.forEach((r) => {
-    const key = r.product_name ?? r.product_id ?? 'Unknown'
-    byProduct[key] = (byProduct[key] ?? 0) + (r.total_price ?? 0)
-  })
-  const top_product = Object.entries(byProduct).sort((a, b) => b[1] - a[1])[0]?.[0]
-  return { total_revenue, total_orders, avg_order_value, top_product }
+// Shape returned by get_company_sales_stats RPC
+type SalesStatsRpc = {
+  total_revenue:   number
+  total_orders:    number
+  avg_order_value: number
+  top_product:     string | null
 }
 
 function extractMessage(err: unknown, fallback: string): string {
@@ -50,47 +46,85 @@ function extractMessage(err: unknown, fallback: string): string {
 }
 
 export function useSales() {
-  const [sales, setSales] = useState<SaleRecord[]>([])
-  const [metrics, setMetrics] = useState<SalesMetrics | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+  const { companyId } = useAuth()
 
-  const fetchSales = useCallback(async () => {
+  const [sales,      setSales]      = useState<SaleRecord[]>([])
+  const [metrics,    setMetrics]    = useState<SalesMetrics | null>(null)
+  const [loading,    setLoading]    = useState(true)
+  const [error,      setError]      = useState<string | null>(null)
+  const [page,       setPageState]  = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+
+  const totalPages = Math.max(1, Math.ceil(totalCount / SALES_PAGE_SIZE))
+
+  // ── Core load: paginated sales rows + RPC-backed aggregate metrics ──────
+  const load = useCallback(async (pageNum: number) => {
+    if (!companyId) { setLoading(false); return }
     setLoading(true)
     setError(null)
     try {
-      const { data, error: fetchError } = await supabase
+      const offset = (pageNum - 1) * SALES_PAGE_SIZE
+
+      // Paginated rows with total count
+      const { data, count, error: fetchError } = await supabase
         .from('sales')
-        .select('*')
+        .select('*', { count: 'exact' })
+        .eq('company_id', companyId)
         .order('sold_at', { ascending: false })
+        .range(offset, offset + SALES_PAGE_SIZE - 1)
 
       if (fetchError) throw fetchError
 
-      const rows: SaleRecord[] = data ?? []
-      setSales(rows)
-      setMetrics(deriveMetrics(rows))
+      setSales(data ?? [])
+      setTotalCount(count ?? 0)
+
+      // Full-company aggregate metrics via RPC
+      const { data: rpc, error: rpcErr } = await supabase
+        .rpc('get_company_sales_stats', { p_company_id: companyId })
+
+      if (!rpcErr && rpc) {
+        const r = rpc as SalesStatsRpc
+        setMetrics({
+          total_revenue:   Number(r.total_revenue   ?? 0),
+          total_orders:    Number(r.total_orders    ?? 0),
+          avg_order_value: Number(r.avg_order_value ?? 0),
+          top_product:     r.top_product ?? undefined,
+        })
+      } else {
+        // RPC not yet deployed — metrics unavailable until SQL is run
+        setMetrics(null)
+      }
     } catch (err) {
       setError(extractMessage(err, 'Failed to fetch sales'))
     } finally {
       setLoading(false)
     }
-  }, [])
+  }, [companyId])
+
+  const goToPage = useCallback((p: number) => {
+    setPageState(p)
+    load(p)
+  }, [load])
+
+  // Initial load
+  useEffect(() => { load(1); setPageState(1) }, [load])
+
+  // ── Mutations ────────────────────────────────────────────────────────────
 
   const createSale = async (data: SaleFormData): Promise<SaleRecord | null> => {
+    if (!companyId) return null
     try {
       const { data: newSale, error: insertError } = await supabase
         .from('sales')
-        .insert([{ ...data, sold_at: new Date().toISOString() }])
+        .insert([{ ...data, company_id: companyId, sold_at: new Date().toISOString() }])
         .select()
         .single()
 
       if (insertError) throw insertError
 
-      setSales((prev) => {
-        const next = [newSale, ...prev]
-        setMetrics(deriveMetrics(next))
-        return next
-      })
+      // Reload page 1 so the new record is visible and metrics refresh
+      setPageState(1)
+      await load(1)
       return newSale
     } catch (err) {
       setError(extractMessage(err, 'Failed to create sale'))
@@ -99,15 +133,19 @@ export function useSales() {
   }
 
   const deleteSale = async (id: string): Promise<boolean> => {
+    if (!companyId) return false
     try {
-      const { error: deleteError } = await supabase.from('sales').delete().eq('id', id)
+      const { error: deleteError } = await supabase
+        .from('sales')
+        .delete()
+        .eq('id', id)
+        .eq('company_id', companyId)
+
       if (deleteError) throw deleteError
 
-      setSales((prev) => {
-        const next = prev.filter((s) => s.id !== id)
-        setMetrics(deriveMetrics(next))
-        return next
-      })
+      const nextPage = sales.length === 1 && page > 1 ? page - 1 : page
+      setPageState(nextPage)
+      await load(nextPage)
       return true
     } catch (err) {
       setError(extractMessage(err, 'Failed to delete sale'))
@@ -115,22 +153,17 @@ export function useSales() {
     }
   }
 
-  useEffect(() => {
-    supabase
-      .from('sales')
-      .select('*')
-      .order('sold_at', { ascending: false })
-      .then(({ data, error: fetchError }) => {
-        if (fetchError) {
-          setError(fetchError.message)
-        } else {
-          const rows: SaleRecord[] = data ?? []
-          setSales(rows)
-          setMetrics(deriveMetrics(rows))
-        }
-        setLoading(false)
-      })
-  }, [])
-
-  return { sales, metrics, loading, error, refetch: fetchSales, createSale, deleteSale }
+  return {
+    sales,
+    metrics,
+    loading,
+    error,
+    page,
+    totalCount,
+    totalPages,
+    goToPage,
+    refetch: () => load(page),
+    createSale,
+    deleteSale,
+  }
 }
