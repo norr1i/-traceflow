@@ -102,7 +102,7 @@ const REQ_DESCRIPTIONS: Record<string, string> = {
   capa:  'Corrective and preventive actions are formally tracked to closure and verified for effectiveness.',
   qc:    'QC inspections are conducted for every production batch by certified inspectors. Results are documented and linked to the batch record.',
   equip: 'All production and testing equipment is maintained and calibrated per an approved schedule. Calibration certificates are controlled documents.',
-  audit: 'All system activities are logged with timestamp, actor, and entity. Logs are immutable and retained per SFDA data integrity requirements.',
+  audit: 'All system activities are logged with timestamp, actor, and entity. Logs are timestamped and company-scoped; retention period depends on your Supabase plan.',
   sop:   'Standard Operating Procedures are documented, version-controlled, and accessible to all relevant personnel. Training records are maintained.',
 }
 
@@ -694,7 +694,7 @@ export default function SFDAClient() {
               <div>
                 <h2 className="text-base font-semibold text-[var(--text)]">Compile Inspection Dossier</h2>
                 <p className="text-sm text-[var(--muted)] mt-0.5">
-                  Compile all GMP compliance records into a tamper-evident, SFDA-ready inspection dossier.
+                  Compile all GMP compliance records into an SFDA-ready inspection dossier.
                 </p>
               </div>
             </div>

@@ -80,7 +80,7 @@ export function todayStr(): string {
   return new Date().toISOString().split('T')[0] ?? ''
 }
 
-export function pdfHash(): string {
+export function pdfDocumentId(): string {
   return `TF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
 }
 
@@ -183,7 +183,7 @@ class PDFDoc {
       ['Generated',       meta.generated],
       ['Version',         meta.version],
       ['Regulatory Ref.', meta.regRef],
-      ['Integrity Hash',  meta.hash, true],
+      ['Document ID',     meta.hash, true],
     ]
     let my = 35.5
     baseMeta.forEach(([lbl, val, mono]) => {
@@ -553,7 +553,7 @@ class PDFDoc {
 
 export function buildQCReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
-  const hash = pdfHash()
+  const hash = pdfDocumentId()
   const date = todayStr()
   const p = new PDFDoc({
     title:     'QC Inspection Report',
@@ -591,7 +591,7 @@ export function buildQCReportPDF(ctx: ReportContext): Blob {
 
 export function buildBatchReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
-  const hash = pdfHash()
+  const hash = pdfDocumentId()
   const date = todayStr()
   const p = new PDFDoc({
     title:     'Batch Traceability Report',
@@ -640,7 +640,7 @@ export function buildBatchReportPDF(ctx: ReportContext): Blob {
 
 export function buildNCRReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
-  const hash = pdfHash()
+  const hash = pdfDocumentId()
   const date = todayStr()
   const p = new PDFDoc({
     title:     'Non-Conformance Report',
@@ -674,7 +674,7 @@ export function buildNCRReportPDF(ctx: ReportContext): Blob {
 
 export function buildRecallReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
-  const hash = pdfHash()
+  const hash = pdfDocumentId()
   const date = todayStr()
   const p = new PDFDoc({
     title:     'Recall Summary Report',
@@ -704,7 +704,7 @@ export function buildRecallReportPDF(ctx: ReportContext): Blob {
 
 export function buildCAPAReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
-  const hash = pdfHash()
+  const hash = pdfDocumentId()
   const date = todayStr()
   const p = new PDFDoc({
     title:     'CAPA Summary Report',
@@ -736,7 +736,7 @@ export function buildCAPAReportPDF(ctx: ReportContext): Blob {
 
 export function buildGMPReportPDF(ctx: ReportContext): Blob {
   const ts   = nowGregorian()
-  const hash = pdfHash()
+  const hash = pdfDocumentId()
   const date = todayStr()
   const p = new PDFDoc({
     title:     'GMP Audit Report',
@@ -785,7 +785,7 @@ export function buildGMPReportPDF(ctx: ReportContext): Blob {
 
 export function buildInspectionPackagePDF(ctx: ReportContext): Blob {
   const ts       = nowGregorian()
-  const hash     = pdfHash()
+  const hash     = pdfDocumentId()
   const date     = todayStr()
   const dateFlat = date.replace(/-/g, '')
   const p = new PDFDoc({
