@@ -1,7 +1,6 @@
 'use client'
 
 import { useState } from 'react'
-import { useRouter } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { Building2, AlertCircle, Loader2, ShieldCheck } from 'lucide-react'
 import { LogoIcon } from '../components/Logo'
@@ -17,7 +16,6 @@ function friendlyError(raw: string): string {
 }
 
 export default function OnboardingPage() {
-  const router = useRouter()
   const [name,    setName]    = useState('')
   const [loading, setLoading] = useState(false)
   const [error,   setError]   = useState<string | null>(null)
