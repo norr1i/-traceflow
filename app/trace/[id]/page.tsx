@@ -132,7 +132,7 @@ function logScanEvent(batchId: string) {
     device_type: isMobile ? 'mobile' : 'desktop',
     browser,
     user_agent: ua.slice(0, 300),
-  })
+  }).catch(err => console.error('[logScanEvent] insert failed:', err))
 }
 
 // ── Page ───────────────────────────────────────────────────────────────────
