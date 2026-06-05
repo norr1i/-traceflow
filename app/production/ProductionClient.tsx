@@ -429,10 +429,12 @@ export default function ProductionClient() {
                         <td className="py-2.5 text-end text-gray-700 dark:text-gray-300">{entry.quantity}</td>
                         <td className="py-2.5 text-end text-gray-500 dark:text-gray-400">{entry.unit}</td>
                         <td className="py-2.5 text-end">
-                          <button onClick={() => deleteMaterial(entry.id)}
-                            className="rounded p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
-                            <Trash2 size={13} />
-                          </button>
+                          {canWrite && (
+                            <button onClick={() => deleteMaterial(entry.id)}
+                              className="rounded p-1 text-gray-300 dark:text-gray-600 hover:text-red-500 dark:hover:text-red-400 opacity-0 group-hover:opacity-100 transition-all">
+                              <Trash2 size={13} />
+                            </button>
+                          )}
                         </td>
                       </tr>
                     ))}

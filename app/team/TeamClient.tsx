@@ -6,7 +6,7 @@ import { useAuth } from '../lib/auth-context'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
 import { ROLE_META, ASSIGNABLE_ROLES, type Role } from '../lib/roles'
-import { hasPermission } from '../lib/permissions'
+import { hasPermission, canManage } from '../lib/permissions'
 import { logActivity, actorName } from '../lib/activity'
 import { useT, fmtNum } from '../lib/i18n'
 import {
@@ -149,6 +149,7 @@ export default function TeamClient() {
   const confirm  = useConfirm()
   const { t, lang } = useT()
   const locale = lang === 'ar' ? 'ar-SA-u-nu-latn' : 'en-US'
+  const canManageTeam = canManage(role as Role | null, 'team')
   const assignableRoles = hasPermission(role as Role | null, 'invite:admin')
     ? ASSIGNABLE_ROLES
     : ASSIGNABLE_ROLES.filter((r) => r !== 'admin')
@@ -654,13 +655,15 @@ export default function TeamClient() {
                               >
                                 <Copy size={13} />
                               </button>
-                              <button
-                                onClick={() => handleCancelInvite(m)}
-                                title={t('team.cancel_invite_title')}
-                                className="rounded-lg p-1.5 text-gray-400 dark:text-[#525563] hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              {canManageTeam && (
+                                <button
+                                  onClick={() => handleCancelInvite(m)}
+                                  title={t('team.cancel_invite_title')}
+                                  className="rounded-lg p-1.5 text-gray-400 dark:text-[#525563] hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
                             </>
                           ) : isMe ? (
                             <span className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] text-gray-400 dark:text-[#525563]">
@@ -693,13 +696,15 @@ export default function TeamClient() {
                               >
                                 <Pencil size={13} />
                               </button>
-                              <button
-                                onClick={() => handleRemove(m)}
-                                title={t('team.remove_member_title')}
-                                className="rounded-lg p-1.5 text-gray-400 dark:text-[#525563] hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-colors"
-                              >
-                                <Trash2 size={13} />
-                              </button>
+                              {canManageTeam && (
+                                <button
+                                  onClick={() => handleRemove(m)}
+                                  title={t('team.remove_member_title')}
+                                  className="rounded-lg p-1.5 text-gray-400 dark:text-[#525563] hover:bg-red-50 dark:hover:bg-red-500/10 hover:text-red-500 dark:hover:text-red-400 transition-colors"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
                             </>
                           )}
                         </div>
