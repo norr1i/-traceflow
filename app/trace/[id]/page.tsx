@@ -6,6 +6,7 @@ import { supabase } from '../../lib/supabase'
 import {
   ShieldCheck, Package, FlaskConical, Layers, ShoppingCart,
   AlertCircle, Loader2, QrCode,
+  Activity, CheckCircle2, XCircle, Clock, Truck,
 } from 'lucide-react'
 import { LogoIcon } from '../../components/Logo'
 
@@ -47,6 +48,21 @@ type TraceData = {
   sales: Sale[]
 }
 
+type JourneyEvent = {
+  event_type: string
+  event_timestamp: string
+  title: string
+  description: string | null
+  source_table: string
+  metadata: Record<string, unknown> | null
+}
+
+type JourneyData = {
+  batch: Record<string, unknown>
+  timeline: JourneyEvent[]
+  event_count: number
+}
+
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 function fmt(iso: string) {
@@ -58,6 +74,53 @@ function fmtDateTime(iso: string) {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
+}
+
+function getDotColor(eventType: string): string {
+  if (eventType === 'production.completed')         return 'bg-emerald-500'
+  if (eventType.startsWith('production.'))          return 'bg-blue-500'
+  if (eventType.startsWith('material.'))            return 'bg-orange-400'
+  if (eventType === 'qc.pass'      ||
+      eventType === 'qc_inspection.passed')         return 'bg-emerald-500'
+  if (eventType === 'qc.fail'      ||
+      eventType === 'qc_inspection.failed')         return 'bg-red-500'
+  if (eventType.startsWith('qc'))                  return 'bg-amber-400'
+  if (eventType.startsWith('qr.'))                 return 'bg-purple-500'
+  if (eventType.startsWith('distribution.'))       return 'bg-teal-500'
+  if (eventType.startsWith('raw_material.'))       return 'bg-orange-400'
+  if (eventType.startsWith('supplier.'))           return 'bg-sky-400'
+  if (eventType === 'packaging.completed')          return 'bg-indigo-400'
+  if (eventType === 'storage.entry')               return 'bg-slate-400'
+  if (eventType === 'capa.created')                return 'bg-rose-400'
+  return 'bg-gray-400'
+}
+
+function getSourceLabel(sourceTable: string): string {
+  const labels: Record<string, string> = {
+    production_orders:    'Production',
+    bill_of_materials:    'Materials',
+    batch_qc_results:     'QC',
+    quality_inspections:  'QC Inspection',
+    scan_events:          'QR Scan',
+    distribution_records: 'Distribution',
+    batch_journey_events: 'Journey',
+  }
+  return labels[sourceTable] ?? sourceTable
+}
+
+function getEventIcon(eventType: string) {
+  if (eventType === 'production.completed' ||
+      eventType === 'qc.pass' ||
+      eventType === 'qc_inspection.passed')
+    return <CheckCircle2 size={11} />
+  if (eventType === 'qc.fail' ||
+      eventType === 'qc_inspection.failed')
+    return <XCircle size={11} />
+  if (eventType.startsWith('qc'))
+    return <Clock size={11} />
+  if (eventType.startsWith('distribution.'))
+    return <Truck size={11} />
+  return null
 }
 
 type QcStatus = 'pass' | 'fail' | 'hold'
@@ -73,6 +136,8 @@ const orderStatusClass: Record<string, string> = {
   pending:     'bg-gray-100 text-gray-600 dark:bg-gray-700 dark:text-gray-400',
   cancelled:   'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
 }
+
+// ── Shared UI primitives ───────────────────────────────────────────────────
 
 function Badge({ label, className }: { label: string; className: string }) {
   return (
@@ -114,6 +179,85 @@ function Empty({ text }: { text: string }) {
   return <p className="text-sm text-gray-400 dark:text-gray-500 italic">{text}</p>
 }
 
+// ── Timeline event row ─────────────────────────────────────────────────────
+
+function TimelineEvent({ event, isLast }: { event: JourneyEvent; isLast: boolean }) {
+  const dotColor    = getDotColor(event.event_type)
+  const sourceLabel = getSourceLabel(event.source_table)
+  const statusIcon  = getEventIcon(event.event_type)
+
+  return (
+    <div className="flex gap-3">
+
+      {/* Left column: dot + connector line */}
+      <div className="flex flex-col items-center shrink-0" style={{ width: 10 }}>
+        <span className={`mt-1 h-2.5 w-2.5 rounded-full shrink-0 ${dotColor} flex items-center justify-center`} />
+        {!isLast && (
+          <span className="mt-1 w-px grow bg-gray-200 dark:bg-gray-700" />
+        )}
+      </div>
+
+      {/* Right column: content */}
+      <div className={`min-w-0 flex-1 ${isLast ? 'pb-1' : 'pb-4'}`}>
+
+        {/* Title row */}
+        <div className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 leading-snug">
+          {statusIcon && (
+            <span className={`shrink-0 ${
+              event.event_type === 'production.completed' || event.event_type === 'qc.pass' || event.event_type === 'qc_inspection.passed'
+                ? 'text-emerald-500' : event.event_type === 'qc.fail' || event.event_type === 'qc_inspection.failed'
+                ? 'text-red-500' : 'text-amber-500'
+            }`}>
+              {statusIcon}
+            </span>
+          )}
+          <span className="text-sm font-medium text-gray-900 dark:text-white">
+            {event.title}
+          </span>
+          <span className="rounded bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 text-[10px] font-medium text-gray-400 dark:text-gray-500 shrink-0">
+            {sourceLabel}
+          </span>
+        </div>
+
+        {/* Description */}
+        {event.description && (
+          <p className="mt-0.5 text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
+            {event.description}
+          </p>
+        )}
+
+        {/* Timestamp */}
+        <p className="mt-1 text-[10px] text-gray-400 dark:text-gray-500 tabular-nums">
+          {fmtDateTime(event.event_timestamp)}
+        </p>
+
+      </div>
+    </div>
+  )
+}
+
+// ── Timeline skeleton ──────────────────────────────────────────────────────
+
+function TimelineSkeleton() {
+  return (
+    <div className="space-y-0" aria-busy="true" aria-label="Loading timeline">
+      {[44, 56, 40].map((w, i) => (
+        <div key={i} className="flex gap-3">
+          <div className="flex flex-col items-center shrink-0" style={{ width: 10 }}>
+            <span className="mt-1 h-2.5 w-2.5 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            {i < 2 && <span className="mt-1 w-px flex-1 bg-gray-200 dark:bg-gray-700" style={{ minHeight: 40 }} />}
+          </div>
+          <div className={`flex-1 ${i < 2 ? 'pb-4' : 'pb-1'} space-y-1.5`}>
+            <div className={`h-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse`} style={{ width: `${w}%` }} />
+            <div className="h-2.5 w-4/5 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            <div className="h-2 w-1/4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          </div>
+        </div>
+      ))}
+    </div>
+  )
+}
+
 // ── Scan event logging ─────────────────────────────────────────────────────
 
 function logScanEvent(batchId: string) {
@@ -145,26 +289,53 @@ function logScanEvent(batchId: string) {
 export default function PublicTracePage() {
   const { id } = useParams<{ id: string }>()
 
-  const [data,     setData]     = useState<TraceData | null>(null)
-  const [loading,  setLoading]  = useState(true)
-  const [notFound, setNotFound] = useState(false)
+  const [data,          setData]          = useState<TraceData | null>(null)
+  const [loading,       setLoading]       = useState(true)
+  const [notFound,      setNotFound]      = useState(false)
+  const [journey,       setJourney]       = useState<JourneyEvent[]>([])
+  const [journeyLoading,setJourneyLoading] = useState(false)
 
   useEffect(() => {
     if (!id) return
 
     logScanEvent(id)
+    setJourneyLoading(true)
 
-    supabase
-      .rpc('get_batch_trace', { p_batch_id: id })
-      .single()
-      .then(({ data: rpcData, error }) => {
-        if (error || !rpcData) {
-          setNotFound(true)
-        } else {
-          setData(rpcData as TraceData)
-        }
+    // Fetch batch trace and company_id in parallel. The journey RPC
+    // requires company_id, which is not returned by get_batch_trace.
+    // production_orders is accessible to the anon role via the
+    // public_trace_orders policy, so this direct select works without auth.
+    Promise.all([
+      supabase.rpc('get_batch_trace', { p_batch_id: id }).single(),
+      supabase.from('production_orders').select('company_id').eq('id', id).single(),
+    ]).then(([traceRes, orderRes]) => {
+      if (traceRes.error || !traceRes.data) {
+        setNotFound(true)
         setLoading(false)
-      })
+        setJourneyLoading(false)
+        return
+      }
+
+      setData(traceRes.data as TraceData)
+      setLoading(false)
+
+      const cid = (orderRes.data as { company_id: string } | null)?.company_id
+      if (!cid) { setJourneyLoading(false); return }
+
+      // Sequential: journey RPC fires once company_id is confirmed.
+      // Use .then() for both success and error — PostgrestBuilder is a
+      // PromiseLike, not a native Promise, so .catch() is not available.
+      supabase
+        .rpc('get_batch_journey', { p_batch_id: id, p_company_id: cid })
+        .single()
+        .then(({ data: jd, error: je }) => {
+          if (!je && jd) {
+            const timeline = (jd as JourneyData).timeline
+            if (Array.isArray(timeline)) setJourney(timeline)
+          }
+          setJourneyLoading(false)
+        }, () => setJourneyLoading(false))
+    })
   }, [id])
 
   // ── Loading ──────────────────────────────────────────────────────────────
@@ -321,6 +492,29 @@ export default function PublicTracePage() {
                     {s.quantity.toLocaleString()} units
                   </span>
                 </div>
+              ))}
+            </div>
+          )}
+        </Section>
+
+        {/* Product Journey Timeline */}
+        <Section
+          icon={<Activity size={15} />}
+          title="Product Journey"
+          count={journey.length}
+        >
+          {journeyLoading ? (
+            <TimelineSkeleton />
+          ) : journey.length === 0 ? (
+            <Empty text="No journey events recorded for this batch." />
+          ) : (
+            <div className="pt-0.5">
+              {journey.map((event, i) => (
+                <TimelineEvent
+                  key={`${event.event_type}-${event.event_timestamp}-${i}`}
+                  event={event}
+                  isLast={i === journey.length - 1}
+                />
               ))}
             </div>
           )}
