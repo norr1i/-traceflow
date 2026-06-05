@@ -347,13 +347,13 @@ BEGIN
         bje.event_type
       ),
       'batch_journey_events',
-      jsonb_strip_nulls(
-        jsonb_build_object(
-          'actor_email', bje.actor_email,
-          'entity_type', bje.entity_type,
-          'entity_id',   bje.entity_id::text
-        ) || COALESCE(bje.metadata, '{}'::jsonb)
-      )
+      -- metadata column is json in production; cast to jsonb for the output row.
+      -- The || concat is avoided here: merge is done via jsonb_build_object only.
+      jsonb_strip_nulls(jsonb_build_object(
+        'actor_email', bje.actor_email,
+        'entity_type', bje.entity_type,
+        'entity_id',   bje.entity_id::text
+      ) || COALESCE(bje.metadata::jsonb, '{}'::jsonb))
     FROM  batch_journey_events bje
     WHERE bje.batch_id   = p_batch_id
       AND bje.company_id = v_company_id
