@@ -1,13 +1,18 @@
-import { classifyEvent } from './eventCategories'
+import { Fragment } from 'react'
+import { classifyEvent, STAGE_META, type EventCategory, type StageGroup } from './eventCategories'
+
+// ── Types ───────────────────────────────────────────────────────────────────
 
 export type JourneyEvent = {
-  event_type: string
-  event_timestamp: string
-  title: string
-  description: string | null
-  source_table: string
-  metadata: Record<string, unknown> | null
+  event_type:       string
+  event_timestamp:  string
+  title:            string
+  description:      string | null
+  source_table:     string
+  metadata:         Record<string, unknown> | null
 }
+
+// ── Source label map ────────────────────────────────────────────────────────
 
 const SOURCE_LABELS: Record<string, string> = {
   production_orders:    'Production',
@@ -23,12 +28,16 @@ function getSourceLabel(sourceTable: string): string {
   return SOURCE_LABELS[sourceTable] ?? sourceTable.replace(/_/g, ' ')
 }
 
+// ── Formatting ──────────────────────────────────────────────────────────────
+
 function fmtDateTime(iso: string): string {
   return new Date(iso).toLocaleString(undefined, {
     year: 'numeric', month: 'short', day: 'numeric',
     hour: '2-digit', minute: '2-digit',
   })
 }
+
+// ── Actor extraction ────────────────────────────────────────────────────────
 
 function extractActor(event: JourneyEvent): string | null {
   const m = event.metadata
@@ -44,43 +53,122 @@ function extractActor(event: JourneyEvent): string | null {
   return null
 }
 
-function AttributionChip({ label, value }: { label: string; value: string }) {
+// ── Stage flow header ───────────────────────────────────────────────────────
+// Shows which manufacturing stages are present in this batch's journey,
+// in the order they first appear chronologically.
+
+function StageFlowHeader({ stages }: { stages: StageGroup[] }) {
+  const meaningful = stages.filter(s => s !== 'other')
+  if (meaningful.length < 2) return null
+
   return (
-    <span className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 bg-gray-100 dark:bg-gray-700/60 text-[10px] font-medium">
+    <div className="mb-5 flex flex-wrap items-center gap-2">
+      {meaningful.map((stage, i) => {
+        const meta = STAGE_META[stage]
+        return (
+          <Fragment key={stage}>
+            <div className="flex items-center gap-1.5 rounded-full border border-gray-200 dark:border-gray-700/60 bg-white dark:bg-gray-800/60 px-2.5 py-1 shadow-sm">
+              <span className={`h-2 w-2 shrink-0 rounded-full ${meta.dotColor}`} />
+              <span className={`text-[10px] font-bold uppercase tracking-wider ${meta.textColor}`}>
+                {meta.label}
+              </span>
+            </div>
+            {i < meaningful.length - 1 && (
+              <span className="text-[10px] text-gray-300 dark:text-gray-600 select-none">→</span>
+            )}
+          </Fragment>
+        )
+      })}
+    </div>
+  )
+}
+
+// ── Stage transition divider ────────────────────────────────────────────────
+// Rendered between consecutive events that belong to different stage groups.
+// Visually breaks the timeline into named manufacturing phases.
+
+function StageDivider({ group }: { group: StageGroup }) {
+  const meta = STAGE_META[group]
+  return (
+    <div className="flex items-center gap-3 mb-3" role="separator">
+      {/* Left gutter — aligns with the center of the icon column */}
+      <div className="flex shrink-0 items-center justify-center" style={{ width: 36 }}>
+        <span className={`h-2 w-2 rounded-full ${meta.dotColor} opacity-70`} />
+      </div>
+      {/* Rule + label + rule */}
+      <div className="flex flex-1 items-center gap-2">
+        <div className={`h-px flex-1 ${meta.lineColor}`} />
+        <span className={`shrink-0 text-[10px] font-bold uppercase tracking-widest ${meta.textColor}`}>
+          {meta.label}
+        </span>
+        <div className={`h-px flex-1 ${meta.lineColor}`} />
+      </div>
+    </div>
+  )
+}
+
+// ── Attribution chip ────────────────────────────────────────────────────────
+
+function Chip({ label, value }: { label: string; value: string }) {
+  return (
+    <span className="inline-flex items-center gap-1 rounded-md bg-gray-100 dark:bg-gray-700/60 px-1.5 py-0.5 text-[10px] font-medium">
       <span className="text-gray-400 dark:text-gray-500">{label}</span>
       <span className="text-gray-600 dark:text-gray-300">{value}</span>
     </span>
   )
 }
 
-function EventCard({ event, isLast }: { event: JourneyEvent; isLast: boolean }) {
-  const category = classifyEvent(event.event_type)
-  const actor    = extractActor(event)
-  const source   = getSourceLabel(event.source_table)
-  const { Icon, iconBg, iconColor, badgeClass, label: categoryLabel } = category
+// ── Event card ──────────────────────────────────────────────────────────────
+
+function EventCard({
+  event,
+  category,
+  isLast,
+}: {
+  event:    JourneyEvent
+  category: EventCategory
+  isLast:   boolean
+}) {
+  const actor  = extractActor(event)
+  const source = getSourceLabel(event.source_table)
+  const {
+    Icon,
+    iconBg,
+    iconColor,
+    badgeClass,
+    borderAccent,
+    dotBg,
+    label: categoryLabel,
+  } = category
 
   return (
     <div className="relative flex gap-3 group">
 
-      {/* Left: icon + spine */}
-      <div className="flex flex-col items-center shrink-0" style={{ width: 32 }}>
+      {/* Left column: icon circle + colored connector spine */}
+      <div className="flex shrink-0 flex-col items-center" style={{ width: 36 }}>
+        {/* Icon circle — slightly larger than before (h-9 w-9) */}
         <div
-          className={`relative z-10 mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white dark:border-gray-900 shadow-sm ${iconBg} transition-transform duration-150 group-hover:scale-110`}
+          className={`relative z-10 mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full border-2 border-white dark:border-gray-900 shadow-sm ${iconBg} transition-transform duration-150 group-hover:scale-110`}
         >
-          <Icon size={14} className={iconColor} />
+          <Icon size={15} className={iconColor} />
         </div>
+
+        {/* Connector spine — colored by this event's category */}
         {!isLast && (
-          <div className="mt-1 w-0.5 flex-1 bg-gray-200 dark:bg-gray-700" style={{ minHeight: 16 }} />
+          <div
+            className={`mt-1 w-0.5 flex-1 ${dotBg} opacity-30`}
+            style={{ minHeight: 20 }}
+          />
         )}
       </div>
 
-      {/* Right: card */}
+      {/* Right column: event card with colored left accent border */}
       <div
-        className={`min-w-0 flex-1 rounded-xl border border-gray-100 dark:border-gray-700/60 bg-white dark:bg-gray-800/60 px-3.5 py-3 shadow-sm transition-all duration-150 group-hover:border-gray-200 dark:group-hover:border-gray-600 group-hover:shadow-md ${
+        className={`min-w-0 flex-1 rounded-xl border border-gray-100 dark:border-gray-700/60 border-l-2 ${borderAccent} bg-white dark:bg-gray-800/60 px-3.5 py-3 shadow-sm transition-shadow duration-150 group-hover:shadow-md ${
           isLast ? 'mb-0.5' : 'mb-3'
         }`}
       >
-        {/* Header: title + category badge */}
+        {/* Title row + category badge */}
         <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
           <p className="text-sm font-semibold text-gray-900 dark:text-white leading-snug">
             {event.title}
@@ -104,40 +192,70 @@ function EventCard({ event, isLast }: { event: JourneyEvent; isLast: boolean }) 
           {fmtDateTime(event.event_timestamp)}
         </p>
 
-        {/* Attribution footer — every event shows all three fields */}
+        {/* Attribution — Actor / Source / Category, always shown */}
         <div className="mt-2 flex flex-wrap gap-1.5">
-          <AttributionChip label="Actor" value={actor ?? 'System'} />
-          <AttributionChip label="Source" value={source} />
-          <AttributionChip label="Category" value={categoryLabel} />
+          <Chip label="Actor"    value={actor ?? 'System'} />
+          <Chip label="Source"   value={source} />
+          <Chip label="Category" value={categoryLabel} />
         </div>
       </div>
     </div>
   )
 }
 
+// ── Skeleton ────────────────────────────────────────────────────────────────
+
 function TimelineSkeleton() {
   return (
     <div aria-busy="true" aria-label="Loading timeline">
+      {/* Flow header skeleton */}
+      <div className="mb-5 flex items-center gap-2">
+        {[56, 52, 60, 52].map((w, i) => (
+          <Fragment key={i}>
+            <div
+              className="h-6 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse"
+              style={{ width: w }}
+            />
+            {i < 3 && (
+              <div className="h-2 w-3 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
+            )}
+          </Fragment>
+        ))}
+      </div>
+
+      {/* Event card skeletons */}
       {[55, 70, 45].map((w, i) => (
         <div key={i} className="flex gap-3">
-          <div className="flex flex-col items-center shrink-0" style={{ width: 32 }}>
-            <div className="mt-0.5 h-8 w-8 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
+          <div className="flex shrink-0 flex-col items-center" style={{ width: 36 }}>
+            <div className="mt-0.5 h-9 w-9 rounded-full bg-gray-200 dark:bg-gray-700 animate-pulse" />
             {i < 2 && (
-              <div className="mt-1 w-0.5 flex-1 bg-gray-200 dark:bg-gray-700" style={{ minHeight: 40 }} />
+              <div
+                className="mt-1 w-0.5 flex-1 bg-gray-200 dark:bg-gray-700"
+                style={{ minHeight: 44 }}
+              />
             )}
           </div>
           <div
-            className={`flex-1 rounded-xl border border-gray-100 dark:border-gray-700/60 bg-white dark:bg-gray-800/60 px-3.5 py-3 shadow-sm ${i < 2 ? 'mb-3' : 'mb-0.5'} space-y-2`}
+            className={`flex-1 rounded-xl border border-gray-100 dark:border-gray-700/60 border-l-2 border-l-gray-200 dark:border-l-gray-700 bg-white dark:bg-gray-800/60 px-3.5 py-3 shadow-sm ${
+              i < 2 ? 'mb-3' : 'mb-0.5'
+            } space-y-2`}
           >
             <div className="flex items-start justify-between gap-2">
-              <div className="h-3.5 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${w}%` }} />
-              <div className="h-4 w-16 rounded-md bg-gray-200 dark:bg-gray-700 animate-pulse shrink-0" />
+              <div
+                className="h-3.5 rounded bg-gray-200 dark:bg-gray-700 animate-pulse"
+                style={{ width: `${w}%` }}
+              />
+              <div className="h-4 w-20 shrink-0 rounded-md bg-gray-200 dark:bg-gray-700 animate-pulse" />
             </div>
             <div className="h-2.5 w-4/5 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
             <div className="h-2 w-1/4 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
             <div className="flex gap-1.5">
-              {[30, 38, 36].map((bw, bi) => (
-                <div key={bi} className="h-4 rounded-md bg-gray-200 dark:bg-gray-700 animate-pulse" style={{ width: `${bw}%` }} />
+              {[28, 36, 32].map((bw, bi) => (
+                <div
+                  key={bi}
+                  className="h-4 rounded-md bg-gray-200 dark:bg-gray-700 animate-pulse"
+                  style={{ width: `${bw}%` }}
+                />
               ))}
             </div>
           </div>
@@ -147,32 +265,59 @@ function TimelineSkeleton() {
   )
 }
 
+// ── EnhancedTimeline (public export) ───────────────────────────────────────
+
 export function EnhancedTimeline({
   events,
   isLoading,
 }: {
-  events: JourneyEvent[]
+  events:    JourneyEvent[]
   isLoading: boolean
 }) {
   if (isLoading) return <TimelineSkeleton />
 
   if (events.length === 0) {
     return (
-      <p className="text-sm text-gray-400 dark:text-gray-500 italic">
+      <p className="text-sm italic text-gray-400 dark:text-gray-500">
         No manufacturing events recorded for this batch.
       </p>
     )
   }
 
+  // Pre-classify every event once; used for connector color, border accent,
+  // stage grouping, and transition detection without repeated lookups.
+  const categories = events.map(e => classifyEvent(e.event_type))
+
+  // Collect unique stage groups in the order they first appear (chronological).
+  const presentStages = categories.reduce<StageGroup[]>((acc, cat) => {
+    if (!acc.includes(cat.stageGroup)) acc.push(cat.stageGroup)
+    return acc
+  }, [])
+
   return (
     <div className="pt-0.5">
-      {events.map((event, i) => (
-        <EventCard
-          key={`${event.event_type}-${event.event_timestamp}-${i}`}
-          event={event}
-          isLast={i === events.length - 1}
-        />
-      ))}
+      <StageFlowHeader stages={presentStages} />
+
+      {events.map((event, i) => {
+        const category    = categories[i]
+        const prevCategory = i > 0 ? categories[i - 1] : null
+
+        // Show a stage-transition divider whenever the stage group changes.
+        const isStageTransition =
+          prevCategory !== null &&
+          prevCategory.stageGroup !== category.stageGroup
+
+        return (
+          <Fragment key={`${event.event_type}-${event.event_timestamp}-${i}`}>
+            {isStageTransition && <StageDivider group={category.stageGroup} />}
+            <EventCard
+              event={event}
+              category={category}
+              isLast={i === events.length - 1}
+            />
+          </Fragment>
+        )
+      })}
     </div>
   )
 }
