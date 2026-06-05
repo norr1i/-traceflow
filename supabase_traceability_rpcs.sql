@@ -321,7 +321,7 @@ BEGIN
         'shipped_at', dr.shipped_at
       ))
     FROM  distribution_records dr
-    WHERE dr.batch_id   = p_batch_id::text
+    WHERE dr.batch_id   = p_batch_id
       AND dr.company_id = v_company_id
 
     UNION ALL
