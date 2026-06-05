@@ -301,41 +301,33 @@ export default function PublicTracePage() {
     logScanEvent(id)
     setJourneyLoading(true)
 
-    // Fetch batch trace and company_id in parallel. The journey RPC
-    // requires company_id, which is not returned by get_batch_trace.
-    // production_orders is accessible to the anon role via the
-    // public_trace_orders policy, so this direct select works without auth.
-    Promise.all([
-      supabase.rpc('get_batch_trace', { p_batch_id: id }).single(),
-      supabase.from('production_orders').select('company_id').eq('id', id).single(),
-    ]).then(([traceRes, orderRes]) => {
-      if (traceRes.error || !traceRes.data) {
-        setNotFound(true)
-        setLoading(false)
-        setJourneyLoading(false)
-        return
-      }
-
-      setData(traceRes.data as TraceData)
-      setLoading(false)
-
-      const cid = (orderRes.data as { company_id: string } | null)?.company_id
-      if (!cid) { setJourneyLoading(false); return }
-
-      // Sequential: journey RPC fires once company_id is confirmed.
-      // Use .then() for both success and error — PostgrestBuilder is a
-      // PromiseLike, not a native Promise, so .catch() is not available.
-      supabase
-        .rpc('get_batch_journey', { p_batch_id: id, p_company_id: cid })
-        .single()
-        .then(({ data: jd, error: je }) => {
-          if (!je && jd) {
-            const timeline = (jd as JourneyData).timeline
-            if (Array.isArray(timeline)) setJourney(timeline)
-          }
+    // get_batch_journey is SECURITY DEFINER and derives company_id
+    // internally, so no separate company_id lookup is needed here.
+    supabase
+      .rpc('get_batch_trace', { p_batch_id: id })
+      .single()
+      .then(({ data: rpcData, error }) => {
+        if (error || !rpcData) {
+          setNotFound(true)
+          setLoading(false)
           setJourneyLoading(false)
-        }, () => setJourneyLoading(false))
-    })
+          return
+        }
+
+        setData(rpcData as TraceData)
+        setLoading(false)
+
+        supabase
+          .rpc('get_batch_journey', { p_batch_id: id })
+          .single()
+          .then(({ data: jd, error: je }) => {
+            if (!je && jd) {
+              const timeline = (jd as JourneyData).timeline
+              if (Array.isArray(timeline)) setJourney(timeline)
+            }
+            setJourneyLoading(false)
+          }, () => setJourneyLoading(false))
+      })
   }, [id])
 
   // ── Loading ──────────────────────────────────────────────────────────────
