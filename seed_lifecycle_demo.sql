@@ -95,8 +95,9 @@ DECLARE
   t2     timestamptz;
   t3     timestamptz;
 
-  n int;
-  i int;
+  n        int;
+  i        int;
+  col_info text;  -- for live schema introspection RAISE NOTICE
 
 BEGIN
 
@@ -137,13 +138,28 @@ BEGIN
 
   RAISE NOTICE 'Backfill pass complete';
 
-  -- ── 0c. Defensive column additions on distribution_records ───
-  -- The live DB batch_id column is UUID (FK to production_orders).
-  -- The notes column is used by get_batch_journey RPC for timeline display.
-  -- recipient / quantity may or may not exist depending on which migration ran.
-  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS notes     text;
-  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS recipient text;
-  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS quantity  int;
+  -- ── 0c. Introspect distribution_records live schema ─────────
+  -- RAISE NOTICE prints all columns + nullability so any future schema drift
+  -- is immediately visible in the SQL Editor output before the first INSERT.
+  SELECT string_agg(
+           column_name || ' ' || data_type
+           || CASE WHEN is_nullable = 'NO' THEN ' NOT NULL' ELSE '' END,
+           ', '
+           ORDER BY ordinal_position
+         )
+  INTO   col_info
+  FROM   information_schema.columns
+  WHERE  table_schema = 'public' AND table_name = 'distribution_records';
+  RAISE NOTICE 'distribution_records live columns: %', col_info;
+
+  -- Defensive column additions (idempotent — IF NOT EXISTS).
+  -- batch_id is UUID in the live DB (FK to production_orders.id).
+  -- recipient_type is NOT NULL in the live DB; must be supplied on every INSERT.
+  -- notes is consumed by get_batch_journey RPC for Product Journey timeline.
+  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS notes          text;
+  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS recipient      text;
+  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS quantity       int;
+  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS recipient_type text;
 
   -- ══════════════════════════════════════════════════════════════
   -- 1. SUPPLIERS
@@ -267,20 +283,20 @@ BEGIN
     cid, t1 + interval '9 days', t1 + interval '9 days')
   ON CONFLICT DO NOTHING;
 
-  -- Distribution records — batch_id UUID (live DB column type, FK production_orders.id)
-  -- notes encodes recipient + quantity for the Product Journey timeline display
-  INSERT INTO distribution_records (company_id, batch_id, recipient, quantity, notes, shipped_at, created_at)
+  -- distribution_records.batch_id UUID — no cast.
+  -- recipient_type NOT NULL in live DB — required on every INSERT.
+  INSERT INTO distribution_records (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
   VALUES
-    (cid, batch_01,            -- UUID — no cast
-     'Saudi Aramco — Jubail Industrial Area', 120,
+    (cid, batch_01,
+     'Saudi Aramco — Jubail Industrial Area', 'customer', 120,
      'Recipient: Saudi Aramco Jubail | Qty: 120 units | DN-SA-2025-0441 | PO SAP-PO-84231 | SAPTCO cargo, delivery confirmed.',
      t1 + interval '12 days', t1 + interval '12 days'),
-    (cid, batch_01,            -- UUID — no cast
-     'Sipchem Jubail Plant 4', 80,
+    (cid, batch_01,
+     'Sipchem Jubail Plant 4', 'plant', 80,
      'Recipient: Sipchem Jubail Plant 4 | Qty: 80 units | DN-SPC-2025-0217 | Plant 4 process isolation upgrade. Customer accepted.',
      t1 + interval '14 days', t1 + interval '14 days'),
-    (cid, batch_01,            -- UUID — no cast
-     'Maaden Mining — Wa''ad Al Shamal', 50,
+    (cid, batch_01,
+     'Maaden Mining — Wa''ad Al Shamal', 'customer', 50,
      'Recipient: Maaden Mining Wa''ad Al Shamal | Qty: 50 units | DN-MAD-2025-0089 | Potash plant valve replacement.',
      t1 + interval '16 days', t1 + interval '16 days')
   ON CONFLICT DO NOTHING;
@@ -474,19 +490,20 @@ BEGIN
     cid, t3+interval '7 days', t3+interval '7 days')
   ON CONFLICT DO NOTHING;
 
-  -- distribution_records.batch_id UUID
-  INSERT INTO distribution_records (company_id, batch_id, recipient, quantity, notes, shipped_at, created_at)
+  -- distribution_records.batch_id UUID — no cast.
+  -- recipient_type NOT NULL in live DB — required on every INSERT.
+  INSERT INTO distribution_records (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
   VALUES
-    (cid, batch_03,            -- UUID — no cast
-     'Tasnee Petrochemicals — Jubail', 60,
+    (cid, batch_03,
+     'Tasnee Petrochemicals — Jubail', 'plant', 60,
      'Recipient: Tasnee Petrochemicals Jubail | Qty: 60 units | DN-TAS-2025-0388 | Process safety system upgrade.',
      t3+interval '10 days', t3+interval '10 days'),
-    (cid, batch_03,            -- UUID — no cast
-     'National Gas Co. NGIC — Riyadh', 55,
+    (cid, batch_03,
+     'National Gas Co. NGIC — Riyadh', 'customer', 55,
      'Recipient: National Gas Co. NGIC Riyadh | Qty: 55 units | DN-NGC-2025-0154 | Pipeline pressure management.',
      t3+interval '12 days', t3+interval '12 days'),
-    (cid, batch_03,            -- UUID — no cast
-     'Advanced Polypropylene Co. — Jubail', 35,
+    (cid, batch_03,
+     'Advanced Polypropylene Co. — Jubail', 'plant', 35,
      'Recipient: Advanced Polypropylene Co. Jubail | Qty: 35 units | DN-APC-2025-0071 | Reactor safety system.',
      t3+interval '14 days', t3+interval '14 days')
   ON CONFLICT DO NOTHING;
