@@ -17,6 +17,7 @@ import {
   Smartphone, Monitor, CheckCircle2, Clock, ShieldCheck,
   XCircle, RefreshCw, LayoutDashboard,
   TrendingUp, ShoppingCart, Boxes, Package, AlertCircle,
+  FileWarning, Activity,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -251,6 +252,8 @@ export default function DashboardPage() {
   const showTracing    = canView(role, 'dashboard.tracing')
   const showInventory  = canView(role, 'dashboard.inventory')
   const showSales      = canView(role, 'dashboard.sales')
+  const showCapa       = canView(role, 'capa')
+  const showRecall     = canView(role, 'recall')
 
   const hasAnySections = showProduction || showQuality || showTracing || showInventory || showSales
 
@@ -313,6 +316,7 @@ export default function DashboardPage() {
     rawMaterials, lowStockCount, inProgressOrders,
     recentSales, totalSalesRevenue, totalSalesCount, topProducts,
     activityFeed,
+    recallStats, capaStats,
   } = stats
 
   const maxScanCount      = mostScanned[0]?.scan_count ?? 1
@@ -561,6 +565,60 @@ export default function DashboardPage() {
       {kpiCards.length > 0 && (
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {kpiCards}
+        </section>
+      )}
+
+      {/* ── CAPA & Recall KPIs ───────────────────────────────────────────── */}
+      {(showCapa || showRecall) && (recallStats || capaStats) && (
+        <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
+          {showCapa && capaStats && (<>
+            <StatCard
+              title="Open CAPAs"
+              value={fmtNum(capaStats.open, lang)}
+              subtitle={capaStats.overdue > 0 ? `${fmtNum(capaStats.overdue, lang)} overdue` : 'No overdue'}
+              accent={capaStats.overdue > 0 ? 'red' : 'blue'}
+              icon={FileWarning}
+            />
+            <StatCard
+              title="In Progress"
+              value={fmtNum(capaStats.investigation + capaStats.corrective_action + capaStats.verification, lang)}
+              subtitle="Investigation · Correction · Verify"
+              accent="orange"
+              icon={Activity}
+            />
+            <StatCard
+              title="Overdue CAPAs"
+              value={fmtNum(capaStats.overdue, lang)}
+              subtitle={capaStats.overdue > 0 ? 'Requires immediate action' : 'All on track'}
+              accent={capaStats.overdue > 0 ? 'red' : 'green'}
+              icon={capaStats.overdue > 0 ? AlertCircle : CheckCircle2}
+            />
+          </>)}
+          {showRecall && recallStats && (<>
+            <StatCard
+              title="Active Recalls"
+              value={fmtNum(recallStats.active, lang)}
+              subtitle={recallStats.critical_open > 0 ? `${fmtNum(recallStats.critical_open, lang)} critical` : 'No critical open'}
+              accent={recallStats.active > 0 ? 'red' : 'green'}
+              icon={AlertTriangle}
+            />
+            <StatCard
+              title="In Progress"
+              value={fmtNum(recallStats.in_progress, lang)}
+              subtitle={`${fmtNum(recallStats.closed, lang)} closed total`}
+              accent="orange"
+              icon={Clock}
+            />
+            <StatCard
+              title="Resolution Rate"
+              value={recallStats.total > 0
+                ? fmtNum(recallStats.resolution_rate / 100, lang, { style: 'percent', maximumFractionDigits: 0 })
+                : '—'}
+              subtitle={`${fmtNum(recallStats.total, lang)} recall${recallStats.total !== 1 ? 's' : ''} total`}
+              accent={recallStats.resolution_rate >= 80 ? 'green' : recallStats.total > 0 ? 'yellow' : 'blue'}
+              icon={ShieldCheck}
+            />
+          </>)}
         </section>
       )}
 

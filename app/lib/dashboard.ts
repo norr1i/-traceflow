@@ -103,6 +103,8 @@ export async function getDashboardStats(companyId: string) {
     { data: recentSalesRaw },
     { data: inventoryRaw },
     { data: activityRaw },
+    { data: recallStatsRaw },
+    { data: capaStatsRaw },
   ] = await Promise.all([
     supabase.rpc('get_dashboard_stats',         { p_company_id: companyId }),
     supabase.rpc('get_company_sales_stats',      { p_company_id: companyId }),
@@ -124,6 +126,8 @@ export async function getDashboardStats(companyId: string) {
       .eq('company_id', companyId)
       .order('created_at', { ascending: false })
       .limit(30),
+    supabase.rpc('get_recall_stats', { p_company_id: companyId }),
+    supabase.rpc('get_capa_stats',   { p_company_id: companyId }),
   ])
 
   const rpc       = (rpcRaw     ?? {}) as DashboardRpc
@@ -213,6 +217,15 @@ export async function getDashboardStats(companyId: string) {
     topProducts,
     // Activity feed (direct query, already capped at 30)
     activityFeed,
+    // CAPA & Recall stats (from new RPCs — null when tables not yet deployed)
+    recallStats: recallStatsRaw as {
+      open: number; in_progress: number; closed: number
+      total: number; critical_open: number; active: number; resolution_rate: number
+    } | null,
+    capaStats: capaStatsRaw as {
+      open: number; investigation: number; corrective_action: number
+      verification: number; closed: number; overdue: number; active: number
+    } | null,
   }
 }
 
