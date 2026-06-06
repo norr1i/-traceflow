@@ -8,6 +8,7 @@ import ProductionChart from './components/charts/ProductionChart'
 import QcTrendChart from './components/charts/QcTrendChart'
 import ScanActivityChart from './components/charts/ScanActivityChart'
 import SalesChart from './components/charts/SalesChart'
+import Link from 'next/link'
 import { useRole, useAuth } from './lib/auth-context'
 import { canView } from './lib/permissions'
 import { ACTION_TYPES_BY_SECTION } from './lib/activity'
@@ -332,10 +333,16 @@ export default function DashboardPage() {
     ? fmtNum(passRate / 100, lang, { style: 'percent', maximumFractionDigits: 0 })
     : '—'
 
+  // ── Executive view flag ────────────────────────────────────────────────────
+  // When true: merged KPI rows replace the separate CAPA/Recall section.
+
+  const isExecView = showProduction && showQuality
+
   // ── Role-smart KPI cards ─────────────────────────────────────────────────
 
   const kpiCards: React.ReactNode[] = (() => {
-    if (showProduction && showQuality) {
+    if (isExecView) {
+      // Row 1 for exec: Production Batches · QC Pass Rate · Active Recalls · Open CAPAs
       return [
         <StatCard key="batches"
           title={t('dashboard.production_batches')}
@@ -350,17 +357,23 @@ export default function DashboardPage() {
           accent={passRateAccent}
           icon={passRate !== null && passRate >= 80 ? CheckCircle2 : passRate !== null && passRate < 60 ? XCircle : ShieldCheck}
         />,
-        <StatCard key="scans"
-          title={t('dashboard.qr_scans')}
-          value={fmtNum(totalScans, lang)}
-          subtitle={t('dashboard.alltime_trace')}
-          accent="purple" icon={QrCode}
+        <StatCard key="recalls"
+          title="Active Recalls"
+          value={fmtNum(recallStats?.active ?? 0, lang)}
+          subtitle={(recallStats?.critical_open ?? 0) > 0
+            ? `${fmtNum(recallStats!.critical_open, lang)} critical`
+            : 'No critical open'}
+          accent={(recallStats?.active ?? 0) > 0 ? 'red' : 'green'}
+          icon={AlertTriangle}
         />,
-        <StatCard key="weekly"
-          title={t('dashboard.inspections_week')}
-          value={fmtNum(weeklyInspections, lang)}
-          subtitle={t('dashboard.qc_last_7')}
-          accent={weeklyInspections > 0 ? 'orange' : 'yellow'} icon={FlaskConical}
+        <StatCard key="opencapas"
+          title="Open CAPAs"
+          value={fmtNum(capaStats?.open ?? 0, lang)}
+          subtitle={(capaStats?.overdue ?? 0) > 0
+            ? `${fmtNum(capaStats!.overdue, lang)} overdue`
+            : 'No overdue'}
+          accent={(capaStats?.overdue ?? 0) > 0 ? 'red' : 'blue'}
+          icon={FileWarning}
         />,
       ]
     }
@@ -513,35 +526,40 @@ export default function DashboardPage() {
 
       {/* ── Recall / low-stock risk banners ──────────────────────────────── */}
       {showProduction && hasRisk && (
-        <div className="flex items-start gap-3.5 rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/[0.06] px-4 py-3.5">
-          <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500 dark:text-red-400" />
-          <div className="flex-1 min-w-0">
-            <p className="text-sm font-semibold text-red-700 dark:text-red-400">{t('dashboard.recall_risk_title')}</p>
-            <div className="mt-1 flex flex-wrap gap-x-5 gap-y-0.5">
-              {recallRisk.failedQcCount > 0 && (
-                <span className="text-[12px] text-red-600 dark:text-red-400">
-                  {t(recallRisk.failedQcCount !== 1
-                    ? 'dashboard.recall_batches_failed_plural'
-                    : 'dashboard.recall_batches_failed',
-                    { n: fmtNum(recallRisk.failedQcCount, lang) })}
-                </span>
-              )}
-              {recallRisk.failedWithSales > 0 && (
-                <span className="text-[12px] font-semibold text-red-700 dark:text-red-300">
-                  {t('dashboard.recall_distributed_to', { n: fmtNum(recallRisk.failedWithSales, lang) })}
-                </span>
-              )}
-              {recallRisk.missingQcCount > 0 && (
-                <span className="text-[12px] text-amber-700 dark:text-amber-400">
-                  {t(recallRisk.missingQcCount !== 1
-                    ? 'dashboard.recall_missing_qc_plural'
-                    : 'dashboard.recall_missing_qc',
-                    { n: fmtNum(recallRisk.missingQcCount, lang) })}
-                </span>
-              )}
+        <Link href="/recall" className="block group">
+          <div className="flex items-start gap-3.5 rounded-xl border border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/[0.06] px-4 py-3.5 cursor-pointer transition-colors hover:bg-red-100 dark:hover:bg-red-500/[0.09]">
+            <AlertCircle size={16} className="mt-0.5 shrink-0 text-red-500 dark:text-red-400" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-red-700 dark:text-red-400">{t('dashboard.recall_risk_title')}</p>
+              <div className="mt-1 flex flex-wrap gap-x-5 gap-y-0.5">
+                {recallRisk.failedQcCount > 0 && (
+                  <span className="text-[12px] text-red-600 dark:text-red-400">
+                    {t(recallRisk.failedQcCount !== 1
+                      ? 'dashboard.recall_batches_failed_plural'
+                      : 'dashboard.recall_batches_failed',
+                      { n: fmtNum(recallRisk.failedQcCount, lang) })}
+                  </span>
+                )}
+                {recallRisk.failedWithSales > 0 && (
+                  <span className="text-[12px] font-semibold text-red-700 dark:text-red-300">
+                    {t('dashboard.recall_distributed_to', { n: fmtNum(recallRisk.failedWithSales, lang) })}
+                  </span>
+                )}
+                {recallRisk.missingQcCount > 0 && (
+                  <span className="text-[12px] text-amber-700 dark:text-amber-400">
+                    {t(recallRisk.missingQcCount !== 1
+                      ? 'dashboard.recall_missing_qc_plural'
+                      : 'dashboard.recall_missing_qc',
+                      { n: fmtNum(recallRisk.missingQcCount, lang) })}
+                  </span>
+                )}
+              </div>
             </div>
+            <span className="shrink-0 self-center text-[11px] font-semibold text-red-600 dark:text-red-400 group-hover:underline whitespace-nowrap">
+              View Recalls →
+            </span>
           </div>
-        </div>
+        </Link>
       )}
 
       {showInventory && !showQuality && !showTracing && lowStockCount > 0 && (
@@ -561,15 +579,42 @@ export default function DashboardPage() {
         </div>
       )}
 
-      {/* ── KPI cards ────────────────────────────────────────────────────── */}
+      {/* ── KPI row 1 ────────────────────────────────────────────────────── */}
       {kpiCards.length > 0 && (
         <section className="grid grid-cols-2 gap-4 lg:grid-cols-4">
           {kpiCards}
         </section>
       )}
 
-      {/* ── CAPA & Recall KPIs ───────────────────────────────────────────── */}
-      {(showCapa || showRecall) && (recallStats || capaStats) && (
+      {/* ── KPI row 2 — exec only: QR Scans · Inspections · Resolution Rate */}
+      {isExecView && (
+        <section className="grid grid-cols-3 gap-4">
+          <StatCard
+            title={t('dashboard.qr_scans')}
+            value={fmtNum(totalScans, lang)}
+            subtitle={t('dashboard.alltime_trace')}
+            accent="purple" icon={QrCode}
+          />
+          <StatCard
+            title={t('dashboard.inspections_week')}
+            value={fmtNum(weeklyInspections, lang)}
+            subtitle={t('dashboard.qc_last_7')}
+            accent={weeklyInspections > 0 ? 'orange' : 'yellow'} icon={FlaskConical}
+          />
+          <StatCard
+            title="Resolution Rate"
+            value={(recallStats?.total ?? 0) > 0
+              ? fmtNum((recallStats!.resolution_rate) / 100, lang, { style: 'percent', maximumFractionDigits: 0 })
+              : '—'}
+            subtitle={`${fmtNum(recallStats?.total ?? 0, lang)} recall${(recallStats?.total ?? 0) !== 1 ? 's' : ''} total`}
+            accent={(recallStats?.resolution_rate ?? 0) >= 80 ? 'green' : (recallStats?.total ?? 0) > 0 ? 'yellow' : 'blue'}
+            icon={ShieldCheck}
+          />
+        </section>
+      )}
+
+      {/* ── CAPA & Recall KPIs — non-exec roles only ─────────────────────── */}
+      {(showCapa || showRecall) && (recallStats || capaStats) && !isExecView && (
         <section className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-6">
           {showCapa && capaStats && (<>
             <StatCard

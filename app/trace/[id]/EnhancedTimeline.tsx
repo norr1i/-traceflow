@@ -1,6 +1,7 @@
-import { Fragment } from 'react'
+import { Fragment, useState } from 'react'
 import {
   Layers, ClipboardList, ShieldCheck, Truck, FileWarning, Activity,
+  ChevronRight,
   type LucideIcon,
 } from 'lucide-react'
 import {
@@ -194,11 +195,15 @@ function StageHeader({
   eventCount,
   isFirst,
   prevConnectorBg,
+  isExpanded,
+  onToggle,
 }: {
   group:            StageGroup
   eventCount:       number
   isFirst:          boolean
-  prevConnectorBg?: string    // bg-* class of the previous stage's connector
+  prevConnectorBg?: string
+  isExpanded:       boolean
+  onToggle:         () => void
 }) {
   const sc   = STAGE_COLORS[group]
   const Icon = STAGE_ICONS[group]
@@ -207,28 +212,26 @@ function StageHeader({
     <div className="flex gap-3">
       {/* Left column: bridge connector + diamond dot */}
       <div className="flex shrink-0 flex-col items-center" style={{ width: 36 }}>
-        {/* Bridge from previous stage (skip for very first stage) */}
         {!isFirst && (
           <div
             className={`w-0.5 ${prevConnectorBg ?? 'bg-gray-200 dark:bg-gray-700'}`}
             style={{ height: 16 }}
           />
         )}
-        {/* Diamond-style stage checkpoint dot */}
         <div
           className={`h-3.5 w-3.5 rotate-45 shrink-0 rounded-sm border-2 border-white dark:border-gray-900 shadow-sm ${sc.dotColor}`}
         />
-        {/* Connector down to first event */}
         <div
           className={`mt-1 w-0.5 flex-1 ${sc.connectorBg}`}
           style={{ minHeight: 12 }}
         />
       </div>
 
-      {/* Stage header card */}
-      <div
-        className={`flex-1 flex items-center justify-between gap-3 rounded-xl border-l-[3px] px-4 py-3 mb-3 ${sc.bg} border border-l-0 ${sc.border}`}
-        style={{ borderLeftWidth: '3px', borderLeftColor: 'transparent' }}
+      {/* Stage header card — clickable to expand/collapse */}
+      <button
+        type="button"
+        onClick={onToggle}
+        className={`flex-1 flex items-center justify-between gap-3 rounded-xl px-4 py-3 mb-3 ${sc.bg} border ${sc.border} text-left cursor-pointer transition-all duration-150 hover:brightness-[1.02] active:scale-[0.995]`}
       >
         {/* Left: icon + label */}
         <div className="flex items-center gap-2.5">
@@ -239,13 +242,19 @@ function StageHeader({
             {STAGE_META[group].label}
           </p>
         </div>
-        {/* Right: event count */}
-        <span className={`text-[10px] font-medium ${sc.subtext}`}>
-          {eventCount > 0
-            ? `${eventCount} event${eventCount !== 1 ? 's' : ''}`
-            : group === 'distribution' ? 'No records' : ''}
-        </span>
-      </div>
+        {/* Right: event count + chevron */}
+        <div className="flex items-center gap-1.5 shrink-0">
+          <span className={`text-[10px] font-medium ${sc.subtext}`}>
+            {eventCount > 0
+              ? `${eventCount} event${eventCount !== 1 ? 's' : ''}`
+              : group === 'distribution' ? 'No records' : ''}
+          </span>
+          <ChevronRight
+            size={13}
+            className={`${sc.text} opacity-60 transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`}
+          />
+        </div>
+      </button>
     </div>
   )
 }
@@ -272,8 +281,9 @@ function EventCard({
   event:            JourneyEvent
   category:         EventCategory
   isLastInTimeline: boolean
-  stageConnectorBg: string       // bg-* class for the connector below
+  stageConnectorBg: string
 }) {
+  const [showDetails, setShowDetails] = useState(false)
   const actor  = extractActor(event)
   const source = getSourceLabel(event.source_table)
   const { Icon, iconBg, iconColor, badgeClass, borderAccent, label: categoryLabel } = category
@@ -323,11 +333,22 @@ function EventCard({
           {fmtDateTime(event.event_timestamp)}
         </p>
 
-        {/* Attribution */}
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <Chip label="Actor"    value={actor ?? 'System'} />
-          <Chip label="Source"   value={source} />
-          <Chip label="Category" value={categoryLabel} />
+        {/* Details toggle */}
+        <div className="mt-2">
+          <button
+            type="button"
+            onClick={() => setShowDetails(v => !v)}
+            className="text-[10px] font-medium text-gray-400 dark:text-gray-500 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+          >
+            {showDetails ? 'Hide details ↑' : 'Details ↓'}
+          </button>
+          {showDetails && (
+            <div className="mt-1.5 flex flex-wrap gap-1.5">
+              <Chip label="Actor"    value={actor ?? 'System'} />
+              <Chip label="Source"   value={source} />
+              <Chip label="Category" value={categoryLabel} />
+            </div>
+          )}
         </div>
       </div>
     </div>
@@ -454,6 +475,17 @@ export function EnhancedTimeline({
   isLoading:            boolean
   distributionFallback?: DistributionRecord[]
 }) {
+  const [expandedStages, setExpandedStages] = useState<Set<StageGroup>>(new Set())
+
+  function toggleStage(stage: StageGroup) {
+    setExpandedStages(prev => {
+      const next = new Set(prev)
+      if (next.has(stage)) next.delete(stage)
+      else next.add(stage)
+      return next
+    })
+  }
+
   if (isLoading) return <TimelineSkeleton />
 
   // Classify and group every event by stage
@@ -532,16 +564,18 @@ export function EnhancedTimeline({
 
         return (
           <Fragment key={stage}>
-            {/* Stage checkpoint header */}
+            {/* Stage checkpoint header — click to expand/collapse */}
             <StageHeader
               group={stage}
               eventCount={displayCount}
               isFirst={isFirstStage}
               prevConnectorBg={prevSc?.connectorBg}
+              isExpanded={expandedStages.has(stage)}
+              onToggle={() => toggleStage(stage)}
             />
 
-            {/* Events for this stage */}
-            {hasJourneyEvents && stageEvents.map((item, i) => {
+            {/* Events — only rendered when stage is expanded */}
+            {expandedStages.has(stage) && hasJourneyEvents && stageEvents.map((item, i) => {
               const isLastEvent  = i === stageEvents.length - 1
               const isLastInAll  = isLastStage && isLastEvent
               return (
@@ -555,8 +589,8 @@ export function EnhancedTimeline({
               )
             })}
 
-            {/* Distribution fallback: show sales records as distribution events, sorted by date */}
-            {hasFallbackRecords && [...distributionFallback!]
+            {/* Distribution fallback: sorted by date, only when expanded */}
+            {expandedStages.has(stage) && hasFallbackRecords && [...distributionFallback!]
               .sort((a, b) => new Date(a.sold_at).getTime() - new Date(b.sold_at).getTime())
               .map((rec, i, arr) => (
                 <DistributionCard
@@ -566,8 +600,8 @@ export function EnhancedTimeline({
                 />
               ))}
 
-            {/* Distribution empty state */}
-            {isEmptyDistrib && <DistributionEmpty />}
+            {/* Distribution empty state — only when expanded */}
+            {expandedStages.has(stage) && isEmptyDistrib && <DistributionEmpty />}
           </Fragment>
         )
       })}
