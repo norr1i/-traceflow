@@ -265,6 +265,19 @@ function TimelineSkeleton() {
   )
 }
 
+// ── Fixed manufacturing lifecycle stage order ───────────────────────────────
+// Events are grouped by stage in this order regardless of when they were
+// recorded. Within each stage, events remain sorted by their timestamp.
+
+const LIFECYCLE_ORDER: StageGroup[] = [
+  'materials',
+  'production',
+  'quality',
+  'distribution',
+  'compliance',
+  'other',
+]
+
 // ── EnhancedTimeline (public export) ───────────────────────────────────────
 
 export function EnhancedTimeline({
@@ -284,40 +297,54 @@ export function EnhancedTimeline({
     )
   }
 
-  // Pre-classify every event once; used for connector color, border accent,
-  // stage grouping, and transition detection without repeated lookups.
-  const categories = events.map(e => classifyEvent(e.event_type))
+  // Classify every event once.
+  const classified = events.map(e => ({ event: e, category: classifyEvent(e.event_type) }))
 
-  // Collect unique stage groups in the order they first appear (chronological).
-  const presentStages = categories.reduce<StageGroup[]>((acc, cat) => {
-    if (!acc.includes(cat.stageGroup)) acc.push(cat.stageGroup)
-    return acc
-  }, [])
+  // Group by stage.
+  const groups = new Map<StageGroup, typeof classified>()
+  for (const item of classified) {
+    const list = groups.get(item.category.stageGroup) ?? []
+    list.push(item)
+    groups.set(item.category.stageGroup, list)
+  }
+
+  // Sort each stage group internally by timestamp ascending (earliest first).
+  for (const list of groups.values()) {
+    list.sort(
+      (a, b) =>
+        new Date(a.event.event_timestamp).getTime() -
+        new Date(b.event.event_timestamp).getTime(),
+    )
+  }
+
+  // Determine which stages are present, in fixed lifecycle order.
+  const presentStages = LIFECYCLE_ORDER.filter(s => groups.has(s))
+
+  // Flatten into a single render list.
+  // showDivider is true for the first event of every stage except the very
+  // first event overall (StageFlowHeader already labels the first stage).
+  const flat = presentStages.flatMap(s => groups.get(s)!)
+  const renderList = flat.map((item, i) => ({
+    ...item,
+    isLast:      i === flat.length - 1,
+    showDivider: i > 0 && flat[i - 1].category.stageGroup !== item.category.stageGroup,
+  }))
 
   return (
     <div className="pt-0.5">
+      {/* Stage flow header — stages in fixed lifecycle order */}
       <StageFlowHeader stages={presentStages} />
 
-      {events.map((event, i) => {
-        const category    = categories[i]
-        const prevCategory = i > 0 ? categories[i - 1] : null
-
-        // Show a stage-transition divider whenever the stage group changes.
-        const isStageTransition =
-          prevCategory !== null &&
-          prevCategory.stageGroup !== category.stageGroup
-
-        return (
-          <Fragment key={`${event.event_type}-${event.event_timestamp}-${i}`}>
-            {isStageTransition && <StageDivider group={category.stageGroup} />}
-            <EventCard
-              event={event}
-              category={category}
-              isLast={i === events.length - 1}
-            />
-          </Fragment>
-        )
-      })}
+      {renderList.map((item, i) => (
+        <Fragment key={`${item.event.event_type}-${item.event.event_timestamp}-${i}`}>
+          {item.showDivider && <StageDivider group={item.category.stageGroup} />}
+          <EventCard
+            event={item.event}
+            category={item.category}
+            isLast={item.isLast}
+          />
+        </Fragment>
+      ))}
     </div>
   )
 }
