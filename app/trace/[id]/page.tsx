@@ -383,6 +383,7 @@ export default function PublicTracePage() {
           <EnhancedTimeline
             events={manufacturingEvents}
             isLoading={journeyLoading}
+            distributionFallback={sales}
           />
         </Section>
 

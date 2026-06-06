@@ -555,14 +555,16 @@ export function EnhancedTimeline({
               )
             })}
 
-            {/* Distribution fallback: show sales records as distribution events */}
-            {hasFallbackRecords && distributionFallback!.map((rec, i) => (
-              <DistributionCard
-                key={`dist-fallback-${i}`}
-                record={rec}
-                isLast={i === distributionFallback!.length - 1}
-              />
-            ))}
+            {/* Distribution fallback: show sales records as distribution events, sorted by date */}
+            {hasFallbackRecords && [...distributionFallback!]
+              .sort((a, b) => new Date(a.sold_at).getTime() - new Date(b.sold_at).getTime())
+              .map((rec, i, arr) => (
+                <DistributionCard
+                  key={`dist-fallback-${i}`}
+                  record={rec}
+                  isLast={i === arr.length - 1}
+                />
+              ))}
 
             {/* Distribution empty state */}
             {isEmptyDistrib && <DistributionEmpty />}
