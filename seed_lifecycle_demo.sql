@@ -99,12 +99,10 @@ DECLARE
   n   int;
   i   int;
 
-  -- distribution_records.recipient_type enum discovery
-  rt_udt  text;      -- UDT name of the recipient_type column
-  rt_vals text[];    -- all valid enum labels
-  rt1     text;      -- first valid label  (used for most rows)
-  rt2     text;      -- second valid label (used for variety)
-  rt3     text;      -- third valid label  (fallback = rt1)
+  -- batches rows required by distribution_records.batch_id FK → batches.id
+  dist_b01 uuid := gen_random_uuid();  -- batches row: ball valve story
+  dist_b03 uuid := gen_random_uuid();  -- batches row: relief valve story
+  bt_first text;                        -- first label of batch_type enum
 
 BEGIN
 
@@ -156,45 +154,22 @@ BEGIN
     WHERE table_schema='public' AND table_name='distribution_records'
   );
 
-  -- ── 0d. Discover recipient_type enum labels ───────────────────
-  -- recipient_type is an ENUM in the live DB — labels not in any local
-  -- SQL file. We query pg_enum at runtime so no enum label is guessed.
-  SELECT udt_name INTO rt_udt
-  FROM information_schema.columns
-  WHERE table_schema = 'public'
-    AND table_name   = 'distribution_records'
-    AND column_name  = 'recipient_type';
-
-  IF rt_udt IS NULL THEN
-    RAISE EXCEPTION 'Column distribution_records.recipient_type not found. '
-                    'Run supabase_sfda_tables.sql first.';
-  END IF;
-
-  SELECT array_agg(e.enumlabel ORDER BY e.enumsortorder)
-  INTO   rt_vals
+  -- ── 0d. Discover batch_type enum (first label for batches INSERT) ──
+  -- recipient_type labels confirmed from live schema audit:
+  --   distributor(1) wholesaler(2) retailer(3) hospital(4)
+  --   government(5) export(6) internal_transfer(7) consumer(8)
+  -- batch_type labels discovered at runtime (not in any local SQL file).
+  SELECT e.enumlabel INTO bt_first
   FROM   pg_type t
-  JOIN   pg_enum e ON t.oid = e.enumtypid
-  WHERE  t.typname = rt_udt;
+  JOIN   pg_enum e ON e.enumtypid = t.oid
+  WHERE  t.typname = 'batch_type'
+  ORDER  BY e.enumsortorder
+  LIMIT  1;
 
-  IF rt_vals IS NULL OR array_length(rt_vals, 1) = 0 THEN
-    RAISE EXCEPTION
-      'No enum labels found for type %. '
-      'Inspect with: SELECT enumlabel FROM pg_enum '
-      'JOIN pg_type ON pg_type.oid=pg_enum.enumtypid '
-      'WHERE typname=''%''', rt_udt, rt_udt;
+  IF bt_first IS NULL THEN
+    RAISE EXCEPTION 'batch_type enum not found — batches table may not be installed';
   END IF;
-
-  rt1 := rt_vals[1];
-  rt2 := COALESCE(rt_vals[2], rt_vals[1]);
-  rt3 := COALESCE(rt_vals[3], rt_vals[1]);
-
-  RAISE NOTICE 'recipient_type enum "%" labels: %  →  using rt1=%, rt2=%, rt3=%',
-               rt_udt, rt_vals, rt1, rt2, rt3;
-
-  -- Defensive column additions (idempotent).
-  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS notes     text;
-  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS recipient text;
-  ALTER TABLE distribution_records ADD COLUMN IF NOT EXISTS quantity  int;
+  RAISE NOTICE 'batch_type first label: %', bt_first;
 
   -- ══════════════════════════════════════════════════════════════
   -- 1. SUPPLIERS
@@ -311,35 +286,41 @@ BEGIN
     cid, t1+interval '9 days', t1+interval '9 days')
   ON CONFLICT DO NOTHING;
 
-  -- distribution_records: batch_id UUID, recipient_type ENUM (discovered above).
-  -- Each INSERT uses EXECUTE format() so the enum type name is injected at runtime
-  -- rather than guessed at write-time — prevents "invalid enum value" errors.
-  EXECUTE format(
-    'INSERT INTO distribution_records
-       (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
-     VALUES ($1,$2,$3,%L::%I,$4,$5,$6,$6) ON CONFLICT DO NOTHING',
-    rt1, rt_udt)
-  USING cid, batch_01, 'Saudi Aramco — Jubail Industrial Area', 120,
-        'DN-SA-2025-0441 | 120 units | PO SAP-PO-84231 | SAPTCO cargo | Delivery confirmed.',
-        t1+interval '12 days';
+  -- ── batches row for ball valve story ─────────────────────────────
+  -- distribution_records.batch_id FK → batches.id (confirmed from live audit).
+  -- batch_01 is the production_orders.id; dist_b01 is the matching batches.id.
+  INSERT INTO batches
+    (id, company_id, type, sku, name, lot_number,
+     quantity_initial, quantity_remaining, product_id, production_order_id)
+  VALUES
+    (dist_b01, cid, bt_first::batch_type, 'BV-2IN-316SS',
+     'Ball Valve 2in 316 Stainless Steel — Batch 2025-Q1-001',
+     'LOT-2025-BV316-0001', 250, 80, p_valve, batch_01)
+  ON CONFLICT (id) DO NOTHING;
 
-  EXECUTE format(
-    'INSERT INTO distribution_records
-       (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
-     VALUES ($1,$2,$3,%L::%I,$4,$5,$6,$6) ON CONFLICT DO NOTHING',
-    rt2, rt_udt)
-  USING cid, batch_01, 'Sipchem Jubail Plant 4', 80,
-        'DN-SPC-2025-0217 | 80 units | Plant 4 process isolation upgrade. Customer accepted.',
-        t1+interval '14 days';
+  -- distribution_records: 3 shipments for ball valve batch
+  -- NOT NULL required: company_id, batch_id(→dist_b01), recipient_type, recipient_name, quantity_shipped
+  -- Columns with server defaults omitted: recipient_country('SA'), unit('kg'), recall_acknowledged(false), timestamps
+  INSERT INTO distribution_records
+    (company_id, batch_id, recipient_type, recipient_name, quantity_shipped, shipped_at, notes)
+  VALUES
+    (cid, dist_b01, 'distributor'::recipient_type,
+     'Saudi Aramco — Jubail Industrial Area', 120, t1+interval '12 days',
+     'DN-SA-2025-0441 | 120 units | PO SAP-PO-84231 | SAPTCO cargo | Delivery confirmed.');
 
-  EXECUTE format(
-    'INSERT INTO distribution_records
-       (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
-     VALUES ($1,$2,$3,%L::%I,$4,$5,$6,$6) ON CONFLICT DO NOTHING',
-    rt1, rt_udt)
-  USING cid, batch_01, 'Maaden Mining — Wa''ad Al Shamal', 50,
-        'DN-MAD-2025-0089 | 50 units | Potash plant valve replacement program.',
-        t1+interval '16 days';
+  INSERT INTO distribution_records
+    (company_id, batch_id, recipient_type, recipient_name, quantity_shipped, shipped_at, notes)
+  VALUES
+    (cid, dist_b01, 'distributor'::recipient_type,
+     'Sipchem Jubail Plant 4', 80, t1+interval '14 days',
+     'DN-SPC-2025-0217 | 80 units | Plant 4 process isolation upgrade. Customer accepted.');
+
+  INSERT INTO distribution_records
+    (company_id, batch_id, recipient_type, recipient_name, quantity_shipped, shipped_at, notes)
+  VALUES
+    (cid, dist_b01, 'distributor'::recipient_type,
+     'Maaden Mining — Wa''ad Al Shamal', 50, t1+interval '16 days',
+     'DN-MAD-2025-0089 | 50 units | Potash plant valve replacement program.');
 
   INSERT INTO sales (product_id, product_name, quantity, unit_price, total_price, customer_name, status, sold_at, company_id, created_at)
   VALUES
@@ -508,33 +489,37 @@ BEGIN
     cid, t3+interval '7 days', t3+interval '7 days')
   ON CONFLICT DO NOTHING;
 
-  -- distribution_records: EXECUTE format — enum type injected at runtime
-  EXECUTE format(
-    'INSERT INTO distribution_records
-       (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
-     VALUES ($1,$2,$3,%L::%I,$4,$5,$6,$6) ON CONFLICT DO NOTHING',
-    rt2, rt_udt)
-  USING cid, batch_03, 'Tasnee Petrochemicals — Jubail', 60,
-        'DN-TAS-2025-0388 | 60 units | Process safety system upgrade.',
-        t3+interval '10 days';
+  -- ── batches row for relief valve story ────────────────────────────
+  INSERT INTO batches
+    (id, company_id, type, sku, name, lot_number,
+     quantity_initial, quantity_remaining, product_id, production_order_id)
+  VALUES
+    (dist_b03, cid, bt_first::batch_type, 'SRV-05-010',
+     'Safety Relief Valve 0.5in 10 bar — Batch 2025-Q1-003',
+     'LOT-2025-SRV-0003', 150, 0, p_relief, batch_03)
+  ON CONFLICT (id) DO NOTHING;
 
-  EXECUTE format(
-    'INSERT INTO distribution_records
-       (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
-     VALUES ($1,$2,$3,%L::%I,$4,$5,$6,$6) ON CONFLICT DO NOTHING',
-    rt1, rt_udt)
-  USING cid, batch_03, 'National Gas Co. NGIC — Riyadh', 55,
-        'DN-NGC-2025-0154 | 55 units | Pipeline pressure management project.',
-        t3+interval '12 days';
+  -- distribution_records: 3 shipments for relief valve batch (all later recalled)
+  INSERT INTO distribution_records
+    (company_id, batch_id, recipient_type, recipient_name, quantity_shipped, shipped_at, notes)
+  VALUES
+    (cid, dist_b03, 'distributor'::recipient_type,
+     'Tasnee Petrochemicals — Jubail', 60, t3+interval '10 days',
+     'DN-TAS-2025-0388 | 60 units | Process safety system upgrade.');
 
-  EXECUTE format(
-    'INSERT INTO distribution_records
-       (company_id, batch_id, recipient, recipient_type, quantity, notes, shipped_at, created_at)
-     VALUES ($1,$2,$3,%L::%I,$4,$5,$6,$6) ON CONFLICT DO NOTHING',
-    rt3, rt_udt)
-  USING cid, batch_03, 'Advanced Polypropylene Co. — Jubail', 35,
-        'DN-APC-2025-0071 | 35 units | Polypropylene reactor safety system.',
-        t3+interval '14 days';
+  INSERT INTO distribution_records
+    (company_id, batch_id, recipient_type, recipient_name, quantity_shipped, shipped_at, notes)
+  VALUES
+    (cid, dist_b03, 'government'::recipient_type,
+     'National Gas Co. NGIC — Riyadh', 55, t3+interval '12 days',
+     'DN-NGC-2025-0154 | 55 units | Pipeline pressure management project.');
+
+  INSERT INTO distribution_records
+    (company_id, batch_id, recipient_type, recipient_name, quantity_shipped, shipped_at, notes)
+  VALUES
+    (cid, dist_b03, 'distributor'::recipient_type,
+     'Advanced Polypropylene Co. — Jubail', 35, t3+interval '14 days',
+     'DN-APC-2025-0071 | 35 units | Polypropylene reactor safety system.');
 
   INSERT INTO sales (product_id, product_name, quantity, unit_price, total_price, customer_name, status, sold_at, company_id, created_at)
   VALUES

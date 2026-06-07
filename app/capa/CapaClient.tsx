@@ -3,8 +3,7 @@
 import { useState } from 'react'
 import {
   FileWarning, Plus, RefreshCw, Search, AlertTriangle,
-  CheckCircle2, Clock, ChevronRight, Trash2, X,
-  ShieldAlert, Activity, ArrowRight,
+  Trash2, X, ArrowRight,
 } from 'lucide-react'
 import { useCapas, NEXT_STATUS, ADVANCE_LABEL, type CapaStatus, type CapaFormData } from '../hooks/useCapas'
 import { useAuth, useRole } from '../lib/auth-context'
@@ -17,63 +16,25 @@ import { PAGE_SIZE } from '../hooks/useCapas'
 
 // ── Status config ────────────────────────────────────────────────────────────
 
-type StatusMeta = { label: string; badgeCls: string; stepCls: string }
-
-const STATUS_META: Record<CapaStatus, StatusMeta> = {
-  open: {
-    label:    'Open',
-    badgeCls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400',
-    stepCls:  'bg-blue-500',
-  },
-  investigation: {
-    label:    'Investigation',
-    badgeCls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-    stepCls:  'bg-amber-500',
-  },
-  corrective_action: {
-    label:    'Corrective Action',
-    badgeCls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400',
-    stepCls:  'bg-orange-500',
-  },
-  verification: {
-    label:    'Verification',
-    badgeCls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400',
-    stepCls:  'bg-violet-500',
-  },
-  closed: {
-    label:    'Closed',
-    badgeCls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-    stepCls:  'bg-emerald-500',
-  },
+const STATUS_META: Record<CapaStatus, { label: string; badgeCls: string }> = {
+  open:              { label: 'Open',             badgeCls: 'bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400' },
+  investigation:     { label: 'Investigation',    badgeCls: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400' },
+  corrective_action: { label: 'Corrective Action',badgeCls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+  verification:      { label: 'Verification',     badgeCls: 'bg-violet-100 text-violet-700 dark:bg-violet-900/30 dark:text-violet-400' },
+  closed:            { label: 'Closed',           badgeCls: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400' },
 }
 
-const LIFECYCLE: CapaStatus[] = [
-  'open', 'investigation', 'corrective_action', 'verification', 'closed',
-]
+// ── Priority (from severity) ──────────────────────────────────────────────────
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
-
-function isOverdue(capa: { status: CapaStatus; due_date: string | null }): boolean {
-  if (capa.status === 'closed' || !capa.due_date) return false
-  return capa.due_date < new Date().toISOString().slice(0, 10)
-}
-
-function fmt(iso: string): string {
-  return new Date(iso).toLocaleDateString(undefined, {
-    year: 'numeric', month: 'short', day: 'numeric',
-  })
-}
+const PRIORITY_META = {
+  critical: { label: 'Critical', cls: 'bg-red-100    text-red-700    dark:bg-red-900/30    dark:text-red-400'    },
+  major:    { label: 'High',     cls: 'bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400' },
+  minor:    { label: 'Medium',   cls: 'bg-amber-100  text-amber-700  dark:bg-amber-900/30  dark:text-amber-400'  },
+} as const
 
 // ── Sub-components ───────────────────────────────────────────────────────────
 
-function StatusBadge({ status, overdue }: { status: CapaStatus; overdue?: boolean }) {
-  if (overdue) {
-    return (
-      <span className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400">
-        <AlertTriangle size={10} />Overdue
-      </span>
-    )
-  }
+function StatusBadge({ status }: { status: CapaStatus }) {
   const meta = STATUS_META[status]
   return (
     <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${meta.badgeCls}`}>
@@ -82,45 +43,12 @@ function StatusBadge({ status, overdue }: { status: CapaStatus; overdue?: boolea
   )
 }
 
-function LifecycleStep({ active, completed, status }: {
-  active: boolean; completed: boolean; status: CapaStatus
-}) {
-  const meta = STATUS_META[status]
+function PriorityBadge({ severity }: { severity: 'minor' | 'major' | 'critical' }) {
+  const m = PRIORITY_META[severity]
   return (
-    <div className="flex flex-col items-center gap-1">
-      <div className={`h-2.5 w-2.5 rounded-full border-2 border-white dark:border-gray-900 ${
-        completed ? meta.stepCls
-        : active  ? `${meta.stepCls} ring-2 ring-offset-1 ring-offset-white dark:ring-offset-gray-900 ${meta.stepCls.replace('bg-', 'ring-')}`
-        : 'bg-gray-200 dark:bg-gray-700'
-      }`} />
-      <span className={`text-[9px] font-medium uppercase tracking-wide hidden sm:block ${
-        active || completed ? 'text-gray-700 dark:text-gray-200' : 'text-gray-400 dark:text-gray-600'
-      }`}>
-        {status === 'corrective_action' ? 'Corrective' : STATUS_META[status].label}
-      </span>
-    </div>
-  )
-}
-
-function LifecycleTrack({ status }: { status: CapaStatus }) {
-  const idx = LIFECYCLE.indexOf(status)
-  return (
-    <div className="flex items-start gap-0">
-      {LIFECYCLE.map((s, i) => (
-        <div key={s} className="flex items-center">
-          <LifecycleStep
-            status={s}
-            active={i === idx}
-            completed={i < idx}
-          />
-          {i < LIFECYCLE.length - 1 && (
-            <div className={`h-0.5 w-5 sm:w-8 mx-0.5 mt-[-10px] ${
-              i < idx ? STATUS_META[LIFECYCLE[i + 1]].stepCls : 'bg-gray-200 dark:bg-gray-700'
-            }`} />
-          )}
-        </div>
-      ))}
-    </div>
+    <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold ${m.cls}`}>
+      {m.label}
+    </span>
   )
 }
 
@@ -129,9 +57,9 @@ function KpiCard({ label, value, sub, color }: {
 }) {
   return (
     <div className="rounded-xl border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] bg-[#E6E4E0] dark:bg-[#262E36]/38 p-5 shadow-sm">
-      <p className="text-sm font-medium text-gray-500 dark:text-gray-400">{label}</p>
-      <p className={`mt-1 text-2xl font-bold ${color}`}>{value}</p>
-      {sub && <p className="mt-0.5 text-xs text-gray-400 dark:text-gray-500">{sub}</p>}
+      <p className="text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">{label}</p>
+      <p className={`mt-2 text-3xl font-bold tabular-nums leading-none ${color}`}>{value}</p>
+      {sub && <p className="mt-1.5 text-xs text-gray-400 dark:text-gray-500">{sub}</p>}
     </div>
   )
 }
@@ -461,47 +389,60 @@ export default function CapaClient() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/38 text-xs font-semibold uppercase tracking-wide text-gray-500 dark:text-gray-400">
-                  <th className="px-5 py-3 text-start">CAPA #</th>
-                  <th className="px-5 py-3 text-start">Title</th>
-                  <th className="px-5 py-3 text-start">Lifecycle</th>
-                  <th className="px-5 py-3 text-start">Owner</th>
-                  <th className="px-5 py-3 text-start">Due Date</th>
-                  <th className="px-5 py-3 text-start">Status</th>
-                  <th className="px-5 py-3" />
+                <tr className="border-b border-gray-100 dark:border-[#B3B7BA]/[0.10] bg-[#D1CFC9]/50 dark:bg-[#262E36]/38 text-[11px] font-semibold uppercase tracking-widest text-gray-400 dark:text-gray-500">
+                  <th className="px-4 py-3.5 text-start whitespace-nowrap">CAPA #</th>
+                  <th className="px-4 py-3.5 text-start">Title / Root Cause</th>
+                  <th className="px-4 py-3.5 text-start whitespace-nowrap">Priority</th>
+                  <th className="px-4 py-3.5 text-start whitespace-nowrap">Owner</th>
+                  <th className="px-4 py-3.5 text-start whitespace-nowrap">Due Date</th>
+                  <th className="px-4 py-3.5 text-start whitespace-nowrap">Status</th>
+                  <th className="px-4 py-3.5" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.07]">
+              <tbody className="divide-y divide-gray-100 dark:divide-[#B3B7BA]/[0.08]">
                 {filtered.map(capa => {
-                  const overdue = isOverdue(capa)
-                  const nextStatus = NEXT_STATUS[capa.status]
+                  const nextStatus   = NEXT_STATUS[capa.status]
                   const advanceLabel = ADVANCE_LABEL[capa.status]
                   return (
-                    <tr key={capa.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
-                      <td className="px-5 py-3.5 font-mono text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
+                    <tr key={capa.id} className="hover:bg-[#3a6f8f]/5 dark:hover:bg-[#3a6f8f]/10 transition-colors">
+
+                      {/* CAPA # */}
+                      <td className="px-4 py-4 font-mono text-xs text-gray-500 dark:text-gray-400 whitespace-nowrap">
                         {capa.capa_number ?? `#${capa.id.slice(0, 8)}`}
                       </td>
-                      <td className="px-5 py-3.5 max-w-xs">
-                        <p className="font-medium text-gray-900 dark:text-white leading-snug">{capa.title}</p>
+
+                      {/* Title + root cause preview */}
+                      <td className="px-4 py-4 max-w-[200px]">
+                        <p className="text-sm font-medium text-gray-900 dark:text-gray-100 leading-tight truncate">{capa.title}</p>
                         {capa.root_cause && (
                           <p className="text-xs text-gray-400 dark:text-gray-500 mt-0.5 truncate">{capa.root_cause}</p>
                         )}
                       </td>
-                      <td className="px-5 py-3.5">
-                        <LifecycleTrack status={capa.status} />
+
+                      {/* Priority */}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <PriorityBadge severity={capa.severity} />
                       </td>
-                      <td className="px-5 py-3.5 text-gray-700 dark:text-gray-300 whitespace-nowrap">
+
+                      {/* Owner */}
+                      <td className="px-4 py-4 text-sm text-gray-600 dark:text-gray-300 whitespace-nowrap">
                         {capa.owner_name ?? '—'}
                       </td>
-                      <td className={`px-5 py-3.5 whitespace-nowrap text-sm font-medium ${
-                        overdue ? 'text-red-600 dark:text-red-400' : 'text-gray-700 dark:text-gray-300'
-                      }`}>
-                        {capa.due_date ? fmt(capa.due_date) : '—'}
+
+                      {/* Due Date */}
+                      <td className="px-4 py-4 whitespace-nowrap text-xs text-gray-500 dark:text-gray-400">
+                        {capa.due_date
+                          ? new Date(capa.due_date).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+                          : '—'}
                       </td>
-                      <td className="px-5 py-3.5">
-                        <StatusBadge status={capa.status} overdue={overdue} />
+
+                      {/* Status */}
+                      <td className="px-4 py-4 whitespace-nowrap">
+                        <StatusBadge status={capa.status} />
                       </td>
-                      <td className="px-5 py-3.5">
+
+                      {/* Actions */}
+                      <td className="px-4 py-4">
                         <div className="flex items-center justify-end gap-2">
                           {canEditCapa && nextStatus && advanceLabel && (
                             <button
