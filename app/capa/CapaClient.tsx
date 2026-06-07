@@ -257,6 +257,23 @@ export default function CapaClient() {
   async function handleAdvance(id: string, current: CapaStatus) {
     const next = NEXT_STATUS[current]
     if (!next) return
+
+    const confirmed = next === 'closed'
+      ? await confirm({
+          title:        'Close this CAPA?',
+          message:      'This action will mark the CAPA as completed.',
+          confirmLabel: 'Close CAPA',
+          danger:       false,
+        })
+      : await confirm({
+          title:        'Advance Stage',
+          message:      `Current Stage: ${STATUS_META[current].label} → Next Stage: ${STATUS_META[next].label}`,
+          confirmLabel: 'Confirm',
+          danger:       false,
+        })
+
+    if (!confirmed) return
+
     setAdvancing(id)
     const ok = await advanceStatus(id, current)
     setAdvancing(null)
