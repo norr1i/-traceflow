@@ -572,9 +572,9 @@ BEGIN
     '2. Single-source spring: Gulf Steel Industries only. '
     '3. PMI field added to incoming inspection checklist. '
     '4. Annual material audit clause in all spring supplier contracts.',
-    'Fatima Al-Dosari', (t3+interval '65 days')::date, 'closed',
-    t3+interval '26 days', t3+interval '34 days', t3+interval '54 days', t3+interval '62 days',
-    t3+interval '25 days', t3+interval '62 days'
+    'Fatima Al-Dosari', (now()+interval '14 days')::date, 'verification',
+    t3+interval '26 days', t3+interval '34 days', t3+interval '54 days', NULL,
+    t3+interval '25 days', now()-interval '4 days'
   ) ON CONFLICT DO NOTHING;
 
   -- ══════════════════════════════════════════════════════════════
@@ -738,7 +738,7 @@ BEGIN
     (cid,uid,'qa@company.sa',       'qc_result.added',         'production_order',batch_03::text,'QC PASS: Relief Valve batch. 150 units certified. CC-2025-0903.',                    t3+interval '7d'),
     (cid,uid,'qa@company.sa',       'recall.created',          'recall',          recall_01::text,'Voluntary recall: VSR-05-010 batch 2025-Q1-003. Spring material deviation. SFDA RN filed.',t3+interval '25d'),
     (cid,uid,'qa@company.sa',       'capa.created',            'capa',            capa_02::text, 'CAPA opened: Spring material deviation — VSR-2025-Q1-003.',                           t3+interval '25d'),
-    (cid,uid,'qa@company.sa',       'capa.closed',             'capa',            capa_02::text, 'CAPA closed. All 3 sites retrofitted. SFDA closure notified.',                        t3+interval '62d'),
+    (cid,uid,'qa@company.sa',       'capa.status_changed',     'capa',            capa_02::text, 'CAPA → Verification. Field retrofit confirmed at all 3 sites. SFDA documentation under review.', t3+interval '54d'),
     (cid,uid,'qa@company.sa',       'recall.created',          'recall',          recall_02::text,'Precautionary hold: Bolt batch IFB-2025-Q2-007. Saudi Aramco thread deviation.',    now()-interval '8d'),
     (cid,uid,'warehouse@company.sa','qc_result.added',         'production_order',b13::text,     'QC HOLD: Gate Valve in-process. Seat pitting 3/20 sample. Rework initiated.',        now()-interval '1d'),
     (cid,uid,'qa@company.sa',       'capa.created',            'capa',            capa_04::text, 'CAPA opened: Missing SFDA import cert for LOT-SS316-0891. Corrective action active.', now()-interval '14d')
@@ -749,7 +749,7 @@ BEGIN
   RAISE NOTICE 'Story 2 — Hydraulic Cylinder QC→CAPA:     batch_02 = %', batch_02;
   RAISE NOTICE 'Story 3 — Safety Relief Valve Recall:     batch_03 = %', batch_03;
   RAISE NOTICE 'Active recall:  recall_02 = %', recall_02;
-  RAISE NOTICE 'Open CAPAs:     capa_03, capa_04';
+  RAISE NOTICE 'CAPA states:    capa_01=closed | capa_02=verification | capa_03=investigation | capa_04=corrective_action';
   RAISE NOTICE 'Product Journey: navigate to /trace/<batch_01>';
 
 END;
