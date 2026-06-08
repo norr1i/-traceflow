@@ -13,7 +13,7 @@ import {
   AlertTriangle, Search, Download, ChevronDown, ChevronRight,
   Package, FlaskConical, Layers, ShoppingCart, Network,
   XCircle, AlertCircle, Loader2, X, ClipboardList,
-  Plus, RefreshCw, Trash2,
+  Plus, RefreshCw, Trash2, GitBranch,
 } from 'lucide-react'
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -590,6 +590,15 @@ function RecallRegistry() {
                     </td>
                     <td className="px-5 py-3.5">
                       <div className="flex items-center justify-end gap-2">
+                        {recall.batch_id && (
+                          <a
+                            href={`/product-journey/${recall.batch_id}`}
+                            className="inline-flex items-center gap-1 rounded-md px-2 py-1 text-xs font-medium text-[#3a6f8f] dark:text-[#7ab3d0] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors whitespace-nowrap"
+                            title="View Product Journey"
+                          >
+                            <GitBranch size={12} />Journey
+                          </a>
+                        )}
                         {canEditRecall && recall.status !== 'closed' && (
                           <button
                             onClick={() => handleStatusChange(recall.id, recall.status)}

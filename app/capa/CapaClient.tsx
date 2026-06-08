@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect } from 'react'
 import {
   FileWarning, Plus, RefreshCw, Search, AlertTriangle,
-  X, ArrowRight, MoreHorizontal, Eye, Pencil, Trash2,
+  X, ArrowRight, MoreHorizontal, Eye, Pencil, Trash2, GitBranch,
 } from 'lucide-react'
 import { useCapas, NEXT_STATUS, ADVANCE_LABEL, type CapaStatus, type CapaFormData, type Capa } from '../hooks/useCapas'
 import { useAuth, useRole } from '../lib/auth-context'
@@ -263,9 +263,17 @@ function CapaDetailModal({ capa, onClose }: { capa: Capa; onClose: () => void })
           </div>
         )}
 
-        <div className="mt-5 flex justify-end">
+        <div className="mt-5 flex items-center justify-between gap-3">
+          {capa.batch_id && (
+            <a
+              href={`/product-journey/${capa.batch_id}`}
+              className="inline-flex items-center gap-1.5 rounded-lg bg-[#3a6f8f]/10 dark:bg-[#3a6f8f]/20 border border-[#3a6f8f]/20 px-3 py-1.5 text-sm font-medium text-[#3a6f8f] dark:text-[#7ab3d0] hover:bg-[#3a6f8f]/20 transition-colors"
+            >
+              <GitBranch size={13} />View Batch Journey
+            </a>
+          )}
           <button onClick={onClose}
-            className="rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/45">
+            className="ml-auto rounded-lg border border-[#B3B7BA]/50 dark:border-[#B3B7BA]/[0.10] px-4 py-2 text-sm text-gray-700 dark:text-gray-300 hover:bg-[#D1CFC9]/30 dark:hover:bg-[#262E36]/45">
             Close
           </button>
         </div>

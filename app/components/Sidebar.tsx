@@ -5,7 +5,7 @@ import { usePathname } from 'next/navigation'
 import {
   LayoutDashboard, Package,
   ClipboardList, ShieldCheck, ShoppingCart,
-  Menu, X, Boxes, AlertTriangle, Users, ShieldAlert, FileWarning, GitBranch,
+  Menu, X, Boxes, AlertTriangle, Users, ShieldAlert, FileWarning,
 } from 'lucide-react'
 import { useState } from 'react'
 import { useAuth } from '../lib/auth-context'
@@ -34,7 +34,6 @@ const NAV_GROUPS: { labelKey: string; items: NavItem[] }[] = [
       { labelKey: 'nav.materials',   href: '/raw-materials',     icon: Boxes,         permission: 'view:raw-materials'     },
       { labelKey: 'nav.production',  href: '/production',        icon: ClipboardList, permission: 'view:production'        },
       { labelKey: 'nav.quality',     href: '/quality-control',   icon: ShieldCheck,   permission: 'view:quality-control'   },
-      { labelKey: 'nav.journey',     href: '/product-journey',   icon: GitBranch,     permission: 'view:product-journey'   },
       { labelKey: 'nav.sales',       href: '/sales',             icon: ShoppingCart,  permission: 'view:sales'             },
     ],
   },

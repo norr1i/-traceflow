@@ -381,8 +381,18 @@ export default function QualityControlClient() {
                   <tbody className="divide-y divide-gray-50 dark:divide-[#B3B7BA]/[0.07]">
                     {filtered.map((item) => (
                       <tr key={item.id} className="hover:bg-blue-50/40 dark:hover:bg-blue-900/10 transition-colors">
-                        <td className="px-5 py-3.5 font-mono text-xs text-gray-500 dark:text-gray-400">
-                          ···{String(item.batch_id ?? '').slice(-6)}
+                        <td className="px-5 py-3.5">
+                          {item.batch_id ? (
+                            <a
+                              href={`/product-journey/${item.batch_id}`}
+                              className="font-mono text-xs text-[#3a6f8f] dark:text-[#7ab3d0] hover:underline"
+                              title="View Product Journey"
+                            >
+                              ···{item.batch_id.slice(-6)}
+                            </a>
+                          ) : (
+                            <span className="font-mono text-xs text-gray-400 dark:text-gray-500">—</span>
+                          )}
                         </td>
                         <td className="px-5 py-3.5 text-gray-700 dark:text-gray-300">
                           {item.inspection_date

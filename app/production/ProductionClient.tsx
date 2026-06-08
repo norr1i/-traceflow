@@ -13,7 +13,7 @@ import { logActivity, actorName } from '../lib/activity'
 import { useT, fmtNum } from '../lib/i18n'
 import {
   Plus, Pencil, Trash2, X, Check, AlertTriangle, ClipboardList,
-  QrCode, Copy, Download, ExternalLink, Layers, FlaskConical,
+  QrCode, Copy, Download, ExternalLink, Layers, FlaskConical, GitBranch,
 } from 'lucide-react'
 import PaginationBar from '../components/PaginationBar'
 
@@ -595,6 +595,13 @@ export default function ProductionClient() {
                   </td>
                   <td className="px-4 py-3 text-end">
                     <div className="flex items-center justify-end gap-2">
+                      <a
+                        href={`/product-journey/${o.id}`}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[#3a6f8f] dark:text-[#7ab3d0] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        title="View Product Journey"
+                      >
+                        <GitBranch size={13} />Journey
+                      </a>
                       {canWrite && (
                         <button onClick={() => { setBomLoading(true); setMaterialsOrder(o) }}
                           className="rounded-lg p-1.5 text-gray-400 hover:bg-emerald-50 dark:hover:bg-emerald-900/30 hover:text-emerald-600 dark:hover:text-emerald-400 transition-colors"
