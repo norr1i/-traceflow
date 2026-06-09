@@ -7,7 +7,7 @@ import { supabase } from '../../lib/supabase'
 import { classifyEvent } from '../../trace/[id]/eventCategories'
 import {
   ChevronLeft, Package, Layers, ShieldCheck, Truck,
-  FileWarning, AlertTriangle, Activity, Loader2, User, Calendar,
+  FileWarning, AlertTriangle, Activity, User, Calendar,
   Hash, Building2, Network, Copy, Check, ChevronDown, ChevronUp,
 } from 'lucide-react'
 
@@ -371,79 +371,6 @@ function TimelineSkeleton() {
   )
 }
 
-// ── Batch Snapshot panel ──────────────────────────────────────────────────────
-
-const STATUS_DISPLAY: Record<string, string> = {
-  pending:     'Pending',
-  in_progress: 'Active',
-  completed:   'Completed',
-  cancelled:   'Cancelled',
-}
-const STATUS_VALUE_CLS: Record<string, string> = {
-  pending:     'text-gray-500 dark:text-gray-400',
-  in_progress: 'text-blue-600 dark:text-blue-400',
-  completed:   'text-emerald-600 dark:text-emerald-400',
-  cancelled:   'text-red-600 dark:text-red-400',
-}
-
-function SnapshotRow({ label, value, valueCls }: { label: string; value: string; valueCls?: string }) {
-  return (
-    <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-0">
-      <span className="shrink-0 text-sm text-gray-500 dark:text-gray-400">{label}</span>
-      <span className={`text-right text-sm font-semibold ${valueCls ?? 'text-gray-900 dark:text-white'}`}>{value}</span>
-    </div>
-  )
-}
-
-function BatchSnapshot({ order, qcResults, sales, journey, capaCount, recallCount }: {
-  order:       TraceOrder
-  qcResults:   TraceQc[]
-  sales:       TraceSale[]
-  journey:     JourneyEvent[]
-  capaCount:   number
-  recallCount: number
-}) {
-  const latestQc = [...qcResults].sort(
-    (a, b) => new Date(b.inspected_at).getTime() - new Date(a.inspected_at).getTime(),
-  )[0] ?? null
-
-  // Current Stage — lifecycle position derived from real data.
-  const { stageLabel, stageCls } = (() => {
-    if (recallCount > 0)           return { stageLabel: 'Recall In Progress',      stageCls: 'text-red-600 dark:text-red-400'     }
-    if (sales.length > 0)          return { stageLabel: 'Distributed',             stageCls: 'text-teal-600 dark:text-teal-400'   }
-    if (latestQc?.status === 'pass') return { stageLabel: 'QC Passed',             stageCls: 'text-emerald-600 dark:text-emerald-400' }
-    if (latestQc?.status === 'fail') return { stageLabel: 'QC Failed',             stageCls: 'text-red-600 dark:text-red-400'     }
-    if (latestQc?.status === 'hold') return { stageLabel: 'QC On Hold',            stageCls: 'text-amber-600 dark:text-amber-400' }
-    if (order.completed_at)        return { stageLabel: 'Production Completed',    stageCls: 'text-emerald-600 dark:text-emerald-400' }
-    if (order.started_at)          return { stageLabel: 'In Production',           stageCls: 'text-blue-600 dark:text-blue-400'   }
-    return                                { stageLabel: 'Order Created',           stageCls: 'text-gray-500 dark:text-gray-400'   }
-  })()
-
-  const lastTs = [...journey].sort(
-    (a, b) => new Date(b.event_timestamp).getTime() - new Date(a.event_timestamp).getTime(),
-  )[0]?.event_timestamp ?? null
-
-  type Row = { label: string; value: string; valueCls: string }
-  const rows: Row[] = [
-    { label: 'Current Stage', value: stageLabel, valueCls: stageCls },
-    ...(latestQc ? [{ label: 'Quality Status', value: QC_LABEL[latestQc.status], valueCls: QC_TEXT[latestQc.status] }] : []),
-    ...(lastTs   ? [{ label: 'Last Activity',  value: fmtDateTime(lastTs),       valueCls: 'text-gray-500 dark:text-gray-400' }] : []),
-    ...(capaCount   > 0 ? [{ label: 'Linked CAPAs',   value: String(capaCount),   valueCls: 'text-amber-600 dark:text-amber-400' }] : []),
-    ...(recallCount > 0 ? [{ label: 'Linked Recalls',  value: String(recallCount), valueCls: 'text-red-600 dark:text-red-400'   }] : []),
-  ]
-
-  if (rows.length === 0) return null
-
-  return (
-    <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Batch Snapshot</p>
-      {rows.map(r => (
-        <SnapshotRow key={r.label} label={r.label} value={r.value} valueCls={r.valueCls} />
-      ))}
-    </div>
-  )
-}
-
 // ── Affected records card ─────────────────────────────────────────────────────
 
 function AffectedRecords({
@@ -464,7 +391,7 @@ function AffectedRecords({
   if (rows.length === 0) return null
 
   return (
-    <div className="mt-4 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
+    <div className="mt-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
       <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Affected Records</p>
       <div className="space-y-1">
         {rows.map(({ label, value, href, color, bg }) => (
@@ -850,23 +777,9 @@ export default function ProductJourneyDetailClient() {
       <div className="px-6 py-5">
         <div className="mb-5 h-4 w-32 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
         <div className="space-y-4">
-          {/* header + summary + timeline */}
-          {[140, 56, 480].map((h, i) => (
+          {[140, 56, 480, 200, 160].map((h, i) => (
             <div key={i} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse" style={{ height: h }} />
           ))}
-          {/* secondary grid */}
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-12">
-            <div className="lg:col-span-8 space-y-4">
-              {[200, 160].map((h, i) => (
-                <div key={i} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse" style={{ height: h }} />
-              ))}
-            </div>
-            <div className="lg:col-span-4 space-y-4">
-              {[160, 120].map((h, i) => (
-                <div key={i} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse" style={{ height: h }} />
-              ))}
-            </div>
-          </div>
         </div>
       </div>
     )
@@ -1016,31 +929,16 @@ export default function ProductJourneyDetailClient() {
         </div>
       </div>
 
-      {/* Secondary: materials + impact (left) / snapshot + affected records (right) */}
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-12">
-        <div className="lg:col-span-8">
-          <MaterialsUsed materials={enrichedMaterials} />
-          {enrichedMaterials.length > 0 && (
-            <ImpactAnalysis impacts={impactData} loading={impactLoading} />
-          )}
-        </div>
-        <div className="lg:col-span-4">
-          <BatchSnapshot
-            order={traceData.order}
-            qcResults={traceData.qc_results}
-            sales={traceData.sales}
-            journey={journey}
-            capaCount={capaCount}
-            recallCount={recallCount}
-          />
-          <AffectedRecords
-            qcCount={traceData.qc_results.length}
-            capaCount={capaCount}
-            recallCount={recallCount}
-            shipments={traceData.sales.length}
-          />
-        </div>
-      </div>
+      <MaterialsUsed materials={enrichedMaterials} />
+      {enrichedMaterials.length > 0 && (
+        <ImpactAnalysis impacts={impactData} loading={impactLoading} />
+      )}
+      <AffectedRecords
+        qcCount={traceData.qc_results.length}
+        capaCount={capaCount}
+        recallCount={recallCount}
+        shipments={traceData.sales.length}
+      />
     </div>
   )
 }
