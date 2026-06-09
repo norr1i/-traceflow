@@ -475,57 +475,61 @@ function BatchHeader({ order, qcResults, materials, sales }: {
   })()
 
   return (
-    <div className="mb-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
-      <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
-        <div>
-          <h2 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">{order.product_name}</h2>
-          <p className="mt-0.5 font-mono text-xs text-gray-400 dark:text-gray-500">SKU: {order.sku}</p>
+    <div className="mb-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-4 py-3 shadow-sm">
+      {/* Name + SKU + badges — all on one line */}
+      <div className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1.5">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <h2 className="text-base font-bold text-gray-900 dark:text-white leading-tight truncate">{order.product_name}</h2>
+          <span className="shrink-0 font-mono text-[11px] text-gray-400 dark:text-gray-500">SKU: {order.sku}</span>
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-1.5 flex-wrap">
           {stageBadge && (
-            <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${stageBadge.cls}`}>
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${stageBadge.cls}`}>
               {stageBadge.label}
             </span>
           )}
           {latestQc && (
-            <span className={`inline-flex items-center rounded-md px-2.5 py-0.5 text-xs font-bold uppercase tracking-wider ${QC_BADGE[latestQc.status]}`}>
+            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${QC_BADGE[latestQc.status]}`}>
               {QC_LABEL[latestQc.status]}
             </span>
           )}
         </div>
       </div>
 
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-        {([
-          { icon: Calendar, label: 'Production Date', value: fmtDate(order.created_at), show: true },
-          { icon: Hash,     label: 'Batch Quantity',  value: order.quantity ? `${order.quantity.toLocaleString()} units` : '', show: !!order.quantity },
-          { icon: Layers,   label: 'Raw Materials',   value: String(materials.length), show: materials.length > 0 },
-          { icon: Truck,    label: 'Distribution',    value: sales.length > 0 ? `${sales.length} ${sales.length === 1 ? 'shipment' : 'shipments'}` : 'Not shipped yet', show: true },
-        ] as const).filter(c => c.show).map(({ icon: Icon, label, value }) => (
-          <div key={label} className="rounded-xl bg-gray-50 dark:bg-gray-700/40 px-3 py-2.5">
-            <p className="flex items-center gap-1 text-[10px] font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500 mb-1">
-              <Icon size={9} />{label}
-            </p>
-            <p className="text-sm font-bold text-gray-900 dark:text-white">{value}</p>
-          </div>
-        ))}
+      {/* Metadata — inline key/value pairs */}
+      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-gray-600 dark:text-gray-400">
+        <span className="inline-flex items-center gap-1">
+          <Calendar size={10} className="text-gray-400" />{fmtDate(order.created_at)}
+        </span>
+        {!!order.quantity && (
+          <span className="inline-flex items-center gap-1">
+            <Hash size={10} className="text-gray-400" />{order.quantity.toLocaleString()} units
+          </span>
+        )}
+        {materials.length > 0 && (
+          <span className="inline-flex items-center gap-1">
+            <Layers size={10} className="text-gray-400" />{materials.length} {materials.length === 1 ? 'material' : 'materials'}
+          </span>
+        )}
+        <span className="inline-flex items-center gap-1">
+          <Truck size={10} className="text-gray-400" />
+          {sales.length > 0 ? `${sales.length} ${sales.length === 1 ? 'shipment' : 'shipments'}` : 'Not shipped yet'}
+        </span>
       </div>
 
-      {/* Batch ID with copy */}
-      <div className="mt-3 flex items-center justify-between gap-2 rounded-lg bg-gray-50 dark:bg-gray-700/40 px-3 py-2">
-        <div className="flex min-w-0 items-center gap-1.5">
-          <Hash size={11} className="shrink-0 text-gray-400" />
-          <span className="text-[10px] text-gray-400">Batch ID</span>
-          <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400 truncate">···{order.id.slice(-12)}</span>
-        </div>
+      {/* Batch ID — inline, no background box */}
+      <div className="mt-2 flex items-center gap-1.5">
+        <Hash size={10} className="shrink-0 text-gray-400" />
+        <span className="text-[10px] text-gray-400">Batch ID</span>
+        <span className="font-mono text-[10px] text-gray-500 dark:text-gray-400">···{order.id.slice(-12)}</span>
         <button
           onClick={handleCopy}
-          className="shrink-0 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[10px] font-medium text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-200 dark:hover:bg-gray-600 transition-colors"
+          className="ml-0.5 inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] font-medium text-gray-400 hover:text-gray-700 dark:hover:text-gray-200 hover:bg-gray-100 dark:hover:bg-gray-700 transition-colors"
           title="Copy full batch ID"
         >
           {copied
-            ? <><Check size={10} className="text-emerald-500" />Copied</>
-            : <><Copy size={10} />Copy</>
+            ? <><Check size={9} className="text-emerald-500" />Copied</>
+            : <><Copy size={9} />Copy</>
           }
         </button>
       </div>
