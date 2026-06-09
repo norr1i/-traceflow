@@ -72,6 +72,20 @@ type MaterialImpact = {
   material_name:    string
   affected_batches: AffectedBatch[]
 }
+type CapaRecord = {
+  id:         string
+  title:      string
+  status:     string
+  created_at: string
+  closed_at:  string | null
+}
+type RecallRecord = {
+  id:         string
+  title:      string
+  status:     string
+  created_at: string
+  closed_at:  string | null
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -97,6 +111,121 @@ function extractActor(meta: Record<string, unknown> | null): string | null {
 // System events are low-signal for business users and collapsed by default.
 function isSystemEvent(e: JourneyEvent): boolean {
   return e.source_table === 'scan_events' || e.event_type.startsWith('qr.')
+}
+
+// Derive business events from real relational data so the timeline is
+// populated even when the journey RPC only emits "production.created".
+function synthesizeEvents(
+  order:      TraceOrder,
+  qcResults:  TraceQc[],
+  sales:      TraceSale[],
+  capas:      CapaRecord[],
+  recalls:    RecallRecord[],
+): JourneyEvent[] {
+  const out: JourneyEvent[] = []
+
+  if (order.started_at) {
+    out.push({
+      event_type:      'production.started',
+      event_timestamp: order.started_at,
+      title:           'Production Started',
+      description:     `Production initiated for ${order.quantity.toLocaleString()} units.`,
+      source_table:    'production_orders',
+      metadata:        null,
+    })
+  }
+
+  if (order.completed_at) {
+    out.push({
+      event_type:      'production.completed',
+      event_timestamp: order.completed_at,
+      title:           'Production Completed',
+      description:     `${order.quantity.toLocaleString()} units produced and ready for quality inspection.`,
+      source_table:    'production_orders',
+      metadata:        null,
+    })
+  }
+
+  const QC_TYPE  = { pass: 'qc_inspection.passed', fail: 'qc_inspection.failed', hold: 'qc_inspection.hold' } as const
+  const QC_TITLE = { pass: 'QC Inspection Passed', fail: 'QC Inspection Failed', hold: 'QC Inspection On Hold' } as const
+  for (const qc of qcResults) {
+    out.push({
+      event_type:      QC_TYPE[qc.status]  ?? 'qc_inspection.passed',
+      event_timestamp: qc.inspected_at,
+      title:           QC_TITLE[qc.status] ?? 'QC Inspection',
+      description:     qc.notes ?? `Inspection completed by ${qc.inspector_name}.`,
+      source_table:    'quality_checks',
+      metadata:        { inspector_name: qc.inspector_name },
+    })
+  }
+
+  for (const sale of sales) {
+    out.push({
+      event_type:      'distribution.shipped',
+      event_timestamp: sale.sold_at,
+      title:           'Shipment Created',
+      description:     sale.customer_name
+        ? `${sale.quantity.toLocaleString()} units shipped to ${sale.customer_name}.`
+        : `${sale.quantity.toLocaleString()} units dispatched.`,
+      source_table:    'sales',
+      metadata:        sale.customer_name ? { customer_name: sale.customer_name } : null,
+    })
+  }
+
+  for (const capa of capas) {
+    out.push({
+      event_type:      'capa.opened',
+      event_timestamp: capa.created_at,
+      title:           'CAPA Opened',
+      description:     capa.title,
+      source_table:    'capas',
+      metadata:        null,
+    })
+    if (capa.closed_at) {
+      out.push({
+        event_type:      'capa.closed',
+        event_timestamp: capa.closed_at,
+        title:           'CAPA Closed',
+        description:     `${capa.title} — resolved.`,
+        source_table:    'capas',
+        metadata:        null,
+      })
+    }
+  }
+
+  for (const recall of recalls) {
+    out.push({
+      event_type:      'recall.initiated',
+      event_timestamp: recall.created_at,
+      title:           'Recall Initiated',
+      description:     recall.title,
+      source_table:    'recalls',
+      metadata:        null,
+    })
+    if (recall.closed_at) {
+      out.push({
+        event_type:      'recall.closed',
+        event_timestamp: recall.closed_at,
+        title:           'Recall Closed',
+        description:     `${recall.title} — resolved.`,
+        source_table:    'recalls',
+        metadata:        null,
+      })
+    }
+  }
+
+  return out
+}
+
+// Merge RPC events with synthesized events, deduplicating by event_type +
+// minute-precision timestamp, and sorting chronologically.
+function mergeJourneyEvents(rpc: JourneyEvent[], synth: JourneyEvent[]): JourneyEvent[] {
+  const key = (e: JourneyEvent) => `${e.event_type}|${e.event_timestamp.substring(0, 16)}`
+  const rpcKeys = new Set(rpc.map(key))
+  const deduped = synth.filter(e => !rpcKeys.has(key(e)))
+  return [...rpc, ...deduped].sort(
+    (a, b) => new Date(a.event_timestamp).getTime() - new Date(b.event_timestamp).getTime(),
+  )
 }
 
 // ── Badge maps ────────────────────────────────────────────────────────────────
@@ -217,31 +346,71 @@ function TimelineSkeleton() {
   )
 }
 
-// ── Journey Health panel ──────────────────────────────────────────────────────
+// ── Batch Snapshot panel ──────────────────────────────────────────────────────
 
-function HealthRow({ label, value, valueClass }: { label: string; value: string; valueClass?: string }) {
+const STATUS_DISPLAY: Record<string, string> = {
+  pending:     'Pending',
+  in_progress: 'Active',
+  completed:   'Completed',
+  cancelled:   'Cancelled',
+}
+const STATUS_VALUE_CLS: Record<string, string> = {
+  pending:     'text-gray-500 dark:text-gray-400',
+  in_progress: 'text-blue-600 dark:text-blue-400',
+  completed:   'text-emerald-600 dark:text-emerald-400',
+  cancelled:   'text-red-600 dark:text-red-400',
+}
+
+function SnapshotRow({ label, value, valueCls }: { label: string; value: string; valueCls?: string }) {
   return (
     <div className="flex items-center justify-between gap-3 py-2 border-b border-gray-100 dark:border-gray-700/60 last:border-0">
-      <span className="text-sm text-gray-500 dark:text-gray-400">{label}</span>
-      <span className={`text-sm font-semibold ${valueClass ?? 'text-gray-900 dark:text-white'}`}>{value}</span>
+      <span className="shrink-0 text-sm text-gray-500 dark:text-gray-400">{label}</span>
+      <span className={`text-right text-sm font-semibold ${valueCls ?? 'text-gray-900 dark:text-white'}`}>{value}</span>
     </div>
   )
 }
 
-function HealthPanel({ order, qcResults }: { order: TraceOrder; qcResults: TraceQc[] }) {
-  const latestQc   = qcResults[0] ?? null
-  const openIssues = qcResults.filter(r => r.status === 'fail').length
-  const stageLabel = ORDER_LABEL[order.status] ?? order.status.replace(/_/g, ' ')
+function BatchSnapshot({ order, qcResults, sales, journey }: {
+  order:     TraceOrder
+  qcResults: TraceQc[]
+  sales:     TraceSale[]
+  journey:   JourneyEvent[]
+}) {
+  const latestQc = [...qcResults].sort(
+    (a, b) => new Date(b.inspected_at).getTime() - new Date(a.inspected_at).getTime(),
+  )[0] ?? null
+
+  const production = order.completed_at ? 'Completed'
+    : order.started_at                  ? 'In Progress'
+    : 'Pending'
+  const productionCls = order.completed_at ? 'text-emerald-600 dark:text-emerald-400'
+    : order.started_at                     ? 'text-blue-600 dark:text-blue-400'
+    : 'text-gray-400 dark:text-gray-500'
+
+  const shipValue = sales.length > 0
+    ? `${sales.length} ${sales.length === 1 ? 'shipment' : 'shipments'}`
+    : 'Not shipped'
+  const shipCls = sales.length > 0 ? 'text-teal-600 dark:text-teal-400' : 'text-gray-400 dark:text-gray-500'
+
+  const lastTs = [...journey].sort(
+    (a, b) => new Date(b.event_timestamp).getTime() - new Date(a.event_timestamp).getTime(),
+  )[0]?.event_timestamp ?? null
 
   return (
     <div className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Journey Health</p>
-      <HealthRow label="Current Stage" value={stageLabel} />
+      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Batch Snapshot</p>
+      <SnapshotRow
+        label="Status"
+        value={STATUS_DISPLAY[order.status] ?? order.status.replace(/_/g, ' ')}
+        valueCls={STATUS_VALUE_CLS[order.status]}
+      />
+      <SnapshotRow label="Production" value={production} valueCls={productionCls} />
       {latestQc && (
-        <HealthRow label="Quality Status" value={QC_LABEL[latestQc.status]} valueClass={QC_TEXT[latestQc.status]} />
+        <SnapshotRow label="Quality" value={QC_LABEL[latestQc.status]} valueCls={QC_TEXT[latestQc.status]} />
       )}
-      {openIssues > 0 && (
-        <HealthRow label="Open Issues" value={`${openIssues} failed QC`} valueClass="text-red-600 dark:text-red-400" />
+      <SnapshotRow label="Shipment" value={shipValue} valueCls={shipCls} />
+      {lastTs && (
+        <SnapshotRow label="Last Activity" value={fmtDateTime(lastTs)} valueCls="text-gray-500 dark:text-gray-400" />
       )}
     </div>
   )
@@ -538,8 +707,8 @@ export default function ProductJourneyDetailClient() {
   const [journey,           setJourney]           = useState<JourneyEvent[]>([])
   const [loading,           setLoading]           = useState(true)
   const [notFound,          setNotFound]          = useState(false)
-  const [capaCount,         setCapaCount]         = useState(0)
-  const [recallCount,       setRecallCount]       = useState(0)
+  const [capaRecords,       setCapaRecords]       = useState<CapaRecord[]>([])
+  const [recallRecords,     setRecallRecords]     = useState<RecallRecord[]>([])
   const [enrichedMaterials, setEnrichedMaterials] = useState<EnrichedMaterial[]>([])
   const [impactData,        setImpactData]        = useState<MaterialImpact[]>([])
   const [impactLoading,     setImpactLoading]     = useState(true)
@@ -553,8 +722,8 @@ export default function ProductJourneyDetailClient() {
     Promise.all([
       supabase.rpc('get_batch_trace',   { p_batch_id: id }).single(),
       supabase.rpc('get_batch_journey', { p_batch_id: id }).single(),
-      supabase.from('capas').select('id',   { count: 'exact', head: true }).eq('batch_id', id),
-      supabase.from('recalls').select('id', { count: 'exact', head: true }).eq('batch_id', id),
+      supabase.from('capas').select('id, title, status, created_at, closed_at').eq('batch_id', id),
+      supabase.from('recalls').select('id, title, status, created_at, closed_at').eq('batch_id', id),
       supabase
         .from('bill_of_materials')
         .select('id, material_name, lot_number, quantity, unit, raw_material_lots(id, suppliers(name))')
@@ -567,19 +736,22 @@ export default function ProductJourneyDetailClient() {
         return
       }
 
-      setTraceData(traceRes.data as TraceData)
+      const trace   = traceRes.data as TraceData
+      const capas   = (capaRes.data   ?? []) as CapaRecord[]
+      const recalls = (recallRes.data ?? []) as RecallRecord[]
+
+      setTraceData(trace)
+      setCapaRecords(capas)
+      setRecallRecords(recalls)
 
       const jd = journeyRes.data as { timeline?: JourneyEvent[] } | null
-      if (jd?.timeline && Array.isArray(jd.timeline)) {
-        setJourney(
-          [...jd.timeline].sort(
-            (a, b) => new Date(a.event_timestamp).getTime() - new Date(b.event_timestamp).getTime(),
-          ),
-        )
-      }
+      const rpcEvents: JourneyEvent[] = (jd?.timeline && Array.isArray(jd.timeline))
+        ? [...jd.timeline].sort((a, b) => new Date(a.event_timestamp).getTime() - new Date(b.event_timestamp).getTime())
+        : []
 
-      setCapaCount(capaRes.count ?? 0)
-      setRecallCount(recallRes.count ?? 0)
+      const synth  = synthesizeEvents(trace.order, trace.qc_results, trace.sales, capas, recalls)
+      const merged = mergeJourneyEvents(rpcEvents, synth)
+      setJourney(merged)
 
       const rawBom = (bomRes.data ?? []) as any[]
       const materials: EnrichedMaterial[] = rawBom.map(row => {
@@ -679,6 +851,9 @@ export default function ProductJourneyDetailClient() {
       </div>
     )
   }
+
+  const capaCount   = capaRecords.length
+  const recallCount = recallRecords.length
 
   const businessEvents = journey.filter(e => !isSystemEvent(e))
   const sysEvents      = journey.filter(e => isSystemEvent(e))
@@ -812,9 +987,14 @@ export default function ProductJourneyDetailClient() {
           )}
         </div>
 
-        {/* Right: health + affected records */}
+        {/* Right: snapshot + affected records */}
         <div className="lg:col-span-4">
-          <HealthPanel order={traceData.order} qcResults={traceData.qc_results} />
+          <BatchSnapshot
+            order={traceData.order}
+            qcResults={traceData.qc_results}
+            sales={traceData.sales}
+            journey={journey}
+          />
           <AffectedRecords
             qcCount={traceData.qc_results.length}
             capaCount={capaCount}
