@@ -353,6 +353,14 @@ function normalizeEvents(events: JourneyEvent[]): JourneyEvent[] {
     if (e.event_type.startsWith('incoming_qc.')) {
       return { ...e, title: (e.title ?? '').replace(/\bincoming qc\b/gi, 'Incoming Inspection') }
     }
+    // Distinguish final production QC (batch_qc_results) from post-cert audit
+    // inspections (quality_inspections). Both previously surfaced as "QC Passed".
+    if (e.event_type === 'qc.pass')              return { ...e, title: 'Final QC Passed' }
+    if (e.event_type === 'qc.fail')              return { ...e, title: 'Final QC Failed' }
+    if (e.event_type === 'qc.hold')              return { ...e, title: 'Final QC On Hold' }
+    if (e.event_type === 'qc_inspection.passed') return { ...e, title: 'Audit Inspection Passed' }
+    if (e.event_type === 'qc_inspection.failed') return { ...e, title: 'Audit Inspection Failed' }
+    if (e.event_type === 'qc_inspection.hold')   return { ...e, title: 'Audit Inspection On Hold' }
     return e
   })
 }
@@ -368,20 +376,6 @@ const ORDER_BADGE: Record<string, string> = {
 const ORDER_LABEL: Record<string, string> = {
   pending: 'Pending', in_progress: 'In Progress', completed: 'Completed', cancelled: 'Cancelled',
 }
-const QC_BADGE: Record<string, string> = {
-  pass: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400',
-  fail: 'bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400',
-  hold: 'bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400',
-}
-const QC_TEXT: Record<string, string> = {
-  pass: 'text-emerald-600 dark:text-emerald-400',
-  fail: 'text-red-600 dark:text-red-400',
-  hold: 'text-amber-600 dark:text-amber-400',
-}
-const QC_LABEL: Record<string, string> = {
-  pass: 'QC Passed', fail: 'QC Failed', hold: 'QC On Hold',
-}
-
 // ── Stage flow ────────────────────────────────────────────────────────────────
 
 const STAGE_FLOW = [
@@ -550,18 +544,11 @@ function BatchHeader({ order, qcResults, materials, sales, recalls }: {
           <h2 className="text-base font-bold text-gray-900 dark:text-white leading-tight truncate">{order.product_name}</h2>
           <span className="shrink-0 font-mono text-[11px] text-gray-400 dark:text-gray-500">SKU: {order.sku}</span>
         </div>
-        <div className="flex items-center gap-1.5 flex-wrap">
-          {stageBadge && (
-            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${stageBadge.cls}`}>
-              {stageBadge.label}
-            </span>
-          )}
-          {latestQc && (
-            <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${QC_BADGE[latestQc.status]}`}>
-              {QC_LABEL[latestQc.status]}
-            </span>
-          )}
-        </div>
+        {stageBadge && (
+          <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider ${stageBadge.cls}`}>
+            {stageBadge.label}
+          </span>
+        )}
       </div>
 
       {/* Metadata — inline key/value pairs with dot separators */}
