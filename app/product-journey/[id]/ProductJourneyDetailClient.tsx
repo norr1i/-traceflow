@@ -410,6 +410,44 @@ function normalizeEvents(events: JourneyEvent[]): JourneyEvent[] {
   })
 }
 
+// Hard lifecycle enforcement: final QC events must never appear before
+// production.completed, regardless of what timestamps the database stores.
+//
+// Two rules:
+//   1. If production.completed is absent (batch still in-progress) → suppress
+//      all final QC events. An in-process quality check is not a final QC approval.
+//   2. If a QC event timestamp ≤ production.completed timestamp → pin it to
+//      production.completed + 1 minute so it always appears after completion.
+//
+// Applied after all other transforms so the sort after pinning is stable.
+const FINAL_QC_TYPES = new Set([
+  'qc.pass', 'qc.fail', 'qc.hold',
+  'qc_inspection.passed', 'qc_inspection.failed', 'qc_inspection.hold',
+])
+
+function enforceLifecycleOrder(events: JourneyEvent[]): JourneyEvent[] {
+  const completedEvent = events.find(e => e.event_type === 'production.completed')
+
+  if (!completedEvent) {
+    // Production hasn't finished — no final QC could have occurred yet.
+    return events.filter(e => !FINAL_QC_TYPES.has(e.event_type))
+  }
+
+  const completedMs = new Date(completedEvent.event_timestamp).getTime()
+  let repinned = false
+
+  const fixed = events.map(e => {
+    if (!FINAL_QC_TYPES.has(e.event_type)) return e
+    if (new Date(e.event_timestamp).getTime() <= completedMs) {
+      repinned = true
+      return { ...e, event_timestamp: new Date(completedMs + 60_000).toISOString() }
+    }
+    return e
+  })
+
+  return repinned ? fixed.sort(chronologicalSort) : fixed
+}
+
 // ── Badge maps ────────────────────────────────────────────────────────────────
 
 const ORDER_BADGE: Record<string, string> = {
@@ -879,7 +917,9 @@ export default function ProductJourneyDetailClient() {
         : []
 
       const synth  = synthesizeEvents(trace.order, trace.sales, capas, recalls, distributionRecords)
-      const merged = normalizeEvents(deduplicateSameDayQc(mergeJourneyEvents(rpcEvents, synth)))
+      const merged = enforceLifecycleOrder(
+        normalizeEvents(deduplicateSameDayQc(mergeJourneyEvents(rpcEvents, synth)))
+      )
       setJourney(merged)
       setLoading(false)
 
