@@ -6,8 +6,8 @@ import Link from 'next/link'
 import { supabase } from '../../lib/supabase'
 import { classifyEvent } from '../../trace/[id]/eventCategories'
 import {
-  ChevronLeft, Package, Layers, ShieldCheck, Truck,
-  FileWarning, AlertTriangle, Activity, User, Calendar,
+  ChevronLeft, Package, Layers, Truck,
+  Activity, User, Calendar,
   Hash, Building2, Network, Copy, Check, ChevronDown, ChevronUp,
 } from 'lucide-react'
 
@@ -335,6 +335,28 @@ function deduplicateSameDayQc(events: JourneyEvent[]): JourneyEvent[] {
   )
 }
 
+// Rewrite known internal/ERP language in event titles and descriptions before
+// rendering. Keeps wording customer-facing without changing business logic.
+function normalizeEvents(events: JourneyEvent[]): JourneyEvent[] {
+  return events.map(e => {
+    // "Batch of N × Product opened." → "Production order created for N units of Product."
+    if (e.event_type === 'production.order_created' || e.event_type === 'production.created') {
+      const fixedTitle = /^batch of /i.test(e.title ?? '') ? 'Production Order Created' : e.title
+      const fixedDesc  = e.description?.replace(
+        /\bbatch of ([\d,]+)\s*[×x×]\s*(.+?)\s+opened\.?/i,
+        'Production order created for $1 units of $2.',
+      ) ?? e.description
+      return { ...e, title: fixedTitle, description: fixedDesc }
+    }
+    // Rename "Incoming QC" → "Incoming Inspection" to clearly distinguish from
+    // production-stage quality inspections in the timeline.
+    if (e.event_type.startsWith('incoming_qc.')) {
+      return { ...e, title: (e.title ?? '').replace(/\bincoming qc\b/gi, 'Incoming Inspection') }
+    }
+    return e
+  })
+}
+
 // ── Badge maps ────────────────────────────────────────────────────────────────
 
 const ORDER_BADGE: Record<string, string> = {
@@ -490,74 +512,6 @@ function TimelineSkeleton() {
   )
 }
 
-// ── Traceability records card ─────────────────────────────────────────────────
-
-function AffectedRecords({
-  batchId, qcResults, capas, recalls, sales,
-}: {
-  batchId:   string
-  qcResults: TraceQc[]
-  capas:     CapaRecord[]
-  recalls:   RecallRecord[]
-  sales:     TraceSale[]
-}) {
-  type Row = { label: string; value: number; href: string; color: string; bg: string }
-  const rows: Row[] = []
-
-  if (qcResults.length > 0) rows.push({
-    label: 'QC Records',
-    value: qcResults.length,
-    href:  `/quality-control?batch_id=${batchId}`,
-    color: 'text-emerald-700 dark:text-emerald-400',
-    bg:    'bg-emerald-100 dark:bg-emerald-900/30',
-  })
-  if (capas.length > 0) rows.push({
-    label: capas.length === 1 ? 'CAPA' : 'CAPAs',
-    value: capas.length,
-    href:  capas.length === 1 ? `/capa/${capas[0].id}` : `/capa?batch_id=${batchId}`,
-    color: 'text-amber-700 dark:text-amber-400',
-    bg:    'bg-amber-100 dark:bg-amber-900/30',
-  })
-  if (recalls.length > 0) rows.push({
-    label: recalls.length === 1 ? 'Recall' : 'Recalls',
-    value: recalls.length,
-    href:  recalls.length === 1 ? `/recall/${recalls[0].id}` : `/recall?batch_id=${batchId}`,
-    color: 'text-red-700 dark:text-red-400',
-    bg:    'bg-red-100 dark:bg-red-900/30',
-  })
-  if (sales.length > 0) rows.push({
-    label: 'Shipments',
-    value: sales.length,
-    href:  `/sales?batch_id=${batchId}`,
-    color: 'text-teal-700 dark:text-teal-400',
-    bg:    'bg-teal-100 dark:bg-teal-900/30',
-  })
-
-  if (rows.length === 0) return null
-
-  return (
-    <div className="mt-5 rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 p-4 shadow-sm">
-      <p className="mb-3 text-xs font-semibold uppercase tracking-wider text-gray-400 dark:text-gray-500">Traceability Records</p>
-      <div className="space-y-1">
-        {rows.map(({ label, value, href, color, bg }) => (
-          <a
-            key={label}
-            href={href}
-            className="flex items-center justify-between rounded-lg px-3 py-2 hover:bg-gray-50 dark:hover:bg-gray-700/40 transition-colors group"
-          >
-            <span className="text-sm text-gray-600 dark:text-gray-400 group-hover:text-gray-900 dark:group-hover:text-white transition-colors">
-              {label}
-            </span>
-            <span className={`rounded-full px-2 py-0.5 text-xs font-bold tabular-nums ${bg} ${color}`}>
-              {value}
-            </span>
-          </a>
-        ))}
-      </div>
-    </div>
-  )
-}
-
 // ── Batch header ──────────────────────────────────────────────────────────────
 
 function BatchHeader({ order, qcResults, materials, sales, recalls }: {
@@ -634,11 +588,15 @@ function BatchHeader({ order, qcResults, materials, sales, recalls }: {
             </span>
           </>
         )}
-        <span className="select-none text-gray-300 dark:text-gray-600">·</span>
-        <span className="inline-flex items-center gap-1.5">
-          <Truck size={11} className="shrink-0 text-gray-400" />
-          {sales.length > 0 ? `${sales.length} ${sales.length === 1 ? 'shipment' : 'shipments'}` : 'Not shipped yet'}
-        </span>
+        {sales.length > 0 && (
+          <>
+            <span className="select-none text-gray-300 dark:text-gray-600">·</span>
+            <span className="inline-flex items-center gap-1.5">
+              <Truck size={11} className="shrink-0 text-gray-400" />
+              {sales.length} {sales.length === 1 ? 'shipment' : 'shipments'}
+            </span>
+          </>
+        )}
       </div>
 
       {/* Batch ID — inline, no background box */}
@@ -657,38 +615,6 @@ function BatchHeader({ order, qcResults, materials, sales, recalls }: {
           }
         </button>
       </div>
-    </div>
-  )
-}
-
-// ── Traceability summary — conditional, no zero cards ────────────────────────
-
-function TraceabilitySummary({
-  materials, qcResults, capaCount, recallCount,
-}: {
-  materials:   TraceMaterial[]
-  qcResults:   TraceQc[]
-  capaCount:   number
-  recallCount: number
-}) {
-  const items = [
-    { icon: Layers,        label: 'Raw Materials', value: materials.length, color: 'text-orange-600 dark:text-orange-400' },
-    { icon: ShieldCheck,   label: 'QC Records',    value: qcResults.length, color: 'text-emerald-600 dark:text-emerald-400' },
-    { icon: FileWarning,   label: 'CAPAs',         value: capaCount,        color: 'text-amber-600 dark:text-amber-400'  },
-    { icon: AlertTriangle, label: 'Recalls',       value: recallCount,      color: 'text-red-600 dark:text-red-400'      },
-  ].filter(i => i.value > 0)
-
-  if (items.length === 0) return null
-
-  return (
-    <div className="mb-5 flex flex-wrap gap-2">
-      {items.map(({ icon: Icon, label, value, color }) => (
-        <div key={label} className="min-w-[80px] flex-1 rounded-xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 px-3 py-2.5 text-center shadow-sm">
-          <div className="flex justify-center mb-1"><Icon size={14} className={color} /></div>
-          <p className={`text-xl font-bold leading-tight ${color}`}>{value}</p>
-          <p className="text-[10px] font-medium text-gray-400 dark:text-gray-500 mt-0.5 leading-tight">{label}</p>
-        </div>
-      ))}
     </div>
   )
 }
@@ -917,7 +843,7 @@ export default function ProductJourneyDetailClient() {
         : []
 
       const synth  = synthesizeEvents(trace.order, trace.sales, capas, recalls, distributionRecords)
-      const merged = deduplicateSameDayQc(mergeJourneyEvents(rpcEvents, synth))
+      const merged = normalizeEvents(deduplicateSameDayQc(mergeJourneyEvents(rpcEvents, synth)))
       setJourney(merged)
       setLoading(false)
 
@@ -997,9 +923,6 @@ export default function ProductJourneyDetailClient() {
     )
   }
 
-  const capaCount   = capaRecords.length
-  const recallCount = recallRecords.length
-
   // Filter out system events and low-quality placeholder BOM entries,
   // then group simultaneous material allocations into a single card.
   const businessEvents = groupMaterialEvents(
@@ -1034,13 +957,6 @@ export default function ProductJourneyDetailClient() {
         materials={traceData.materials}
         sales={traceData.sales}
         recalls={recallRecords}
-      />
-
-      <TraceabilitySummary
-        materials={traceData.materials}
-        qcResults={traceData.qc_results}
-        capaCount={capaCount}
-        recallCount={recallCount}
       />
 
       {/* Timeline — primary feature, full width */}
@@ -1135,13 +1051,6 @@ export default function ProductJourneyDetailClient() {
       {enrichedMaterials.length > 0 && (
         <ImpactAnalysis impacts={impactData} loading={impactLoading} />
       )}
-      <AffectedRecords
-        batchId={id}
-        qcResults={traceData.qc_results}
-        capas={capaRecords}
-        recalls={recallRecords}
-        sales={traceData.sales}
-      />
     </div>
   )
 }

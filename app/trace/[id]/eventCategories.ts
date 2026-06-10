@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   FileWarning,
   Activity,
+  Box,
   type LucideIcon,
 } from 'lucide-react'
 
@@ -195,6 +196,17 @@ const C = {
     badgeClass:   'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300 ring-1 ring-inset ring-red-400',
     Icon: AlertTriangle,
   },
+  packaging: {
+    key:          'packaging',
+    label:        'Packaging',
+    stageGroup:   'distribution' as StageGroup,
+    dotBg:        'bg-teal-400',
+    borderAccent: 'border-l-teal-400',
+    iconBg:       'bg-teal-50 dark:bg-teal-900/30',
+    iconColor:    'text-teal-500 dark:text-teal-400',
+    badgeClass:   'bg-teal-100 text-teal-700 dark:bg-teal-900/30 dark:text-teal-400',
+    Icon: Box,
+  },
   capa: {
     key:          'capa',
     label:        'CAPA',
@@ -236,7 +248,7 @@ const EXACT: Record<string, EventCategory> = {
   'incoming_qc.conditional':  C.qcCheckpoint,
   'incoming_qc.failed':       C.qcFailed,
   'raw_material.released':    C.rawMaterial,
-  'packaging.completed':      C.distribution,
+  'packaging.completed':      C.packaging,
   'distribution.shipped':     C.distribution,
   'distribution.created':     C.distribution,
   'distribution.delivered':   C.distribution,
