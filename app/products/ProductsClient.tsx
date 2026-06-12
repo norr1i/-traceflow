@@ -40,6 +40,7 @@ export default function ProductsClient() {
   const [loading,    setLoading]    = useState(true)
   const [page,       setPage]       = useState(1)
   const [totalCount, setTotalCount] = useState(0)
+  const [orderMap,   setOrderMap]   = useState<Record<string, string>>({})
   const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
   const [showForm, setShowForm]     = useState(false)
   const [showImport, setShowImport] = useState(false)
@@ -66,6 +67,26 @@ export default function ProductsClient() {
   }
 
   useEffect(() => { loadPage(1) }, [companyId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Build product_id → most-recent production_order_id map once per session.
+  // Ordered DESC so the first match per product_id is the latest order.
+  useEffect(() => {
+    if (!companyId) return
+    supabase
+      .from('production_orders')
+      .select('id, product_id')
+      .eq('company_id', companyId)
+      .order('created_at', { ascending: false })
+      .limit(200)
+      .then(({ data }) => {
+        if (!data) return
+        const map: Record<string, string> = {}
+        for (const row of data as { id: string; product_id: string }[]) {
+          if (row.product_id && !map[row.product_id]) map[row.product_id] = row.id
+        }
+        setOrderMap(map)
+      })
+  }, [companyId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   if (loading) {
     return (
@@ -350,7 +371,11 @@ export default function ProductsClient() {
                   <td className="px-4 py-3 text-end">
                     <div className="flex items-center justify-end gap-2">
                       <a
-                        href={`/product-journey?q=${encodeURIComponent(p.sku)}`}
+                        href={
+                          orderMap[p.id]
+                            ? `/product-journey/${orderMap[p.id]}`
+                            : `/product-journey?q=${encodeURIComponent(p.sku)}`
+                        }
                         className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[#3a6f8f] dark:text-[#7ab3d0] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
                         title="View Product Journey"
                       >
