@@ -977,7 +977,7 @@ export default function ProductJourneyDetailClient() {
       <div className="px-6 py-5">
         <div className="mb-5 h-4 w-32 rounded bg-gray-200 dark:bg-gray-700 animate-pulse" />
         <div className="space-y-4">
-          {[140, 56, 480, 200, 160].map((h, i) => (
+          {[140, 480, 200, 160].map((h, i) => (
             <div key={i} className="rounded-2xl border border-gray-200 dark:border-gray-700 bg-white dark:bg-gray-800 animate-pulse" style={{ height: h }} />
           ))}
         </div>

@@ -59,9 +59,56 @@ function cellStatusColor(val: string): readonly [number, number, number] {
   return C.text
 }
 
+// ── Row types for live report data ───────────────────────────────────────────
+export interface QcRow {
+  batch_id:        string
+  inspection_date: string
+  inspection_type: string
+  status:          string
+  overall_score:   number
+  notes:           string | null
+  inspector_name:  string | null
+}
+
+export interface BatchRow {
+  id:           string
+  product_name: string
+  sku:          string
+  quantity:     number
+  status:       string
+  created_at:   string
+  completed_at: string | null
+}
+
+export interface CapaRow {
+  capa_number:       string | null
+  id:                string
+  title:             string
+  severity:          string
+  due_date:          string | null
+  owner_name:        string | null
+  root_cause:        string | null
+  corrective_action: string | null
+  preventive_action: string | null
+  status:            string
+  closed_at:         string | null
+}
+
+export interface RecallRow {
+  id:         string
+  title:      string
+  status:     string
+  created_at: string
+  closed_at:  string | null
+}
+
 // ── Report context (passed from client component — no fake fallbacks) ─────────
 export interface ReportContext {
   companyName: string
+  qcRows?:     QcRow[]
+  batchRows?:  BatchRow[]
+  capaRows?:   CapaRow[]
+  recallRows?: RecallRow[]
 }
 
 // ── Public utilities ──────────────────────────────────────────────────────────
@@ -82,6 +129,14 @@ export function todayStr(): string {
 
 export function pdfDocumentId(): string {
   return `TF-${Date.now().toString(36).toUpperCase()}-${Math.random().toString(36).slice(2, 6).toUpperCase()}`
+}
+
+// Format a date-only string ("2025-03-15") or ISO timestamp for PDF display.
+function fmtPdfDate(s: string | null | undefined): string {
+  if (!s) return '—'
+  const d = new Date(s.includes('T') ? s : `${s}T00:00:00`)
+  if (isNaN(d.getTime())) return s
+  return d.toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
 }
 
 export function downloadBlob(blob: Blob, filename: string) {
@@ -552,9 +607,16 @@ class PDFDoc {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export function buildQCReportPDF(ctx: ReportContext): Blob {
-  const ts   = nowGregorian()
-  const hash = pdfDocumentId()
-  const date = todayStr()
+  const ts      = nowGregorian()
+  const hash    = pdfDocumentId()
+  const date    = todayStr()
+  const qcRows  = ctx.qcRows ?? []
+  const total   = qcRows.length
+  const passed  = qcRows.filter(r => r.status === 'passed').length
+  const failed  = qcRows.filter(r => r.status === 'failed').length
+  const pending = qcRows.filter(r => r.status === 'pending').length
+  const rate    = total > 0 ? Math.round((passed / total) * 100) : 0
+
   const p = new PDFDoc({
     title:     'QC Inspection Report',
     docNo:     `QC-RPT-${date.replace(/-/g, '')}`,
@@ -569,30 +631,73 @@ export function buildQCReportPDF(ctx: ReportContext): Blob {
   p.sectionTitle('Executive Summary', 32)
   p.field('Reporting Period', 'Current period')
   p.field('Report Generated', ts)
-  p.bullet('QC inspection records are managed in TraceFlow. Export batch-level inspection data to populate detailed rows in this report.')
+  if (total > 0) {
+    p.scorecard([
+      { label: 'Total Inspections', value: String(total),           level: 'info'                                                  },
+      { label: 'Pass Rate',         value: `${rate}%`,              level: rate >= 95 ? 'ok' : rate >= 80 ? 'partial' : 'error'    },
+      { label: 'Passed',            value: String(passed),          level: passed > 0  ? 'ok'    : 'partial'                       },
+      { label: 'Failed / Pending',  value: String(failed + pending), level: failed > 0 ? 'error' : pending > 0 ? 'warn' : 'ok'    },
+    ])
+  } else {
+    p.bullet('QC inspection records are managed in TraceFlow. Export batch-level inspection data to populate detailed rows in this report.')
+  }
 
   p.spacer(3)
   p.sectionTitle('Batch Inspection Results', 60)
-  p.bullet('No QC inspection records found in the system. Log inspections in TraceFlow to populate this section.')
+  if (total === 0) {
+    p.bullet('No QC inspection records found in the system. Log inspections in TraceFlow to populate this section.')
+  } else {
+    p.table(
+      ['Batch ID', 'Date', 'Type', 'Inspector', 'Score', 'Status'],
+      qcRows.map(r => [
+        r.batch_id.length > 12 ? `···${r.batch_id.slice(-12)}` : r.batch_id,
+        fmtPdfDate(r.inspection_date),
+        r.inspection_type,
+        r.inspector_name ?? '—',
+        String(r.overall_score),
+        r.status.toUpperCase(),
+      ]),
+      [38, 22, 22, 35, 15, 38],
+    )
+  }
 
   p.spacer(3)
   p.sectionTitle('Audit Observations', 22)
   p.bullet('All inspections must be conducted per applicable SOP and Saudi FDA GMP Guidelines.')
-  p.bullet('Connect inspection records in TraceFlow to generate detailed audit observations.')
+  if (total > 0) {
+    if (failed > 0)  p.bullet(`${failed} inspection${failed !== 1 ? 's' : ''} recorded as failed — review corrective actions in the CAPA module.`, C.red)
+    if (pending > 0) p.bullet(`${pending} inspection${pending !== 1 ? 's' : ''} pending finalisation.`, C.amber)
+    if (failed === 0 && pending === 0) p.bullet('All recorded inspections have been finalised. No open observations.')
+  } else {
+    p.bullet('Connect inspection records in TraceFlow to generate detailed audit observations.')
+  }
 
   p.spacer(3)
   p.sectionTitle('Compliance Verification Status', 33)
-  p.statusRow('QC Process Compliance',        'See TraceFlow QC module for current status', 'partial')
-  p.statusRow('Documentation Compliance',     'No records on file',                         'partial')
-  p.statusRow('Equipment Calibration Status', 'Not configured',                             'partial')
+  p.statusRow(
+    'QC Process Compliance',
+    total > 0 ? `${rate}% pass rate — ${total} inspection${total !== 1 ? 's' : ''} on record` : 'No records on file',
+    total > 0 && rate >= 95 ? 'ok' : total > 0 ? 'partial' : 'partial',
+  )
+  p.statusRow(
+    'Documentation Compliance',
+    total > 0 ? `${total} inspection record${total !== 1 ? 's' : ''} on file` : 'No records on file',
+    total > 0 ? 'ok' : 'partial',
+  )
+  p.statusRow('Equipment Calibration Status', 'Not configured', 'partial')
 
   return p.blob()
 }
 
 export function buildBatchReportPDF(ctx: ReportContext): Blob {
-  const ts   = nowGregorian()
-  const hash = pdfDocumentId()
-  const date = todayStr()
+  const ts        = nowGregorian()
+  const hash      = pdfDocumentId()
+  const date      = todayStr()
+  const batchRows = ctx.batchRows ?? []
+  const total     = batchRows.length
+  const completed = batchRows.filter(r => r.status === 'completed').length
+  const active    = batchRows.filter(r => r.status === 'in_progress').length
+
   const p = new PDFDoc({
     title:     'Batch Traceability Report',
     docNo:     `BCR-${date.replace(/-/g, '')}`,
@@ -606,11 +711,35 @@ export function buildBatchReportPDF(ctx: ReportContext): Blob {
 
   p.sectionTitle('Batch Lifecycle Summary', 25)
   p.field('Report Generated', ts)
-  p.bullet('Batch history records are managed in TraceFlow. Log production orders and batch records to populate this report.')
+  if (total > 0) {
+    p.scorecard([
+      { label: 'Total Batches',    value: String(total),     level: 'info'                        },
+      { label: 'Completed',        value: String(completed), level: completed > 0 ? 'ok' : 'partial' },
+      { label: 'In Production',    value: String(active),    level: active > 0    ? 'info' : 'ok' },
+      { label: 'Cancelled',        value: String(total - completed - active - batchRows.filter(r => r.status === 'pending').length), level: 'partial' },
+    ])
+  } else {
+    p.bullet('Batch history records are managed in TraceFlow. Log production orders and batch records to populate this report.')
+  }
 
   p.spacer(3)
   p.sectionTitle('Recent Batch Records', 60)
-  p.bullet('No batch records found in the system. Record production orders in TraceFlow to populate this section.')
+  if (total === 0) {
+    p.bullet('No batch records found in the system. Record production orders in TraceFlow to populate this section.')
+  } else {
+    p.table(
+      ['Product', 'SKU', 'Qty', 'Status', 'Created', 'Completed'],
+      batchRows.map(r => [
+        r.product_name,
+        r.sku,
+        r.quantity.toLocaleString(),
+        r.status.replace(/_/g, ' ').toUpperCase(),
+        fmtPdfDate(r.created_at),
+        r.completed_at ? fmtPdfDate(r.completed_at) : '—',
+      ]),
+      [48, 24, 15, 22, 28, 33],
+    )
+  }
 
   p.spacer(3)
   p.sectionTitle('Traceability Chain Structure', 30)
@@ -631,9 +760,9 @@ export function buildBatchReportPDF(ctx: ReportContext): Blob {
   p.bullet('No traceability exceptions on record.')
 
   p.sectionTitle('Compliance Verification Status', 30)
-  p.statusRow('Batch Traceability',     'See TraceFlow for current coverage', 'partial')
-  p.statusRow('Non-Conformant Batches', 'No records on file',                 'partial')
-  p.statusRow('Remediation Progress',   'No open corrective actions',         'partial')
+  p.statusRow('Batch Traceability',     total > 0 ? `${total} batch${total !== 1 ? 'es' : ''} on record` : 'No records on file', total > 0 ? 'ok' : 'partial')
+  p.statusRow('Non-Conformant Batches', 'No records on file', 'partial')
+  p.statusRow('Remediation Progress',   'No open corrective actions', 'partial')
 
   return p.blob()
 }
@@ -673,9 +802,14 @@ export function buildNCRReportPDF(ctx: ReportContext): Blob {
 }
 
 export function buildRecallReportPDF(ctx: ReportContext): Blob {
-  const ts   = nowGregorian()
-  const hash = pdfDocumentId()
-  const date = todayStr()
+  const ts         = nowGregorian()
+  const hash       = pdfDocumentId()
+  const date       = todayStr()
+  const recallRows = ctx.recallRows ?? []
+  const total      = recallRows.length
+  const active     = recallRows.filter(r => r.status !== 'closed').length
+  const closed     = recallRows.filter(r => r.status === 'closed').length
+
   const p = new PDFDoc({
     title:     'Recall Summary Report',
     docNo:     `RCL-${date.replace(/-/g, '')}`,
@@ -689,23 +823,53 @@ export function buildRecallReportPDF(ctx: ReportContext): Blob {
 
   p.sectionTitle('Recall Events Summary', 22)
   p.field('Report Generated', ts)
-  p.bullet('Recall event records are managed in TraceFlow. Initiate recall events via the Recall module to populate this report.')
+  if (total > 0) {
+    p.scorecard([
+      { label: 'Total Recalls',  value: String(total),  level: 'info'                        },
+      { label: 'Active Recalls', value: String(active), level: active > 0  ? 'error' : 'ok'  },
+      { label: 'Closed',         value: String(closed), level: closed > 0  ? 'ok' : 'partial' },
+      { label: 'Resolution Rate', value: total > 0 ? `${Math.round((closed / total) * 100)}%` : '—', level: closed === total ? 'ok' : 'warn' },
+    ])
+  } else {
+    p.bullet('Recall event records are managed in TraceFlow. Initiate recall events via the Recall module to populate this report.')
+  }
 
   p.sectionTitle('Recall Event Register', 80)
-  p.bullet('No recall events on record.')
+  if (total === 0) {
+    p.bullet('No recall events on record.')
+  } else {
+    p.table(
+      ['Recall ID', 'Title', 'Status', 'Initiated', 'Closed'],
+      recallRows.map(r => [
+        `···${r.id.slice(-10)}`,
+        r.title,
+        r.status.toUpperCase(),
+        fmtPdfDate(r.created_at),
+        r.closed_at ? fmtPdfDate(r.closed_at) : 'Active',
+      ]),
+      [28, 62, 22, 30, 28],
+    )
+  }
 
   p.sectionTitle('Recall Readiness Assessment', 40)
-  p.statusRow('Time to Notify',              'Automated notification available via TraceFlow', 'ok')
-  p.statusRow('Batch Identification Method', 'Real-time traceability via TraceFlow',           'ok')
-  p.statusRow('Recall Events on Record',     'None recorded',                                  'ok')
+  p.statusRow('Time to Notify',              'Automated notification available via TraceFlow',                                     'ok')
+  p.statusRow('Batch Identification Method', 'Real-time traceability via TraceFlow',                                               'ok')
+  p.statusRow('Recall Events on Record',     total > 0 ? `${total} event${total !== 1 ? 's' : ''} — ${active} active, ${closed} closed` : 'None recorded', active > 0 ? 'warn' : 'ok')
 
   return p.blob()
 }
 
 export function buildCAPAReportPDF(ctx: ReportContext): Blob {
-  const ts   = nowGregorian()
-  const hash = pdfDocumentId()
-  const date = todayStr()
+  const ts       = nowGregorian()
+  const hash     = pdfDocumentId()
+  const date     = todayStr()
+  const capaRows = ctx.capaRows ?? []
+  const total    = capaRows.length
+  const open     = capaRows.filter(r => r.status === 'open').length
+  const closed   = capaRows.filter(r => r.status === 'closed').length
+  const overdue  = capaRows.filter(r => r.status !== 'closed' && !!r.due_date && r.due_date < date).length
+  const active   = total - closed
+
   const p = new PDFDoc({
     title:     'CAPA Summary Report',
     docNo:     `CAPA-RPT-${date.replace(/-/g, '')}`,
@@ -719,17 +883,51 @@ export function buildCAPAReportPDF(ctx: ReportContext): Blob {
 
   p.sectionTitle('CAPA Register — Executive Summary', 46)
   p.field('Report Generated', ts)
-  p.bullet('CAPA records are managed in TraceFlow. Add corrective and preventive actions via the CAPA module to populate this report.')
+  if (total > 0) {
+    p.scorecard([
+      { label: 'Total CAPAs', value: String(total),   level: 'info'                       },
+      { label: 'Active',      value: String(active),  level: active   > 0 ? 'warn' : 'ok' },
+      { label: 'Closed',      value: String(closed),  level: closed   > 0 ? 'ok' : 'partial' },
+      { label: 'Overdue',     value: String(overdue), level: overdue  > 0 ? 'error' : 'ok' },
+    ])
+  } else {
+    p.bullet('CAPA records are managed in TraceFlow. Add corrective and preventive actions via the CAPA module to populate this report.')
+  }
 
   p.spacer(2)
-  p.sectionTitle('CAPA Status Overview', 60)
-  p.bullet('No CAPA records found in the system.')
+  p.sectionTitle('CAPA Status Overview', 24)
+  if (total === 0) {
+    p.bullet('No CAPA records found in the system.')
+  } else {
+    for (const r of capaRows) {
+      const isOver    = r.status !== 'closed' && !!r.due_date && r.due_date < date
+      const sfdaStatus =
+        r.status === 'closed'                  ? 'CLOSED'
+        : isOver                               ? 'OVERDUE'
+        : r.status === 'open'                  ? 'OPEN'
+        : r.status.replace(/_/g, ' ').toUpperCase()
+      p.capaBlock({
+        id:         r.capa_number ?? `···${r.id.slice(-10)}`,
+        finding:    r.title,
+        ncClass:    r.title,
+        severity:   r.severity.toUpperCase(),
+        due:        r.due_date ? fmtPdfDate(r.due_date) : '—',
+        assigned:   r.owner_name ?? '—',
+        root:       r.root_cause ?? '—',
+        corrective: r.corrective_action ?? '—',
+        preventive: r.preventive_action ?? '—',
+        evidRef:    r.id.slice(0, 16),
+        status:     sfdaStatus,
+        statusNote: r.closed_at ? `Closed: ${fmtPdfDate(r.closed_at)}` : '',
+      })
+    }
+  }
 
   p.spacer(3)
   p.sectionTitle('Compliance Verification Status', 33)
-  p.statusRow('Open CAPAs',               'None recorded', 'ok')
-  p.statusRow('Overdue CAPAs',            'None recorded', 'ok')
-  p.statusRow('Effectiveness Verification', 'No items pending', 'ok')
+  p.statusRow('Open CAPAs',                open    > 0 ? `${open} open CAPA${open !== 1 ? 's' : ''}` : 'None recorded',             open    > 0 ? 'warn'  : 'ok')
+  p.statusRow('Overdue CAPAs',             overdue > 0 ? `${overdue} overdue`                        : 'None recorded',             overdue > 0 ? 'error' : 'ok')
+  p.statusRow('Effectiveness Verification', closed  > 0 ? `${closed} CAPA${closed !== 1 ? 's' : ''} closed` : 'No items pending',   closed  > 0 ? 'ok'    : 'partial')
 
   return p.blob()
 }

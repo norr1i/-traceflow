@@ -1067,11 +1067,116 @@ export default function SFDAClient() {
     return (data as { name?: string } | null)?.name ?? ''
   }
 
+  // Fetch all live data needed for PDF reports in one parallel round-trip.
+  async function buildCtx(): Promise<ReportContext> {
+    const companyName = await fetchCompanyName()
+    if (!companyId) {
+      console.warn('[buildCtx] companyId is null — returning empty context')
+      return { companyName }
+    }
+
+    console.log('[buildCtx] fetching PDF data for company:', companyId)
+
+    const [
+      { data: qcData,     error: qcErr     },
+      { data: batchData,  error: batchErr  },
+      { data: capaData,   error: capaErr   },
+      { data: recallData, error: recallErr },
+    ] = await Promise.all([
+      supabase
+        .from('quality_inspections')
+        .select('batch_id, inspection_date, inspection_type, status, overall_score, notes, inspector_id, inspector_name')
+        .eq('company_id', companyId)
+        .order('inspection_date', { ascending: false })
+        .limit(100),
+      supabase
+        .from('production_orders')
+        .select('id, quantity, status, created_at, completed_at, products(name, sku)')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('capas')
+        .select('id, capa_number, title, severity, due_date, owner_name, root_cause, corrective_action, preventive_action, status, closed_at')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+      supabase
+        .from('recalls')
+        .select('id, title, status, created_at, closed_at')
+        .eq('company_id', companyId)
+        .order('created_at', { ascending: false })
+        .limit(100),
+    ])
+
+    if (qcErr)     console.error('[buildCtx] quality_inspections error:', qcErr.code, qcErr.message)
+    if (batchErr)  console.error('[buildCtx] production_orders error:',   batchErr.code, batchErr.message)
+    if (capaErr)   console.error('[buildCtx] capas error:',               capaErr.code, capaErr.message)
+    if (recallErr) console.error('[buildCtx] recalls error:',             recallErr.code, recallErr.message)
+
+    console.log('[buildCtx] rows —',
+      'qc:', qcData?.length ?? 'null',
+      'batches:', batchData?.length ?? 'null',
+      'capas:', capaData?.length ?? 'null',
+      'recalls:', recallData?.length ?? 'null',
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const qcRows = (qcData ?? []).map((r: any) => ({
+      batch_id:        String(r.batch_id ?? ''),
+      inspection_date: String(r.inspection_date ?? ''),
+      inspection_type: String(r.inspection_type ?? ''),
+      status:          String(r.status ?? ''),
+      overall_score:   Number(r.overall_score ?? 0),
+      notes:           (r.notes           as string | null) ?? null,
+      inspector_name:  (r.inspector_name  as string | null) ?? (r.inspector_id as string | null) ?? null,
+    }))
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const batchRows = (batchData ?? []).map((r: any) => {
+      const prod = Array.isArray(r.products) ? r.products[0] : r.products
+      return {
+        id:           String(r.id),
+        product_name: (prod?.name as string | undefined) ?? 'Unknown Product',
+        sku:          (prod?.sku  as string | undefined) ?? '—',
+        quantity:     Number(r.quantity ?? 0),
+        status:       String(r.status ?? ''),
+        created_at:   String(r.created_at ?? ''),
+        completed_at: r.completed_at ? String(r.completed_at) : null,
+      }
+    })
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const capaRows = (capaData ?? []).map((r: any) => ({
+      capa_number:       (r.capa_number       as string | null) ?? null,
+      id:                String(r.id),
+      title:             String(r.title ?? ''),
+      severity:          String(r.severity ?? 'major'),
+      due_date:          (r.due_date          as string | null) ?? null,
+      owner_name:        (r.owner_name        as string | null) ?? null,
+      root_cause:        (r.root_cause        as string | null) ?? null,
+      corrective_action: (r.corrective_action as string | null) ?? null,
+      preventive_action: (r.preventive_action as string | null) ?? null,
+      status:            String(r.status ?? 'open'),
+      closed_at:         (r.closed_at         as string | null) ?? null,
+    }))
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const recallRows = (recallData ?? []).map((r: any) => ({
+      id:         String(r.id),
+      title:      String(r.title ?? ''),
+      status:     String(r.status ?? ''),
+      created_at: String(r.created_at ?? ''),
+      closed_at:  (r.closed_at as string | null) ?? null,
+    }))
+
+    return { companyName, qcRows, batchRows, capaRows, recallRows }
+  }
+
   async function handleExport(type: 'pdf' | 'zip' | 'audit') {
     setGenerating(true)
     try {
-      const companyName = await fetchCompanyName()
-      const ctx: ReportContext = { companyName }
+      const ctx = await buildCtx()
       if (type === 'zip') {
         const blob = await buildInspectionPackageZIP(ctx)
         downloadBlob(blob, `SFDA-Inspection-Package-${todayISO()}.zip`)
@@ -1093,8 +1198,8 @@ export default function SFDAClient() {
     const builder  = PDF_BUILDERS[key]
     const filename = PDF_FILENAMES[key]
     if (!builder || !filename) return
-    const companyName = await fetchCompanyName()
-    downloadBlob(builder({ companyName }), `${filename}-${todayISO()}.pdf`)
+    const ctx = await buildCtx()
+    downloadBlob(builder(ctx), `${filename}-${todayISO()}.pdf`)
     toast.success('PDF downloading…')
   }
 
