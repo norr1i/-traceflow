@@ -15,7 +15,7 @@
   "nav_group": {
     "overview": "نظرة عامة",
     "workspace": "مساحة العمل",
-    "system": "النظام",
+    "operations": "العمليات",
     "compliance": "الجودة والمطابقة"
   },
   "page_title": {
@@ -620,7 +620,7 @@
     "tab_requirements": "متطلبات التنظيم",
     "tab_inspection": "حزمة التفتيش",
     "tab_audit": "سجل التدقيق",
-    "tab_capa": "الإجراءات التصحيحية",
+    "tab_capa": "عرض تدقيق الإجراءات التصحيحية",
     "tab_recall": "جاهزية الاستدعاء",
     "tab_reports": "التقارير التنظيمية",
     "score_label": "مؤشر الامتثال",

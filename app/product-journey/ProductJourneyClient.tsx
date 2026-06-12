@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useCallback, useRef, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import { supabase } from '../lib/supabase'
 import { useAuth } from '../lib/auth-context'
 import { Search, Package, Loader2, X, GitBranch } from 'lucide-react'
@@ -122,12 +122,13 @@ function BatchSearchBar({
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function ProductJourneyClient() {
-  const router      = useRouter()
+  const router       = useRouter()
+  const searchParams = useSearchParams()
   const { companyId } = useAuth()
 
   const [batches,      setBatches]      = useState<BatchResult[]>([])
   const [batchLoading, setBatchLoading] = useState(false)
-  const [query,        setQuery]        = useState('')
+  const [query,        setQuery]        = useState(searchParams.get('q') ?? '')
 
   const loadBatches = useCallback(async () => {
     if (!companyId) return

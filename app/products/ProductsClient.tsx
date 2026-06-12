@@ -6,7 +6,7 @@ import type { Product } from '../types/traceflow'
 import { useToast } from '../components/Toast'
 import { useConfirm } from '../components/ConfirmDialog'
 import CsvImportModal, { type CsvFieldDef, type ImportResult } from '../components/CsvImportModal'
-import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Package, Upload } from 'lucide-react'
+import { Plus, Pencil, Trash2, X, Check, AlertTriangle, Package, Upload, GitBranch } from 'lucide-react'
 import PaginationBar from '../components/PaginationBar'
 
 const PAGE_SIZE = 50
@@ -348,22 +348,31 @@ export default function ProductsClient() {
                     {new Date(p.created_at).toLocaleDateString(locale)}
                   </td>
                   <td className="px-4 py-3 text-end">
-                    {canWrite && (
-                      <div className="flex items-center justify-end gap-2">
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
-                        >
-                          <Pencil size={15} />
-                        </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
-                        >
-                          <Trash2 size={15} />
-                        </button>
-                      </div>
-                    )}
+                    <div className="flex items-center justify-end gap-2">
+                      <a
+                        href={`/product-journey?q=${encodeURIComponent(p.sku)}`}
+                        className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs font-medium text-[#3a6f8f] dark:text-[#7ab3d0] hover:bg-blue-50 dark:hover:bg-blue-900/20 transition-colors"
+                        title="View Product Journey"
+                      >
+                        <GitBranch size={13} />View Journey
+                      </a>
+                      {canWrite && (
+                        <>
+                          <button
+                            onClick={() => openEdit(p)}
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-blue-50 dark:hover:bg-blue-900/30 hover:text-blue-600 dark:hover:text-blue-400 transition-colors"
+                          >
+                            <Pencil size={15} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(p.id)}
+                            className="rounded-lg p-1.5 text-gray-400 hover:bg-red-50 dark:hover:bg-red-900/30 hover:text-red-600 dark:hover:text-red-400 transition-colors"
+                          >
+                            <Trash2 size={15} />
+                          </button>
+                        </>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}

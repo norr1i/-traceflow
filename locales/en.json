@@ -15,7 +15,7 @@
   "nav_group": {
     "overview": "Overview",
     "workspace": "Workspace",
-    "system": "System",
+    "operations": "Operations",
     "compliance": "Compliance"
   },
   "page_title": {
@@ -624,7 +624,7 @@
     "tab_requirements": "Requirements",
     "tab_inspection": "Inspection Dossier",
     "tab_audit": "Audit Trail",
-    "tab_capa": "CAPA",
+    "tab_capa": "CAPA Audit View",
     "tab_recall": "Recall Readiness",
     "tab_reports": "Regulatory Reports",
     "score_label": "Compliance Score",
