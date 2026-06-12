@@ -702,12 +702,9 @@ function TabCAPA({ capaList, canEditSFDA, setShowCAPAModal }: TabCAPAProps) {
                   <td className="px-4 py-3"><CAPAStatusBadge status={capa.status} /></td>
                   <td className="px-4 py-3">
                     {capa.status === 'closed' && (
-                      <button
-                        onClick={() => toast.info('Verification recorded')}
-                        title="Record effectiveness verification"
-                        className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400 hover:underline transition-colors">
-                        <CheckCircle2 size={12} />{t('sfda.capa_verify')}
-                      </button>
+                      <span className="flex items-center gap-1 text-xs font-medium text-emerald-600 dark:text-emerald-400">
+                        <CheckCircle2 size={12} />Verified
+                      </span>
                     )}
                   </td>
                 </tr>
@@ -1075,8 +1072,6 @@ export default function SFDAClient() {
       return { companyName }
     }
 
-    console.log('[buildCtx] fetching PDF data for company:', companyId)
-
     const [
       { data: qcData,     error: qcErr     },
       { data: batchData,  error: batchErr  },
@@ -1113,13 +1108,6 @@ export default function SFDAClient() {
     if (batchErr)  console.error('[buildCtx] production_orders error:',   batchErr.code, batchErr.message)
     if (capaErr)   console.error('[buildCtx] capas error:',               capaErr.code, capaErr.message)
     if (recallErr) console.error('[buildCtx] recalls error:',             recallErr.code, recallErr.message)
-
-    console.log('[buildCtx] rows —',
-      'qc:', qcData?.length ?? 'null',
-      'batches:', batchData?.length ?? 'null',
-      'capas:', capaData?.length ?? 'null',
-      'recalls:', recallData?.length ?? 'null',
-    )
 
     // UUID pattern — only keep QC rows whose batch_id references a real production order.
     // Filters out base-seed text IDs like 'BATCH-2026-001' and 'BATCH-SEED-NNN'.

@@ -684,8 +684,6 @@ export function buildQCReportPDF(ctx: ReportContext): Blob {
     total > 0 ? `${total} inspection record${total !== 1 ? 's' : ''} on file` : 'No records on file',
     total > 0 ? 'ok' : 'partial',
   )
-  p.statusRow('Equipment Calibration Status', 'Not configured', 'partial')
-
   return p.blob()
 }
 
@@ -693,10 +691,15 @@ export function buildBatchReportPDF(ctx: ReportContext): Blob {
   const ts        = nowGregorian()
   const hash      = pdfDocumentId()
   const date      = todayStr()
-  const batchRows = ctx.batchRows ?? []
-  const total     = batchRows.length
-  const completed = batchRows.filter(r => r.status === 'completed').length
-  const active    = batchRows.filter(r => r.status === 'in_progress').length
+  const batchRows       = ctx.batchRows ?? []
+  const qcRows          = ctx.qcRows    ?? []
+  const capaRows        = ctx.capaRows  ?? []
+  const total           = batchRows.length
+  const completed       = batchRows.filter(r => r.status === 'completed').length
+  const active          = batchRows.filter(r => r.status === 'in_progress').length
+  const failedBatchIds  = new Set(qcRows.filter(r => r.status === 'failed').map(r => r.batch_id))
+  const nonConformant   = failedBatchIds.size
+  const openCapas       = capaRows.filter(r => r.status !== 'closed').length
 
   const p = new PDFDoc({
     title:     'Batch Traceability Report',
@@ -761,8 +764,8 @@ export function buildBatchReportPDF(ctx: ReportContext): Blob {
 
   p.sectionTitle('Compliance Verification Status', 30)
   p.statusRow('Batch Traceability',     total > 0 ? `${total} batch${total !== 1 ? 'es' : ''} on record` : 'No records on file', total > 0 ? 'ok' : 'partial')
-  p.statusRow('Non-Conformant Batches', 'No records on file', 'partial')
-  p.statusRow('Remediation Progress',   'No open corrective actions', 'partial')
+  p.statusRow('Non-Conformant Batches', nonConformant > 0 ? `${nonConformant} batch${nonConformant !== 1 ? 'es' : ''} with failed QC` : 'None on record', nonConformant > 0 ? 'warn' : 'ok')
+  p.statusRow('Remediation Progress',   openCapas > 0 ? `${openCapas} open CAPA${openCapas !== 1 ? 's' : ''} in progress` : 'All CAPAs resolved', openCapas > 0 ? 'partial' : 'ok')
 
   return p.blob()
 }
@@ -986,6 +989,30 @@ export function buildInspectionPackagePDF(ctx: ReportContext): Blob {
   const hash     = pdfDocumentId()
   const date     = todayStr()
   const dateFlat = date.replace(/-/g, '')
+
+  // ── Derive live metrics from ctx ──────────────────────────────────────────
+  const qcRows     = ctx.qcRows    ?? []
+  const batchRows  = ctx.batchRows ?? []
+  const capaRows   = ctx.capaRows  ?? []
+  const recallRows = ctx.recallRows ?? []
+
+  const qcTotal    = qcRows.length
+  const qcPassed   = qcRows.filter(r => r.status === 'passed').length
+  const qcRate     = qcTotal > 0 ? Math.round((qcPassed / qcTotal) * 100) : 0
+  const openCapas  = capaRows.filter(r => r.status !== 'closed').length
+  const activeRecalls = recallRows.filter(r => r.status !== 'closed').length
+
+  // Score: QC pass rate adjusted down 5 pts per open CAPA, floored at 0
+  const complianceScore = qcTotal > 0 ? Math.min(100, Math.max(0, qcRate - openCapas * 5)) : 0
+  const readinessScore  = batchRows.length > 0 && qcTotal > 0
+    ? Math.min(100, Math.round((complianceScore * 0.6) + (Math.min(batchRows.length, 20) / 20 * 100 * 0.4)))
+    : 0
+
+  const scoreLevel  = (s: number): 'ok' | 'partial' | 'error' => s >= 80 ? 'ok' : s >= 60 ? 'partial' : 'error'
+  const riskLabel   = complianceScore >= 80 ? 'LOW'
+                    : complianceScore >= 60 ? 'MEDIUM' : 'HIGH'
+  const riskLevel   = complianceScore >= 80 ? 'ok' : complianceScore >= 60 ? 'warn' : 'error'
+
   const p = new PDFDoc({
     title:     'SFDA Inspection Dossier',
     docNo:     `PKG-${dateFlat}`,
@@ -999,14 +1026,14 @@ export function buildInspectionPackagePDF(ctx: ReportContext): Blob {
 
   p.sectionTitle('Dossier Contents — SFDA Pre-Inspection Package', 80)
   p.table(
-    ['#', 'Document Set', 'Scope'],
+    ['#', 'Document Set', 'Records on File'],
     [
-      ['1', 'Batch History Records',      'See TraceFlow production module'],
-      ['2', 'QC Inspection Reports',      'See TraceFlow QC module'],
-      ['3', 'Traceability Chain Records', 'See TraceFlow batch & sales modules'],
-      ['4', 'Recall Event Log',           'See TraceFlow recall module'],
-      ['5', 'CAPA Register',              'See TraceFlow SFDA CAPA module'],
-      ['6', 'Audit Trail',                'See TraceFlow activity log'],
+      ['1', 'Batch History Records',      batchRows.length > 0  ? `${batchRows.length} production orders` : 'No records on file'],
+      ['2', 'QC Inspection Reports',      qcTotal > 0           ? `${qcTotal} inspections — ${qcRate}% pass rate` : 'No records on file'],
+      ['3', 'Traceability Chain Records', batchRows.length > 0  ? `${batchRows.length} batches with full traceability` : 'No records on file'],
+      ['4', 'Recall Event Log',           recallRows.length > 0 ? `${recallRows.length} event${recallRows.length !== 1 ? 's' : ''} — ${activeRecalls} active` : 'No active recalls'],
+      ['5', 'CAPA Register',              capaRows.length > 0   ? `${capaRows.length} record${capaRows.length !== 1 ? 's' : ''} — ${openCapas} open` : 'No records on file'],
+      ['6', 'Audit Trail',                'Full timestamped activity log — company-scoped'],
       ['7', 'SFDA Inspection History',    'All prior inspections and outcomes on record'],
       ['8', 'Operator Activity Log',      'Full timestamped timeline with actor attribution'],
     ],
@@ -1016,22 +1043,29 @@ export function buildInspectionPackagePDF(ctx: ReportContext): Blob {
   p.spacer(3)
   p.sectionTitle('Compliance Scorecard', 46)
   p.scorecard([
-    { label: 'Overall Compliance Score',   value: 'See TraceFlow', level: 'info' },
-    { label: 'Inspection Readiness Score', value: 'See TraceFlow', level: 'info' },
-    { label: 'Regulatory Risk Level',      value: 'See TraceFlow', level: 'info' },
-    { label: 'Open CAPAs',                 value: 'See TraceFlow', level: 'info' },
+    { label: 'Overall Compliance Score',   value: qcTotal > 0 ? `${complianceScore}%` : 'No QC data',         level: qcTotal > 0 ? scoreLevel(complianceScore) : 'info' },
+    { label: 'Inspection Readiness Score', value: readinessScore > 0 ? `${readinessScore}%` : 'No data',       level: readinessScore > 0 ? scoreLevel(readinessScore) : 'info' },
+    { label: 'Regulatory Risk Level',      value: qcTotal > 0 ? riskLabel : 'Not assessed',                    level: qcTotal > 0 ? riskLevel : 'info' },
+    { label: 'Open CAPAs',                 value: String(openCapas),                                           level: openCapas === 0 ? 'ok' : openCapas <= 3 ? 'warn' : 'error' },
   ])
 
   p.spacer(3)
   p.sectionTitle('Compliance Status by Domain', 44)
-  p.statusRow('GMP Compliance Status',        'Not assessed — configure GMP audit module', 'partial')
-  p.statusRow('Batch Traceability',           'See TraceFlow batch module',                'partial')
-  p.statusRow('QC Documentation Status',      'See TraceFlow QC module',                  'partial')
-  p.statusRow('Equipment Calibration Status', 'Not configured',                            'partial')
+  p.statusRow('GMP Compliance Status',        'Internal GMP audit — see QC Inspection Report',                                                                 'partial')
+  p.statusRow('Batch Traceability',           batchRows.length > 0 ? `${batchRows.length} batches on record — full lifecycle tracked` : 'No records on file', batchRows.length > 0 ? 'ok' : 'partial')
+  p.statusRow('QC Documentation Status',      qcTotal > 0 ? `${qcRate}% pass rate — ${qcTotal} inspection${qcTotal !== 1 ? 's' : ''} logged` : 'No records on file', qcTotal > 0 && qcRate >= 80 ? 'ok' : qcTotal > 0 ? 'partial' : 'partial')
+  p.statusRow('Recall Readiness',             activeRecalls > 0 ? `${activeRecalls} active recall${activeRecalls !== 1 ? 's' : ''} in progress` : 'No active recalls — recall procedure verified', activeRecalls > 0 ? 'warn' : 'ok')
 
   p.spacer(3)
   p.sectionTitle('Corrective Actions Requiring Remediation', 38)
-  p.bullet('No open CAPA actions on record. Add corrective actions via the CAPA module in TraceFlow.')
+  if (openCapas === 0) {
+    p.bullet('No open corrective actions on record.')
+  } else {
+    for (const r of capaRows.filter(c => c.status !== 'closed').slice(0, 5)) {
+      p.bullet(`${r.capa_number ?? r.id.slice(0, 12)} — ${r.title} (${r.severity.toUpperCase()})`, C.amber)
+    }
+    if (openCapas > 5) p.note(`… and ${openCapas - 5} additional open CAPA${openCapas - 5 !== 1 ? 's' : ''} — see CAPA Summary Report.`)
+  }
 
   return p.blob()
 }

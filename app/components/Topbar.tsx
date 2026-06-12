@@ -11,14 +11,17 @@ import NotificationPanel from './NotificationPanel'
 import GlobalSearch from './GlobalSearch'
 
 const PAGE_TITLE_KEYS: Record<string, string> = {
-  '/':               'page_title./',
-  '/products':       'page_title./products',
-  '/raw-materials':  'page_title./raw-materials',
-  '/production':     'page_title./production',
-  '/quality-control':'page_title./quality-control',
-  '/sales':          'page_title./sales',
-  '/recall':         'page_title./recall',
-  '/team':           'page_title./team',
+  '/':                  'page_title./',
+  '/products':          'page_title./products',
+  '/raw-materials':     'page_title./raw-materials',
+  '/production':        'page_title./production',
+  '/quality-control':   'page_title./quality-control',
+  '/sales':             'page_title./sales',
+  '/recall':            'page_title./recall',
+  '/team':              'page_title./team',
+  '/capa':              'page_title./capa',
+  '/sfda':              'page_title./sfda',
+  '/product-journey':   'page_title./product-journey',
 }
 
 export default function Topbar({
