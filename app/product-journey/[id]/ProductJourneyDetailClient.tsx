@@ -97,6 +97,11 @@ type DistributionRecord = {
   shipped_at:       string
   notes:            string | null
 }
+type BatchEventRow = {
+  event_type:  string
+  description: string | null
+  created_at:  string
+}
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -295,6 +300,49 @@ function synthesizeEvents(
   return out
 }
 
+// Maps raw batch_events rows (produced / consumed / shipped) to JourneyEvents.
+// batch_events.batch_id is a TEXT column — no FK enforcement — so the caller
+// queries by both production_order_id and any linked batches.id values to
+// maximise hit rate regardless of which identifier was stored during the backfill.
+//
+// These events are treated as supplementary: mergeJourneyEvents will prefer an
+// identically-typed RPC event if one exists at the same minute.
+function synthesizeBatchEvents(rows: BatchEventRow[]): JourneyEvent[] {
+  return rows.flatMap(row => {
+    switch (row.event_type) {
+      case 'produced':
+        return [{
+          event_type:      'production.completed',
+          event_timestamp: row.created_at,
+          title:           'Production Completed',
+          description:     row.description ?? 'Production batch completed.',
+          source_table:    'batch_events',
+          metadata:        null,
+        }]
+      case 'consumed':
+        return [{
+          event_type:      'material.consumed',
+          event_timestamp: row.created_at,
+          title:           'Materials Consumed',
+          description:     row.description ?? 'Raw materials consumed for production.',
+          source_table:    'batch_events',
+          metadata:        null,
+        }]
+      case 'shipped':
+        return [{
+          event_type:      'distribution.shipped',
+          event_timestamp: row.created_at,
+          title:           'Shipped',
+          description:     row.description ?? 'Batch dispatched.',
+          source_table:    'batch_events',
+          metadata:        null,
+        }]
+      default:
+        return []
+    }
+  })
+}
+
 // Canonical manufacturing lifecycle order. Used as a tiebreaker when two
 // events share the same timestamp, enforcing a believable sequence even when
 // the DB records events at minute precision (causing real collisions in seed
@@ -306,6 +354,7 @@ const LIFECYCLE_ORDER: Record<string, number> = {
   'incoming_qc.failed':       20,
   'raw_material.released':    30,
   'material.allocated':       30,
+  'material.consumed':        45,
   'production.order_created': 40,
   'production.created':       40,
   'production.started':       50,
@@ -901,26 +950,44 @@ export default function ProductJourneyDetailClient() {
       })
       setEnrichedMaterials(materials)
 
-      // Fetch distribution_records via the linked batches row.
-      // distribution_records.batch_id references batches.id (not production_orders.id),
-      // so a direct query on p_batch_id would always return zero rows.
+      // Fetch distribution_records and batch_events in parallel.
+      //
+      // distribution_records.batch_id → batches.id (not production_orders.id),
+      // so we resolve the linked batches.id first then query by those IDs.
+      //
+      // batch_events.batch_id is TEXT with no FK. Query by both the
+      // production_order_id (id) and any linked batches.id values so that
+      // the backfill hits regardless of which identifier was stored.
       const linkedBatchIds = ((batchesRes.data ?? []) as Array<{ id: string }>).map(b => b.id)
-      let distributionRecords: DistributionRecord[] = []
-      if (linkedBatchIds.length > 0) {
-        const { data: distData } = await supabase
-          .from('distribution_records')
-          .select('id, recipient_name, recipient_type, quantity_shipped, shipped_at, notes')
-          .in('batch_id', linkedBatchIds)
-          .order('shipped_at', { ascending: true })
-        distributionRecords = (distData ?? []) as DistributionRecord[]
-      }
+      const allBatchTextIds = [id, ...linkedBatchIds]
+
+      const [distResult, batchEvResult] = await Promise.all([
+        linkedBatchIds.length > 0
+          ? supabase
+              .from('distribution_records')
+              .select('id, recipient_name, recipient_type, quantity_shipped, shipped_at, notes')
+              .in('batch_id', linkedBatchIds)
+              .order('shipped_at', { ascending: true })
+          : Promise.resolve({ data: [] as DistributionRecord[] }),
+        supabase
+          .from('batch_events')
+          .select('event_type, description, created_at')
+          .in('batch_id', allBatchTextIds)
+          .order('created_at', { ascending: true }),
+      ])
+
+      const distributionRecords = (distResult.data ?? []) as DistributionRecord[]
+      const batchEventRows      = (batchEvResult.data ?? []) as BatchEventRow[]
 
       const jd = journeyRes.data as { timeline?: JourneyEvent[] } | null
       const rpcEvents: JourneyEvent[] = (jd?.timeline && Array.isArray(jd.timeline))
         ? [...jd.timeline].sort(chronologicalSort)
         : []
 
-      const synth  = synthesizeEvents(trace.order, trace.sales, capas, recalls, distributionRecords)
+      const synth  = [
+        ...synthesizeEvents(trace.order, trace.sales, capas, recalls, distributionRecords),
+        ...synthesizeBatchEvents(batchEventRows),
+      ]
       const merged = enforceLifecycleOrder(
         normalizeEvents(deduplicateSameDayQc(mergeJourneyEvents(rpcEvents, synth)))
       )
